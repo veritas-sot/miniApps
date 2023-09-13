@@ -1,0 +1,73 @@
+---
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: info
+    format: "%(levelname)s - %(message)s"
+configs:
+  onboarding: ../onboarding/conf/config.yaml.example
+  kobold: ../kobold/conf/kobold.yaml.example
+  nachtwaechter: ../nachtwaechter/conf/nachtwaechter.yaml.example
+  set_snmp: ../set_snmp/set_snmp.yaml.example
+  sot_properties: ../sot_properties/config.yaml.example
+  check_mk: ../check_mk/check_mk.yaml.example
+  smokeping: ../smokeping/conf/smokeping.yaml.example
+  script_bakery: ../script_bakery/config.yaml.example
+  veritas: ../../veritas/veritas/sot/conf/sot/config.yaml.example
+dotenv:
+  onboarding: ../onboarding/.env.example
+  kobold: ../kobold/.env.example
+  veritas: ../../veritas/veritas/sot/.env.example
+  nachtwaechter: ../nachtwaechter/.env.example
+defaults:
+  loglevel: info
+  encryptionkey: your_encryption_key
+  salt: your_salt
+  iterations: 390000
+nautobot:
+  token: your_token
+  url: nautobot_url
+accounts:
+  - username: insert_username
+    password: "insert_password"
+# now specific config of the miniapps
+check_mk:
+  checkmk: http://checkmk.site.local
+  site: name_of_site
+  username: username
+  password: password
+  loglevel: debug
+onboarding:
+  defaults_repo: repo_name
+  defaults_path: defaults_path
+  defaults_filename: defaults/default_values.yaml
+  backup_repo: repo_name
+  backup_path: backup_path
+  backup_subdir: device_configs
+  configs_repo: repo_name
+  configs_path: config_path
+  configs_subdir: config subdir
+kobold:
+  defaults_repo: repo_name
+  defaults_filename: defaults/default_values.yaml
+  playbook_repo: repo_name
+  playbook_path: playbook_path
+  playbook_subdir: playbook subdir
+veritas:
+  config_context_repo: repo_name
+  config_context_path: config_context_path
+  config_context_subdir: config_contexts
+  backup_repo: repo_name
+  backup_path: backup_path
+  backup_subdir: config_backups
+set_snmp:
+  snmp_repo: repo_name
+  snmp_repo_path: snmp_repo_path
+  snmp_credentials: path_to_credentials
+smokeping:
+  config_apth: path_to_config
+script_bakery:
+  credentials_path: credentials_repo_path
+  credentials_repo: repo_name
+  credentials_subdir: credentials subdir
+  credentials_file: credentials.yaml

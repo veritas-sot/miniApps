@@ -1,0 +1,70 @@
+---
+# default logins to connect to the devices
+# these accounts are not stored in nautobot
+accounts:
+  default:
+      # username to login to devices
+      username: "__USERNAME__"
+      # encrypted and base64 encoded password
+      password: "__PASSWORD__"
+nachtwaechter:
+  threads: 3
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: __LOGLEVEL__
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+profiles:
+  baseline:
+    postfix: .baseline
+    commands:
+      - command: show version
+      - command: show cdp neighbors detail
+      - command: show ip interface brief
+      - command: show interface status
+      - command: show ip route
+      - command: show spanning tree
+  reachability:
+    postfix: .reach
+    commands:
+      - command: echo
+  mac_and_ip:
+    postfix: .mac
+    format: table
+    join:
+      source:
+        - table: show ip arp
+          key: MAC
+        - table: show mac address-table
+          key: DESTINATION_ADDRESS
+      destination:
+        name: merged
+        value:
+          - key: ip
+            value: ADDRESS
+          - key: mac
+            value: MAC
+          - key: interface
+            value: INTERFACE
+    commands:
+      - command: show mac address-table
+      - command: show ip arp
+  bgp_neighbors:
+    postfix: .bgp
+    commands:
+      - command: show ip bgp neighbors
+  neighbors:
+    postfix: .neighbors
+    commands:
+      - command: show cdp neighbors detail
+  facts:
+    postfix: .facts
+    commands:
+      - command: show version
+  inventory:
+    postfix: .inventory
+    commands:
+      -  command: how cdp neighbors detail

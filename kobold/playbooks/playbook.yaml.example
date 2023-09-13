@@ -1,0 +1,116 @@
+---
+globals:
+  import: ./import
+jobs:
+  - job: 1
+    name: test
+    comment: test playbook
+    devices: 
+      select: id, hostname
+      from: nb.devices
+      where: site=default-site and name__ic=local
+    global_config:
+      - policy: or
+        contains: netflow
+    interface_config:
+        - contains: netflow
+    tasks:
+      - add_tag:
+        scope: dcim.device
+        tag: netflow
+
+  - job: 2
+    name: test
+    comment: test playbook
+    devices:
+      name__ic: lab.local
+      config:
+        - pattern: hostname lab
+    # or: True if global_config OR interfaces_config matches
+    # and: True if global_config __AND__ interfaces_config matches
+    policy: or
+    global_config:
+        # or: True if __ONE__ of the patterns matches
+        # and: True if __ALL__ of the patterns matches
+        policy: and
+        patterns:
+          - match__ic: hostname
+            ignore_leading_spaces: True
+    interface_config:
+        policy: or
+        patterns:
+          - match__ic: dhcp
+            ignore_leading_spaces: True
+          - match__ic: ip address
+            ignore_leading_spaces: True
+    tasks:
+      - add_tag:
+        scope: dcim.interface
+        tag: ospf
+      - set_tag:
+        scope: dcim.interface
+        tag: ospf
+      - delete_tag:
+        scope: dcim.interface
+        tag: ospf
+      - custom_field:
+        - test: testvalue
+          scope: dcim.interface
+        - net: netvalue
+          scope: dcim.interface          
+      - update_device:
+        - serial: device_facts__serial_number
+        - platform__slug: ios
+      - update_interface:
+        - description: description
+  
+  - job: 3
+    name: properties
+    comment: export properties
+    devices:
+      # of course the selected colums must include the columns you export
+      select: id, hostname, site__name, cf_net, cf_test
+      from: nb.devices
+      where: name=lab-01.local
+    tasks:
+      - export: 
+        - content: properties
+          directory: ./configs
+          header: True
+          # columns: hostname, primary_ip4__address, interfaces__name, interfaces__ip_addresses__address
+          # columns: interfaces__name, interfaces__description
+          columns: id, hostname, site__name,cf_net,cf_test, checksum
+          # columns: interfaces__id, interfaces__name, interfaces__description,checksum
+          format: csv
+          delimiter: ","
+          quotechar: "|"
+          quoting: minimal
+          filename: ./export/properties.csv
+
+  - job: 4
+    name: export high level data model (hldm)
+    comment: export HLDM
+    devices:
+      select: hostname,cf_net,site
+      from: nb.devices
+      where: name=lab-01.local
+    tasks:
+      - export: 
+        # content can be either config, facts, hldm or properties
+        - content: hldm
+          directory: hldm2/__cf_net__/__site_slug__
+          filename: __hostname__.json
+
+  - job: 5
+    name: export config and facts
+    comment: export configs, facts and properties
+    devices:
+      select: hostname, id, primary_ip4, cf_net, site
+      from: nb.devices
+      where: name=lab-01.local
+    tasks:
+      - export: 
+        # content can be either config, facts, hldm or properties
+        - content: config, facts
+          directory: configs
+          filename: __hostname__.json

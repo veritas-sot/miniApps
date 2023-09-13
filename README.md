@@ -1,2 +1,2 @@
-# miniApps
-veritas MiniApps
+__Veritas-SOT miniapps__
+

@@ -1,0 +1,123 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: __LOGLEVEL__
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+
+smokeping:
+  configpath: __PATH_TO_YOU_SMOKEPING_VOLUME__
+
+probes:
+  filename: Probes
+  FPing:
+    binary: /usr/sbin/fping
+  FPing6:
+    binary: /usr/sbin/fping
+    protocol: 6
+  DNS:
+    binary: /usr/bin/dig
+    lookup: google.com
+    pings: 5
+    step: 300
+  TCPPing:
+    binary: /usr/bin/tcpping
+    forks: 10
+    offset: random
+    pings: 5
+    port: 80
+
+targets:
+  - filename: Targets
+    query:
+      select: cf_net
+      from: nb.devices
+      where: all
+    template: target
+  - filename: second_net.conf
+    query: 
+      select: hostname, site, primary_ip4, cf_net
+      from: nb.devices
+      where: cf_net=second_net
+    template: networks
+  - filename: mynet.conf
+    query:
+      select: hostname, site, primary_ip4, cf_net
+      from: nb.devices
+      where: cf_net=mynet
+    template: networks
+
+templates:
+  networks: |
+    *** Targets ***
+    probe = FPing
+    {% for net_name in values["net"] %}
+    + {{ net_name }}
+    menu = {{ net_name }}
+    title = {{ net_name }}
+    {% for site_name in values["site"] %}
+    ++ {{ site_name }}
+    menu = {{ site_name }}
+    title = {{ site_name }}
+    {% for host in values["devices"] %}
+    {%- if host["custom_field_data"]["net"] == net_name and host["site"]["name"] == site_name %}
+    +++ {{ host["hostname"] }}
+    menu = {{ host["hostname"] }}
+    title = {{ host["hostname"] }}
+    {%- set ipaddress = host["primary_ip4"]["address"].split('/') %}
+    host = {{ ipaddress [0]}}
+    {% endif %}
+    {%- endfor %}
+    {%- endfor %}
+    {%- endfor %}
+    
+  target: |
+    *** Targets ***
+
+    probe = FPing
+
+    menu = Top
+    title = veritas Network Latency Grapher
+    remark = Welcome to the veritas SmokePing website
+    {% for net_name in values["net"] %}
+    @include {{ net_name }}.conf
+    {%- endfor %}
+
+queries:
+  devices: >
+    query ($site:[String], $name:[String], $role:[String], $model:[String], $tag:[String], __q_cffield__) {
+      devices(name: $name, site: $site, role: $role, tag: $tag, model:$model, __d_cffield__) {
+        hostname: name
+        primary_ip4 {
+          address
+        }
+        site {
+          name
+          slug
+        }
+        device_role {
+          name
+          slug
+        }
+        device_type {
+          model
+          slug
+        }
+        platform {
+          name
+          slug
+        }
+        custom_field_data: _custom_field_data
+        tags {
+          name
+        }
+      }
+    }

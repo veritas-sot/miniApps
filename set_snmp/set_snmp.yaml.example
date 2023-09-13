@@ -1,0 +1,39 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+credentials:
+  snmp: 
+    repo: __SNMP_REPO__
+    path: __SNMP_REPO_PATH__
+    filename: __SNMP_CREDENTIALS__
+queries:
+  devices: >
+      query ($site:[String], $name:[String], $role:[String], $model:[String] $tag:[String]) {
+        devices(__name__: $name, site: $site, role: $role, tag: $tag, model:$model) {
+          hostname: name
+          primary_ip4 {
+            address
+          }
+          site {
+            name
+            slug
+          }
+          device_role {
+            name
+            slug
+          }
+          device_type {
+            model
+            slug
+          }
+          platform {
+            name
+            slug
+          }
+          _custom_field_data
+          tags {
+            name
+          }
+        }
+      }

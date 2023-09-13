@@ -1,0 +1,56 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: debug
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+# default logins to connect to the devices
+# these accounts are not stored in nautobot
+accounts:
+  default:
+      # username to login to devices
+      username: "__USERNAME__"
+      # encrypted and base64 encoded password
+      password: "__PASSWORD__"
+credentials:
+  snmp: 
+    repo: __CREDENTIALS_REPO__
+    path: __CREDENTIALS_PATH__
+    subdir: __CREDENTIALS_SUBDIR__
+    filename: __CREDENTIALS_FILE__
+# the next configurations are later retrieved by our SOT
+users:
+  - username: username
+    privilege: 15
+    secret: password
+  - username: another_name
+    privilege: 15
+    secret: another_password
+snmp:
+  defaults:
+    accesslist: MGMT
+  users:
+    v3_auth_privacy: snmp-server user _security_name_ _security_group_ v3 auth _auth_protocol_ _auth_password_ priv _privacy_protocol_ _privacy_password_
+    v3_auth_no_privacy: snmp-server user _security_name_ _group_ v3 auth _auth_protocol_ _auth_password_ 
+  global_config:
+    - general: snmp-server contact _snmp_contact_
+    - v3: snmp-server group _security_group_ v3 auth
+    - v3: snmp-server group _security_group_ v3 auth context vlan- match prefix
+  access-list:
+    # SNMP is the name of the access list
+    - SNMP:
+      config:
+        10: remark MGMT
+        20: permit _IP_
+        30: deny any log
+backup:
+  backup_dir: /tmp/backups
+  individual_hostdir: True
+  

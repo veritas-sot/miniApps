@@ -1,0 +1,27 @@
+---
+global:
+  ignore_first_line: True
+  separator: ","
+  strip_newline: True
+  encoding: utf-16le
+input:
+  0: caption
+  1: address
+  2: city
+  3: continent
+  4: country
+  5: net
+  6: layer
+output:
+  template: |2
+    ---
+    {%- for item in values %}
+    - host: {{ item['address'] }}
+      hostname: {{ item['caption'] }}
+      platform: ios
+      city: {{ item['city'] }}
+      continent: {{ item['continent'] }}
+      country: {{ item['country'] }}
+      net: {{ item['net'] }}
+      layer: {{ item['layer'] }}
+    {%- endfor -%}

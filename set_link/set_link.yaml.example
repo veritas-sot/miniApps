@@ -1,0 +1,27 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: info
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+
+defaults:
+  custom_field: link
+  count: 3
+  interval: 2
+  timeout: 2
+  #source: 192.168.0.1
+  # set cf_link to lan if latency is lower than 10ms
+  latency:
+    lan: 10
+    wan: 20
+    sat: 100
+  

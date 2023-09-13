@@ -1,0 +1,46 @@
+---
+index:
+  - command: show cdp neighbors detail
+    template:
+      ios: cisco_ios_show_cdp_neighbors_detail.textfsm
+      nxos: cisco_nxos_show_cdp_neighbors_detail.textfsm
+  - command: show ip interface brief
+    template:
+      ios: cisco_ios_show_ip_interface_brief.textfsm
+      nxos: cisco_nxos_show_ip_interface_brief.textfsm
+  - command: show version
+    template:
+      ios: cisco_ios_show_version.textfsm
+      nxos: cisco_nxos_show_version.textfsm
+  - command: show ip bgp summary
+    template:
+      ios: cisco_ios_show_ip_bgp_summary.textfsm
+      nxos: cisco_nxos_show_ip_bgp_summary.textfsm
+  - command: show ip ospf neighbor
+    template:
+      ios: cisco_ios_show_ip_ospf_neighbor.textfsm
+      nxos: cisco_nxos_show_ip_ospf_neighbor.textfsm
+  - command: show ip route
+    template:
+      ios: cisco_ios_show_ip_route.textfsm
+      nxos: cisco_nxos_show_ip_route.textfsm
+  - command: show interface status
+    template:
+      ios: cisco_ios_show_interfaces_status.textfsm
+      nxos: cisco_nxos_show_interface_status.textfsm
+  - command: show spanning tree
+    template:
+      ios: cisco_ios_show_spanning-tree.textfsm
+      nxos: cisco_ios_show_spanning-tree.textfsm
+  - command: show mac address-table
+    template:
+      ios: cisco_ios_show_mac-address-table.textfsm
+      nxos: cisco_nxos_show_mac_address-table.textfsm
+  - command: show ip arp
+    template:
+      ios: cisco_ios_show_ip_arp.textfsm
+      nxos: cisco_nxos_show_ip_arp.textfsm
+  - command: show ip bgp neighbors
+    template:
+      ios: cisco_ios_show_ip_bgp_neighbors.textfsm
+      nxos: cisco_nxos_show_ip_bgp_neighbors.textfsm

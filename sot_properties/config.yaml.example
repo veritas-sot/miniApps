@@ -1,0 +1,70 @@
+---
+files:
+  prefixes:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/prefixes.yaml
+  defaults:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/default_values.yaml
+  sites:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/sites.yaml
+  manufacturers:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/manufacturers.yaml
+  platforms:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/platforms.yaml
+  device_roles:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/device_roles.yaml
+  device_types:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/device_types.yaml
+  location_types:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/location_types.yaml
+  locations:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/locations.yaml
+  tags:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/tags.yaml
+  custom_fields:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/custom_fields.yaml
+  custom_links:
+    repo: sot_data
+    filename: defaults/custom_links.yaml
+  custom_field_choices:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/custom_fields.yaml
+  webhooks:
+    repo: sot_data
+    path: __REPO_PATH__
+    filename: defaults/webhooks.yaml
+device_library:
+  directory: /path/to/device_types/library/
+country_library:
+  # source eg https://raw.githubusercontent.com/bhatvikrant/world-countries-capitals/master/data/data.json
+  directory: /path/to/countries/library/all_countries.json
+logging:
+  # set loglevel to your need (debug, info, error, critical)
+  level: __LOGLEVEL__
+  format: "%(levelname)s - %(message)s"
+  # use filename to write logging to a file
+  # filename: out.log
+  # if you want to write the result to a file use result: "filename" instead
+  result: stdout

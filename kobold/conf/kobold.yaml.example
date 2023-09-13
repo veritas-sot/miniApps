@@ -1,0 +1,86 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+kobold:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: __LOGLEVEL__
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+# default logins to connect to the devices
+# these accounts are not stored in nautobot
+profiles:
+  default:
+      # username to login to devices
+      username: "__USERNAME__"
+      # encrypted and base64 encoded password
+      password: "__PASSWORD__"
+git:
+  defaults:
+    repo: __DEFAULTS_REPO__
+    path: __DEFAULTS_PATH__
+    filename: __DEFAULTS_FILENAME__
+  playbooks:
+    repo: __PLAYBOOK_REPO__
+    path: __PLAYBOOK_PATH__
+    subdir: __PLAYBOOK_SUBDIR__
+defaults:
+  import:
+    delimiter: ","
+    quotechar: "|"
+    quoting: minimal
+    primary_interface: Management0/0
+# mappings are used to map column names to SOT names
+mappings:
+  export:
+    device_id: id
+    primary_ip: primary_ip4__address
+    interface_name: interfaces__name
+    interface_address: interfaces__ip_addresses__address
+  import:
+    myField: cf_field
+
+queries:
+  devices: >
+        query ($site:[String], $__name__:[String], $role:[String], $model:[String] $tag:[String]) {
+          devices(__name__: $__name__, site: $site, role: $role, tag: $tag, model:$model) {
+            hostname: name
+            id
+            platform {
+              name
+              slug
+              manufacturer {
+                name
+                slug
+              }
+            }
+            primary_ip4 {
+              address
+            }
+          }
+        }
+  
+  by_cidr: >
+        query ($cidr: String) {
+          ip_addresses(parent: $cidr) {
+            primary_ip4_for {
+              hostname: name
+              id
+              platform {
+                name
+                slug
+                manufacturer {
+                  name
+                  slug
+                }
+              }
+              primary_ip4 {
+                address
+              }
+            }
+          }
+        }
