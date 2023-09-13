@@ -34,7 +34,7 @@ profiles:
       # encrypted and base64 encoded password
       password: "__PASSWORD__"
 
-onboarding:
+general:
   logging:
     # set loglevel to your need (debug, info, error, critical)
     level: __LOGLEVEL__
@@ -43,6 +43,7 @@ onboarding:
     # filename: out.log
     # if you want to write the result to a file use result: "filename" instead
     result: stdout
+onboarding:
   defaults:
     # the default primary interface we use to get the primary address
     interface:

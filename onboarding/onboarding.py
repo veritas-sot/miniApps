@@ -162,8 +162,6 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
 if __name__ == "__main__":
 
     # init vars
-    username = None
-    password = None
     defaults = None
     device_facts = None
     device_names_in_sot = {}
@@ -247,38 +245,16 @@ if __name__ == "__main__":
     with open(config_file) as f:
         onboarding_config = yaml.safe_load(f.read())
     
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(onboarding_config, ['onboarding', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(onboarding_config, ['onboarding', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(onboarding_config, ['onboarding', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+    # set loglevel before init our SOT!!!
+    tools.set_loglevel(args, onboarding_config)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=onboarding_config['sot']['token'], 
                   url=onboarding_config['sot']['nautobot'],
                   git=onboarding_config['git'])
 
-    # get username and password from profile if user configured args.profile
-    if args.profile is not None:
-        username = onboarding_config.get('profiles',{}).get(args.profile,{}).get('username')
-        token = onboarding_config.get('profiles',{}).get(args.profile,{}).get('password')
-        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                        salt=os.getenv('SALT'), 
-                        iterations=int(os.getenv('ITERATIONS')))
-        password = auth.decrypt(token)
-
-    # overwrite username and password if configured by user
-    username = args.username if args.username else username
-    password = args.password if args.password else password
-
-    username = input("Username (%s): " % getpass.getuser()) if not username else username
-    password = getpass.getpass(prompt="Enter password for %s: " % username) if not password else password
+    # get username and password either from profile or by get username / getpass or args
+    username, password = tools.get_username_and_password(args, sot, onboarding_config)
 
     # get default values of prefixes. This is needed only once
     name_of_repo = args.repo or onboarding_config['git']['defaults']['repo']
@@ -316,7 +292,7 @@ if __name__ == "__main__":
         raw = sot.select('hostname', 'primary_ip4', 'platform', 'interfaces') \
                             .using('nb.devices') \
                             .normalize(False) \
-                            .where(args.sot)
+                            .where()
         for device in raw:
             hostname = device.get('hostname')
             device_names_in_sot[hostname.lower()] = True

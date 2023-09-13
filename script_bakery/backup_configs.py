@@ -5,6 +5,7 @@ import logging
 import os
 import yaml
 import json
+import getpass
 from datetime import datetime
 from veritas.sot import sot as sot
 from veritas.tools import tools
@@ -52,6 +53,9 @@ def backup_config(task, path, host_dirs):
     )
 
 if __name__ == "__main__":
+
+    username = None
+    password = None
 
     parser = argparse.ArgumentParser()
 

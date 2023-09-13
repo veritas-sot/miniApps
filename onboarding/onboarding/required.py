@@ -113,6 +113,17 @@ def add_values_from_csv(response, item_config, device_facts, device_defaults, on
 
 def add_values_from_excel(response, item_config, device_facts, device_defaults, onboarding_config):
 
+    # read excel file and add values to our response if a certain value matches
+    # eg. col 1 of our excel sheet is named 'hostname'. We are now checking 
+    # if the device_facts or the device_defaults have a key called hostname
+    # If the key was found and the value matches (device_facts hostname == excel value) 
+    # we add all the values of the sheet to our response
+    #
+    # the item_config contains a mapping sot_key => excel_key
+    # eg. device_facts = {'xxx': 'myhost'}
+    # than the mapping [{'xxx':'hostname'}] maps the key hostname of our
+    # excel sheet to the key xxx of our device_facts or device_defaults
+
     global _global_cache
 
     table = []
@@ -150,18 +161,18 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
         # maybe there are multiple items
         for matches_on in item_config.get('matches_on'):
             # sot key => name of key in our sot
-            # csv_key => name of column in our csv file
-            for sot_key, csv_key in matches_on.items():
+            # excel_key => name of column in our csv file
+            for sot_key, excel_key in matches_on.items():
                 df = device_facts.get(sot_key,'')
-                if len(df) > 0 and df.lower() == row.get(csv_key,'').lower():
-                    del row[csv_key]
+                if len(df) > 0 and df.lower() == row.get(excel_key,'').lower():
+                    del row[excel_key]
                     for k,v in row.items():
                         # do not add None or empty values
                         if v and len(v) > 0:
                             set_value(response, k, v)
                 dd = device_defaults.get(sot_key,'')
-                if len(dd) > 0 and dd.lower() == row.get(csv_key,'').lower():
-                    del row[csv_key]
+                if len(dd) > 0 and dd.lower() == row.get(excel_key,'').lower():
+                    del row[excel_key]
                     for k,v in row.items():
                         # do not add None or empty values
                         if v and len(v) > 0:

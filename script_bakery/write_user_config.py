@@ -8,6 +8,7 @@ import sys
 import json
 import re
 import time
+import getpass
 from veritas.sot import sot as sot
 from veritas.tools import tools
 from dotenv import load_dotenv, dotenv_values

@@ -6,6 +6,7 @@ import os
 import yaml
 import sys
 import json
+import getpass
 from veritas.sot import sot as sot
 from veritas.tools import tools
 from dotenv import load_dotenv, dotenv_values
