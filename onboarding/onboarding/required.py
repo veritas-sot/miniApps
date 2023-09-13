@@ -165,7 +165,10 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
             for sot_key, excel_key in matches_on.items():
                 df = device_facts.get(sot_key,'')
                 if len(df) > 0 and df.lower() == row.get(excel_key,'').lower():
+                    # remove value (and only the value that matches)
+                    # from our row / otherwise the key will be added to our response dict 
                     del row[excel_key]
+                    # add all values to our response dict
                     for k,v in row.items():
                         # do not add None or empty values
                         if v and len(v) > 0:
