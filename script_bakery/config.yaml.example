@@ -13,7 +13,7 @@ general:
     result: stdout
 # default logins to connect to the devices
 # these accounts are not stored in nautobot
-accounts:
+profiles:
   default:
       # username to login to devices
       username: "__USERNAME__"

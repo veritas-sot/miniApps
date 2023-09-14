@@ -134,43 +134,14 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_config_file = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(local_config_file, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(local_config_file, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(local_config_file, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
-
-    # set scrapli loglevel
-    logging.getLogger('scrapli').setLevel(tools.get_loglevel(args.scrapli_loglevel))
-    logging.getLogger('scrapli').propagate = True
-
-    # set ttp loglevel
-    logging.getLogger('ttp').setLevel(logging.CRITICAL)
+    # set loglevel before init our SOT!!!
+    tools.set_loglevel(args, onboarding_config)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
 
-    # get username and password from profile if user configured args.profile
-    if args.profile is not None:
-        username = local_config_file.get('profiles',{}).get(args.profile,{}).get('username')
-        token = local_config_file.get('profiles',{}).get(args.profile,{}).get('password')
-        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                        salt=os.getenv('SALT'), 
-                        iterations=int(os.getenv('ITERATIONS')))
-        password = auth.decrypt(token)
-
-    # overwrite username and password if configured by user
-    username = args.username if args.username else username
-    password = args.password if args.password else password
-
-    username = input("Username (%s): " % getpass.getuser()) if not username else username
-    password = getpass.getpass(prompt="Enter password for %s: " % username) if not password else password
+    # get username and password either from profile or by get username / getpass or args
+    username, password = tools.get_username_and_password(args, sot, onboarding_config)
 
     # read new user config
     new_users = local_config_file.get('users')
