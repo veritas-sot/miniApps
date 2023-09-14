@@ -93,6 +93,11 @@ def export_config_and_facts(device_config, device_facts, directory="./export"):
         logging.error('could not export config and facts')
         return
 
+    # create directory if it does not exsists
+    directory = os.path.dirname(config_filename)
+    if not os.path.exists(directory):
+        os.makedirs(directory)    
+
     logging.info(f'export config to {config_filename}')
     with open(config_filename, 'w') as f:
         f.write(device_config)
@@ -322,18 +327,31 @@ if __name__ == "__main__":
 
     # add inventory from file
     if args.inventory:
-        with open(args.inventory) as f:
-            config = yaml.safe_load(f.read())
-            for d in config:
-                # the inventory includes host (IP), hostname (name) and platform (ios or nxos)
-                # check if hostname has no space in name
-                d['hostname'] = d['hostname'].split(' ')[0]
-                # use a simple filter to exclude devices
-                if args.filter:
-                    if args.filter.lower() not in d['hostname'].lower():
-                        continue
+        if '.xlsx' in args.inventory:
+            mapping = onboarding_config.get('onboarding',{}).get('mappings',{})
+            table = tools.read_excel_file(f'{BASEDIR}/{args.inventory}')
+            for row in table:
+                d = {}
+                for k,value in row.items():
+                    key = mapping.get(k) if k in mapping else k
+                    d[key] = value
                 devicelist.append(d)
-            f.close()
+        elif '.csv' in args.inventory:
+            with open(args.inventory) as f:
+                config = yaml.safe_load(f.read())
+                for d in config:
+                    # the inventory includes host (IP), hostname (name) and platform (ios or nxos)
+                    # check if hostname has no space in name
+                    d['hostname'] = d['hostname'].split(' ')[0]
+                    # use a simple filter to exclude devices
+                    if args.filter:
+                        if args.filter.lower() not in d['hostname'].lower():
+                            continue
+                    devicelist.append(d)
+                f.close()
+        else:
+            logging.error(f'cannot read {args.inventory}; unknown file format')
+            sys.exit()
 
     # add inventory from cli
     if args.device is not None:
@@ -354,7 +372,7 @@ if __name__ == "__main__":
         in_sot = False
         device_uuid = None
         # device might be an IP ADDRESS and not the name
-        host_or_ip = device_dict.get('host')
+        host_or_ip = device_dict.get('host').lower()
         # the hostname is ALWAYS lower case
         hostname = device_dict.get('hostname', host_or_ip).lower()
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
@@ -493,11 +511,6 @@ if __name__ == "__main__":
             device_facts['is_in_sot'] = in_sot
             device_facts['id'] = device_dict.get('id', device_uuid)
 
-        # parse config / configparser is a dict that contains all necessary data
-        configparser = sot.configparser(config=device_config, platform=device_platform)
-        if configparser.could_not_parse():
-            continue
-
         if args.show_facts:
             print(json.dumps(dict(device_facts), indent=4))
             continue
@@ -506,6 +519,11 @@ if __name__ == "__main__":
             continue
         if args.export:
             export_config_and_facts(device_config, device_facts, export_directory)
+            continue
+
+        # parse config / configparser is a dict that contains all necessary data
+        configparser = sot.configparser(config=device_config, platform=device_platform)
+        if configparser.could_not_parse():
             continue
 
         logging.debug("calling onboarding")
