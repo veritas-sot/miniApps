@@ -141,7 +141,7 @@ if __name__ == "__main__":
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
 
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, onboarding_config)
+    username, password = tools.get_username_and_password(args, sot, local_config_file)
 
     # read new user config
     new_users = local_config_file.get('users')

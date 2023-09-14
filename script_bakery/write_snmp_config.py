@@ -297,13 +297,13 @@ if __name__ == "__main__":
         local_snmp_config_file = yaml.safe_load(f.read())
 
     # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, onboarding_config)
+    tools.set_loglevel(args, local_snmp_config_file)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_snmp_config_file['sot']['token'], url=local_snmp_config_file['sot']['nautobot'])
 
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, onboarding_config)
+    username, password = tools.get_username_and_password(args, sot, local_snmp_config_file)
 
     # read SNMP credentials
     get_snmp_credentials(sot, local_snmp_config_file)

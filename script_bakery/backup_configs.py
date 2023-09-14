@@ -38,6 +38,11 @@ def backup_config(task, path, host_dirs):
     else:
         prefix = f'{path}/{task.host}_{dt}'
 
+    # modify startup config
+    # on some cisco switches the startup config begins with Using xx out of yy bytes
+    if startup_config.startswith('Using '):
+        startup_config = startup_config.split('\n',1)[1]
+
     # Task 2. Write startup config
     task.run(
         task=write_file,
@@ -88,13 +93,13 @@ if __name__ == "__main__":
         local_config_file = yaml.safe_load(f.read())
 
     # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, onboarding_config)
+    tools.set_loglevel(args, local_config_file)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
 
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, onboarding_config)
+    username, password = tools.get_username_and_password(args, sot, local_config_file)
 
     # check if backup directory exists
     backup_dir = args.backup_dir if args.backup_dir else \
