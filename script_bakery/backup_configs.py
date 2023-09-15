@@ -6,8 +6,10 @@ import os
 import yaml
 import json
 import getpass
+import sys
 from datetime import datetime
 from veritas.sot import sot as sot
+from veritas.sot import repository
 from veritas.tools import tools
 from dotenv import load_dotenv, dotenv_values
 from nornir import InitNornir
@@ -17,7 +19,10 @@ from nornir_utils.plugins.functions import print_result
 from nornir_netmiko.tasks import netmiko_send_command
 
 
-def backup_config(task, path, host_dirs):
+def backup_config(task, path, host_dirs, set_timestamp=False):
+
+    dt = ""
+
     # Task 1. get configs
     response = task.run(
         name="config",
@@ -27,16 +32,17 @@ def backup_config(task, path, host_dirs):
     startup_config = response[0].result.get('config',{}).get('startup')
 
     # get current date and time
-    now = datetime.now()
-    dt = now.strftime("%Y_%m_%d_%H%M%S")
+    if set_timestamp:
+        now = datetime.now()
+        dt = f'_{now.strftime("%Y_%m_%d_%H%M%S")}'
 
     # use individual host directories?
     if host_dirs:
-        prefix = f'{path}/{task.host}/{task.host}_{dt}'
+        prefix = f'{path}/{task.host}/{task.host}{dt}'
         if not os.path.exists(f'{path}/{task.host}/'):
             os.makedirs(f'{path}/{task.host}/')
     else:
-        prefix = f'{path}/{task.host}_{dt}'
+        prefix = f'{path}/{task.host}{dt}'
 
     # modify startup config
     # on some cisco switches the startup config begins with Using xx out of yy bytes
@@ -102,12 +108,16 @@ if __name__ == "__main__":
     username, password = tools.get_username_and_password(args, sot, local_config_file)
 
     # check if backup directory exists
-    backup_dir = args.backup_dir if args.backup_dir else \
-        local_config_file.get('backup',{}).get('backup_dir','./backups/')
-    if not backup_dir.startswith('/'):
-        backup_dir = f'{BASEDIR}/{backup_dir}'
+    if args.backup_dir:
+        backup_dir = args.backup_dir
+        path_to_repo = backup_dir
+    else:
+        path_to_repo = local_config_file.get('git',{}).get('backups',{}).get('path',{})
+        subdir = local_config_file.get('git',{}).get('backups',{}).get('subdir','')
+        backup_dir = f'{path_to_repo}/{subdir}'
     if not os.path.exists(backup_dir):
-        os.makedirs(backup_dir)
+        logging.error(f'backup directory {backup_dir} does not exsists')
+        sys.exit()
     
     # init nornir
     nr = sot.job.on(args.devices) \
@@ -120,3 +130,30 @@ if __name__ == "__main__":
             path=backup_dir,
             host_dirs=local_config_file.get('backup',{}).get('individual_hostdir',True)
     )
+
+    # now add all files to git staging
+    name_of_repo = local_config_file.get('git',{}).get('backups',{}).get('name',{})
+    remote = local_config_file.get('git',{}).get('backups',{}).get('remote',{})
+    repo = sot.repository(repo=name_of_repo, path=path_to_repo)
+
+    # check that the origin matches
+    if repo.remotes.origin.url != remote:
+        logging.error(f'configured origin does not match')
+        logging.error(f'{repo.remotes.origin.url} (configured)')
+        logging.error(f'{remote} (should be)')
+        sys.exit()
+
+    logging.info(f'using origin url {remote}')
+    has_changes = repo.has_changes()
+    if not has_changes:
+        logging.info(f'no changes in our git repo detected')
+        sys.exit()
+    untracked = repo.get_untracked_files()
+    logging.info(f'list of untracked files')
+    logging.info(untracked)
+
+    repo.add_all()
+    now = datetime.now()
+    dt = now.strftime("%Y_%m_%d_%H%M%S")
+    repo.commit(comment=f'updating config {dt}')
+    repo.push()

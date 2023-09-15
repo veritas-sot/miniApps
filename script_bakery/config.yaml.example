@@ -26,6 +26,12 @@ credentials:
     subdir: __CREDENTIALS_SUBDIR__
     filename: __CREDENTIALS_FILE__
 # the next configurations are later retrieved by our SOT
+git:
+  backups:
+    repo: device_configs
+    remote: __BACKUP_REMOTE_URL__
+    path: __BACKUP_PATH__
+    subdir: /
 users:
   - username: username
     privilege: 15
