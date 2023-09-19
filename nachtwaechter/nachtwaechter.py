@@ -178,8 +178,7 @@ if __name__ == "__main__":
     # set number of parallel tasks
     threads = nachtwaechter_config.get('nachtwaechter',{}).get('threads')
     threads = DEFAULT_THREADS if not threads else threads
-    print(threads)
-    sys.exit()
+
     # read blacklist
     if args.blacklist:
         if os.path.isfile(BASEDIR + "/conf/%s" % args.blacklist):
