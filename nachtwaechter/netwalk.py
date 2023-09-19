@@ -122,7 +122,7 @@ class Netwalk:
                     target.append(l1 | l2)
         return target
 
-    def merge_tables(self, values, template_config, profile) -> list:
+    def merge_tables(self, values, template_config, job) -> list:
 
         final_set = []
         template = {}
@@ -130,10 +130,10 @@ class Netwalk:
         for t in template_config:
             template[t['key']] = t['value']
 
-        table1 = profile['source'][0]['table']
-        table2 = profile['source'][1]['table']
-        key1 = profile['source'][0]['key']
-        key2 = profile['source'][1]['key']
+        table1 = job['source'][0]['table']
+        table2 = job['source'][1]['table']
+        key1 = job['source'][0]['key']
+        key2 = job['source'][1]['key']
 
         dataset = self.join_values(values, table1, table2, key1, key2)
 
@@ -320,7 +320,7 @@ class Netwalk:
                                      'polling': 'success',
                                      'adding': added})
 
-                if params['profile'] != "inventory":
+                if params['job'] != "inventory":
                     if params['write']:
                         self.write_data_to_disk(q['host_ip'], result, params)
                     if params['print']:
@@ -356,7 +356,7 @@ class Netwalk:
         # Wait until all worker tasks are cancelled.
         await asyncio.gather(*tasks, return_exceptions=True)
 
-        if self.params['profile'] == "inventory":
+        if self.params['job'] == "inventory":
             self.write_inventory_to_disk(self.params)
 
         # print self.statistics

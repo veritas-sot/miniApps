@@ -8,7 +8,9 @@ import getpass
 import time
 import asyncio
 import netwalk
+import yaml
 from dotenv import load_dotenv, dotenv_values
+from veritas.sot import sot
 from veritas.tools import tools
 
 
@@ -22,7 +24,7 @@ DEFAULT_THREADS = 2
 if __name__ == "__main__":
 
     # defaults
-    profile = "reachability"
+    job = "reachability"
     walk = False
     write = False
     print_output = False
@@ -44,7 +46,7 @@ if __name__ == "__main__":
     parser.add_argument('--baseline', action='store_true')
     parser.add_argument('--reachability', action='store_true')
     parser.add_argument('--inventory', action='store_true')
-    parser.add_argument('--commands', type=str, required=False)
+    parser.add_argument('--job', type=str, required=False)
     # how to walk
     parser.add_argument('--no-walk-cdp', action='store_true')
     parser.add_argument('--walk-route', action='store_true')
@@ -63,7 +65,8 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False)
     # dir to write collected data to
     parser.add_argument('--output', type=str, required=False)
-
+    # set the log level
+    parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
     args = parser.parse_args()
 
     # check parameter
@@ -85,7 +88,7 @@ if __name__ == "__main__":
         output_dir = args.output
 
     if args.reachability:
-        profile = "reachability"
+        job = "reachability"
 
     # Connect the path with the '.env' file name
     load_dotenv(os.path.join(BASEDIR, '.env'))
@@ -96,66 +99,47 @@ if __name__ == "__main__":
     with open(config_file) as f:
         nachtwaechter_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(nachtwaechter_config, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
+    # set loglevel before init our SOT!!!
+    tools.set_loglevel(args, nachtwaechter_config)
 
-    log_format = tools.get_value_from_dict(nachtwaechter_config, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(nachtwaechter_config, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # we just need the tools
+    sot = sot.Sot(token="", url="", git="")
 
-    # get username and password from profile if user configured args.profile
-    if args.profile is not None:
-        username = nachtwaechter_config.get('profiles',{}).get(args.profile,{}).get('username')
-        token = nachtwaechter_config.get('profiles',{}).get(args.profile,{}).get('password')
-        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                        salt=os.getenv('SALT'), 
-                        iterations=int(os.getenv('ITERATIONS')))
-        password = auth.decrypt(token)
-
-    # overwrite username and password if configured by user
-    username = args.username if args.username else username
-    password = args.password if args.password else password
-
-    username = input("Username (%s): " % getpass.getuser()) if not username else username
-    password = getpass.getpass(prompt="Enter password for %s: " % username) if not password else password
+    # get username and password either from profile or by get username / getpass or args
+    username, password = tools.get_username_and_password(args, sot, nachtwaechter_config)
 
     # set some parameter
     if args.baseline:
-        profile = "baseline"
+        job = "baseline"
     elif args.reachability:
-        profile = "reachability"
+        job = "reachability"
     elif args.inventory:
-        profile = "inventory"
+        job = "inventory"
     else:
-        if not args.commands:
-            print("no profile specified")
+        if not args.job:
+            print("no job specified")
             sys.exit()
-        profile = args.commands
+        job = args.job
 
-    # read profile and postfix
-    if profile not in nachtwaechter_config['profiles']:
-        print("Unknown profile %s" % profile)
+    # read job and postfix
+    if job not in nachtwaechter_config['jobs']:
+        print("Unknown job %s" % job)
         sys.exit()
 
     # template_index = utilities.read_config(TEMPLATES_INDEX)['index']
     with open(TEMPLATES_INDEX) as f:
         template_index = yaml.safe_load(f.read())['index']
 
-    profile_config = nachtwaechter_config['profiles'][profile]
-    postfix = profile_config.get('postfix')
-    output_format = profile_config.get('format', 'json')
+    job_config = nachtwaechter_config['jobs'][job]
+    postfix = job_config.get('postfix')
+    output_format = job_config.get('format', 'json')
     # overwrite format if user want a different one
     if args.format:
         output_format = args.format
 
-    if 'join' in profile_config:
-        params.update({'join': profile_config['join']})
-    for line in profile_config['commands']:
+    if 'join' in job_config:
+        params.update({'join': job_config['join']})
+    for line in job_config['commands']:
         if line['command'] == "echo":
             commands['echo'] = 'echo'
         else:
@@ -192,11 +176,10 @@ if __name__ == "__main__":
             }})
 
     # set number of parallel tasks
-    if 'threads' in nachtwaechter_config['nachtwaechter']:
-        threads = nachtwaechter_config['nachtwaechter']['threads']
-    else:
-        threads = DEFAULT_THREADS
-
+    threads = nachtwaechter_config.get('nachtwaechter',{}).get('threads')
+    threads = DEFAULT_THREADS if not threads else threads
+    print(threads)
+    sys.exit()
     # read blacklist
     if args.blacklist:
         if os.path.isfile(BASEDIR + "/conf/%s" % args.blacklist):
@@ -228,7 +211,7 @@ if __name__ == "__main__":
         'auth_password': password,
         'output': output_dir,
         'commands': commands, # hier die gesamte konfig des teils
-        'profile': profile,
+        'job': job,
         'postfix': postfix,
         'todo': todo,
         'walk': walk,

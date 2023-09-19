@@ -1,14 +1,15 @@
 ---
+nachtwaechter:
+  threads: 10
 # default logins to connect to the devices
 # these accounts are not stored in nautobot
-accounts:
+profiles:
   default:
       # username to login to devices
       username: "__USERNAME__"
       # encrypted and base64 encoded password
       password: "__PASSWORD__"
-nachtwaechter:
-  threads: 3
+general:
   logging:
     # set loglevel to your need (debug, info, error, critical)
     level: __LOGLEVEL__
@@ -17,7 +18,7 @@ nachtwaechter:
     # filename: out.log
     # if you want to write the result to a file use result: "filename" instead
     result: stdout
-profiles:
+jobs:
   baseline:
     postfix: .baseline
     commands:
