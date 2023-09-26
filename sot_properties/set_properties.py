@@ -30,7 +30,8 @@ def read_and_convert_data(sot, config, name):
 
 def import_data(config, args):
     # we need the SOT object to talk to the SOT
-    my_sot = sot.Sot()
+    my_sot = sot.Sot(token=config['sot']['token'], 
+                     url=config['sot']['nautobot'])
 
     # first of all import sites
     if args.sites or args.all:
