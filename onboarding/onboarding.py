@@ -254,7 +254,8 @@ if __name__ == "__main__":
     tools.set_loglevel(args, onboarding_config)
 
     # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=onboarding_config['sot']['token'], 
+    sot = sot.Sot(token=onboarding_config['sot']['token'],
+                  ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
                   url=onboarding_config['sot']['nautobot'],
                   git=onboarding_config['git'])
 
@@ -328,13 +329,35 @@ if __name__ == "__main__":
     # add inventory from file
     if args.inventory:
         if '.xlsx' in args.inventory:
-            mapping = onboarding_config.get('onboarding',{}).get('mappings',{})
+            # read mapping from miniapps config
+            conf_dir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
+                                  onboarding_config.get('git').get('app_configs').get('subdir'))
+            directory = os.path.join(conf_dir, './onboarding/mappings/')
+
+            filename = "%s/%s" % (directory, 
+                onboarding_config.get('onboarding',{}).get('mappings',{}).get('inventory',{}).get('filename')
+            )
+            if filename:
+                # read mapping from file
+                logging.debug(f'reading additional values from {filename}')
+                with open(filename) as f:
+                    mapping_config = yaml.safe_load(f.read())
+                column_mapping = mapping_config.get('mappings',{}).get('columns',{})
+                value_mapping = mapping_config.get('mappings',{}).get('values',{})
             table = tools.read_excel_file(f'{BASEDIR}/{args.inventory}')
             for row in table:
                 d = {}
-                for k,value in row.items():
-                    key = mapping.get(k) if k in mapping else k
+                for k,v in row.items():
+                    key = column_mapping.get(k) if k in column_mapping else k
+                    if key in value_mapping:
+                        if v == None:
+                            value = value_mapping[key].get('None', v)
+                        else:
+                            value = value_mapping[key].get(v, v)
+                    else:
+                        value = v
                     d[key] = value
+                print(d)
                 devicelist.append(d)
         elif '.csv' in args.inventory:
             with open(args.inventory) as f:
@@ -352,7 +375,7 @@ if __name__ == "__main__":
         else:
             logging.error(f'cannot read {args.inventory}; unknown file format')
             sys.exit()
-
+    sys.exit()
     # add inventory from cli
     if args.device is not None:
         for d in args.device.split(','):

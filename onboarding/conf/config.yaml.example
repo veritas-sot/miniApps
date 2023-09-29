@@ -2,7 +2,7 @@
 sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
-
+  ssl_verify: false
 git:
   defaults:
     repo: __DEFAULTS_REPO__
@@ -51,9 +51,11 @@ onboarding:
       - Loopback100
       - mgmt0
       - Vlan10
+  mappings:
+    # loading mapping from app config (see above)
+    inventory:
+      filename: inventory.yaml
   offline_config:
     model: unknown
     serial_number: offline
     filename: ./conf/offline.conf
-
-

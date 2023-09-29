@@ -12,6 +12,9 @@ from veritas.tools import tools
 from veritas.sot import sot as sot
 from pysnmp.hlapi import *
 
+# pip install pysnmp
+# pip install pysnmplib
+
 # usmNoAuthProtocol (default is authKey not given)
 # usmHMACMD5AuthProtocol (default if authKey is given)
 # usmHMACSHAAuthProtocol
@@ -117,7 +120,7 @@ class Worker(threading.Thread):
 
             if connected:
                 logging.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device in SOT')
-                self.sot.device(hostname).set_customfield({'snmp_credentials': snmp_id})
+                self.sot.device(hostname).set_customfield({'custom_fields': {'snmp_credentials': snmp_id}})
                 break
             else:
                 logging.debug(f'({self.thread_number}) connection failed or {snmp_id}; trying next credentials')
