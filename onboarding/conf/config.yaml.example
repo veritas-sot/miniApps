@@ -17,9 +17,9 @@ git:
     path: __CONFIGS_PATH__
     subdir: __CONFIGS_SUBDIR__
   config_contexts:
-    repo: __CONFIGS_CONTEXT_REPO__
-    path: __CONFIGS_CONTEXT_PATH__
-    subdir: __CONFIGS_CONTEXT_SUBDIR__
+    repo: __CONFIG_CONTEXT_REPO__
+    path: __CONFIG_CONTEXT_PATH__
+    subdir: __CONFIG_CONTEXT_SUBDIR__
 
 directories:
   hldm: hldm
