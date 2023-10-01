@@ -13,12 +13,11 @@ configs:
   check_mk: ../check_mk/check_mk.yaml.example
   smokeping: ../smokeping/conf/smokeping.yaml.example
   script_bakery: ../script_bakery/config.yaml.example
-  veritas: ../../veritas/veritas/sot/conf/sot/config.yaml.example
 dotenv:
-  onboarding: ../onboarding/.env.example
+  authentication: ../authentication/.env.example
   kobold: ../kobold/.env.example
-  veritas: ../../veritas/veritas/sot/.env.example
   nachtwaechter: ../nachtwaechter/.env.example
+  onboarding: ../onboarding/.env.example
 defaults:
   loglevel: info
   encryptionkey: your_encryption_key
@@ -37,6 +36,10 @@ check_mk:
   username: username
   password: password
   loglevel: debug
+  snmp_repo: repo_name
+  snmp_path: credentials_path
+  snmp_subdir: credentials_subdir
+  snmp_filename: credentials.yaml
 onboarding:
   defaults_repo: repo_name
   defaults_path: defaults_path
@@ -47,19 +50,15 @@ onboarding:
   configs_repo: repo_name
   configs_path: config_path
   configs_subdir: config subdir
+  config_context_repo: repo name
+  config_context_path: config_context_path
+  config_context_subdir: config contexts subdir
 kobold:
   defaults_repo: repo_name
   defaults_filename: defaults/default_values.yaml
   playbook_repo: repo_name
   playbook_path: playbook_path
   playbook_subdir: playbook subdir
-veritas:
-  config_context_repo: repo_name
-  config_context_path: config_context_path
-  config_context_subdir: config_contexts
-  backup_repo: repo_name
-  backup_path: backup_path
-  backup_subdir: config_backups
 set_snmp:
   snmp_repo: repo_name
   snmp_repo_path: snmp_repo_path
@@ -71,3 +70,9 @@ script_bakery:
   credentials_repo: repo_name
   credentials_subdir: credentials subdir
   credentials_file: credentials.yaml
+  backup_remote_url: http://url_to_git
+  backup_path: backup_path
+sot_properties:
+  repo_path: path_to_repo
+  
+  

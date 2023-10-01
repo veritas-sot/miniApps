@@ -44,7 +44,7 @@ snmp:
     accesslist: MGMT
   users:
     v3_auth_privacy: snmp-server user _security_name_ _security_group_ v3 auth _auth_protocol_ _auth_password_ priv _privacy_protocol_ _privacy_password_
-    v3_auth_no_privacy: snmp-server user _security_name_ _group_ v3 auth _auth_protocol_ _auth_password_ 
+    v3_auth_no_privacy: snmp-server user _security_name_ _security_group_ v3 auth _auth_protocol_ _auth_password_ 
   global_config:
     - general: snmp-server contact _snmp_contact_
     - v3: snmp-server group _security_group_ v3 auth
