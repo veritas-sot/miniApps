@@ -31,7 +31,8 @@ def read_and_convert_data(sot, config, name):
 def import_data(config, args):
     # we need the SOT object to talk to the SOT
     my_sot = sot.Sot(token=config['sot']['token'], 
-                     url=config['sot']['nautobot'])
+                     url=config['sot']['nautobot'],
+                     version=args.version)
 
     # first of all import sites
     if args.sites or args.all:
@@ -80,12 +81,13 @@ def import_data(config, args):
         device_types = read_and_convert_data(my_sot, config, 'device_types')
         logging.debug(f'import device_types')
         for device in device_types['device_types']:
-            if 'slug' not in device:
-                device['slug'] = slugify(device['name'])
-            if 'model' not in device:
-                device['model'] = device['name']
-            if 'manufacturer' in device:
-                device['manufacturer'] = {'slug': device['manufacturer']}
+            if args.version == 1:
+                if 'slug' not in device:
+                    device['slug'] = slugify(device['name'])
+                if 'model' not in device:
+                    device['model'] = device['name']
+                if 'manufacturer' in device:
+                    device['manufacturer'] = {'slug': device['manufacturer']}
         success = my_sot.importer.add(properties=device_types['device_types'], endpoint='device_types')
 
     # the device library comes from netbox
@@ -201,6 +203,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=False)
+    parser.add_argument('--version', type=int, default=2, required=False)
     # what to import
     parser.add_argument('--all', help='import all values', action='store_true')
     parser.add_argument('--sites', help='import sites', action='store_true')

@@ -1,4 +1,8 @@
 ---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
 files:
   prefixes:
     repo: sot_data
