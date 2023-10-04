@@ -232,6 +232,9 @@ if __name__ == "__main__":
     parser.add_argument('--status', type=str, required=False, help="set status of device")
     parser.add_argument('--add-tags', type=str, required=False, help="set tags of device")
 
+    # nautobot version 1 or 2
+    parser.add_argument('--version', type=int, default=2, required=False, help="nautobot version 1 or 2")
+
     # parse arguments
     args = parser.parse_args()
 
@@ -304,7 +307,7 @@ if __name__ == "__main__":
             device_names_in_sot[hostname.lower()] = True
             primary_ip = device.get('primary_ip4',{}).get('address','').split('/')[0] if device.get('primary_ip4') else None
             if not primary_ip:
-                logging.error(f'host {hostname} has not primary IPv4')
+                logging.error(f'host {hostname} has no primary IPv4')
                 continue
             for interface in device['interfaces']:
                 if len(interface['ip_addresses']) > 0:
@@ -375,7 +378,7 @@ if __name__ == "__main__":
         else:
             logging.error(f'cannot read {args.inventory}; unknown file format')
             sys.exit()
-    sys.exit()
+
     # add inventory from cli
     if args.device is not None:
         for d in args.device.split(','):
