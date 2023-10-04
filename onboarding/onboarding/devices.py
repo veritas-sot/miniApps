@@ -51,8 +51,7 @@ def to_sot(sot, args, device_fqdn, device_facts, ciscoconf, primary_address, dev
     current_time = now.strftime('%Y-%m-%d %H:%M:%S')
     cf_fields.update({'last_modified': current_time})
 
-    # nautobot version 2 does not have any slug anymore
-    # use name instead
+    # nautobot version 2 does not have any slug anymore; use name instead
     if args.version == 2:
         key = 'name'
     else:
