@@ -1,0 +1,61 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
+git:
+  defaults:
+    repo: __DEFAULTS_REPO__
+    path: __DEFAULTS_PATH__
+    filename: __DEFAULTS_FILENAME__
+  backups:
+    repo: __BACKUP_REPO__
+    path: __BACKUP_PATH__
+    subdir: __BACKUP_SUBDIR__
+  app_configs:
+    repo: __CONFIGS_REPO__
+    path: __CONFIGS_PATH__
+    subdir: __CONFIGS_SUBDIR__
+  config_contexts:
+    repo: __CONFIGS_CONTEXT_REPO__
+    path: __CONFIGS_CONTEXT_PATH__
+    subdir: __CONFIGS_CONTEXT_SUBDIR__
+
+directories:
+  hldm: hldm
+  export: export
+
+# default logins to connect to the devices
+# these accounts are not stored in nautobot
+profiles:
+  default:
+      # username to login to devices
+      username: "__USERNAME__"
+      # encrypted and base64 encoded password
+      password: "__PASSWORD__"
+
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: __LOGLEVEL__
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+onboarding:
+  defaults:
+    # the default primary interface we use to get the primary address
+    interface:
+      - Loopback0
+      - Loopback100
+      - mgmt0
+      - Vlan10
+  mappings:
+    # loading mapping from app config (see above)
+    inventory:
+      filename: inventory.yaml
+  offline_config:
+    model: unknown
+    serial_number: offline
+    filename: ./conf/offline.conf
