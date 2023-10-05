@@ -15,6 +15,12 @@ check_mk:
     # filename: out.log
     # if you want to write the result to a file use result: "filename" instead
     result: stdout
+credentials:
+  snmp:
+    repo: __SNMP_REPO__
+    path: __SNMP_PATH__
+    subdir: __SNMP_SUBDIR__
+    filename: __SNMP_FILENAME__
 defaults:
   ignore_host_tag_groups:
     - tag_agent
@@ -22,12 +28,6 @@ defaults:
   sync:
     devices:
       - site: cha
-credentials:
-  snmp: 
-    repo: __SNMP_REPO__
-    path: __SNMP_PATH__
-    subdir: __SNMP_SUBDIR__
-    filename: credentials.yaml
 mappings:
   # map sot custom fields to cmk host tag groups
   - sot: cf_name_of_field

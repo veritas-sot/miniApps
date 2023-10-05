@@ -36,7 +36,7 @@ if __name__ == "__main__":
         config_file = default_config_file
 
     with open(config_file) as f:
-        nveritas_config = yaml.safe_load(f.read())
+        veritas_config = yaml.safe_load(f.read())
 
     # set logging
     if args.loglevel is None:

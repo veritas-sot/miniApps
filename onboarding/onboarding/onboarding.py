@@ -32,8 +32,8 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     # in most cases this is the Loopback or the Management interface
     # the interfaces we look at can be configured in our onboarding config
     primary_address = get_primary_address(device_fqdn,
-                             onboarding_config['onboarding']['defaults']['interface'],
-                             configparser)
+                                          onboarding_config['onboarding']['defaults']['interface'],
+                                          configparser)
     if primary_address is not None:
         logging.info(f'primary address of {device_fqdn} is {primary_address}')
     else:
