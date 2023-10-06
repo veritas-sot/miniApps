@@ -166,6 +166,7 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
 
 if __name__ == "__main__":
 
+    # to disable warning if TLS warning is written to console
     urllib3.disable_warnings()
 
     # init vars
@@ -226,13 +227,6 @@ if __name__ == "__main__":
 
     # to overwrite the default device properties use these settings
     parser.add_argument('--hostname', type=str, required=False, help="this hostname is used when offline is used and device is ip")
-    parser.add_argument('--site', type=str, required=False, help="set site of device")
-    parser.add_argument('--device-role', type=str, required=False, help="set device role of device")
-    parser.add_argument('--device-type', type=str, required=False, help="set device type of device")
-    parser.add_argument('--manufacturer', type=str, required=False, help="set manufacturer of device")
-    parser.add_argument('--platform', type=str, required=False, help="set platform of device")
-    parser.add_argument('--status', type=str, required=False, help="set status of device")
-    parser.add_argument('--add-tags', type=str, required=False, help="set tags of device")
 
     # parse arguments
     args = parser.parse_args()
@@ -469,12 +463,6 @@ if __name__ == "__main__":
                     key not in device_defaults['custom_fields'] and \
                     value is not None:
                 device_defaults['custom_fields'][key] = value
-
-        # the highest priority is the args
-        args_dict = vars(args)
-        for i in ['platform', 'site', 'device_type', 'device_role', 'manufacturer', 'status']:
-            if i in args_dict and args_dict[i] is not None:
-                device_defaults[i] = args_dict[i]
 
         # If 'ignore' is set, the device will not be processed.
         if device_defaults.get('ignore', False):

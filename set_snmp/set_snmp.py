@@ -7,6 +7,7 @@ import yaml
 import ipaddress
 import re
 import threading
+import urllib3
 from queue import Queue, Full, Empty
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -151,6 +152,9 @@ def read_snmp_credentials(sot, set_snmp_config):
 
 if __name__ == "__main__":
 
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
     devicelist = []
 
     parser = argparse.ArgumentParser()
@@ -193,7 +197,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=loglevel, format=log_format)
 
     # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=set_snmp_config['sot']['token'], url=set_snmp_config['sot']['nautobot'])
+    sot = sot.Sot(token=set_snmp_config['sot']['token'], 
+                  url=set_snmp_config['sot']['nautobot'],
+                  ssl_verify=set_snmp_config['sot'].get('ssl_verify', False))
 
     if args.devices:
         # create list of devices we are looking for
@@ -217,7 +223,7 @@ if __name__ == "__main__":
                 logging.error(f'device {device} has no primary_ip in SOT')
                 continue
             if 'platform' in device:
-                host['platform'] = device.get('platform').get('slug')
+                host['platform'] = device.get('platform').get('name')
             else:
                 host['platform'] = "unknown"
             if not args.update:

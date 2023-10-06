@@ -53,17 +53,17 @@ def to_sot(sot, args, device_fqdn, device_facts, ciscoconf, primary_address, dev
 
     try:
         device_properties = {
-                'name': device_fqdn,
-                'device_type': {'model': slugify(device_defaults['device_type'])},
-                'manufacturer': {'name': device_defaults['manufacturer']},
-                'platform': {'name': device_defaults['platform']},
-                'status': {'name': 'Active'},
-                'location': {'name': device_defaults['site']},
-                'role': {'name': device_defaults['device_role']},
-                "serial": sn,
-            }
+            'name': device_fqdn,
+            'device_type': {'model': slugify(device_defaults['device_type'])},
+            'manufacturer': {'name': device_defaults['manufacturer']},
+            'platform': {'name': device_defaults['platform']},
+            'status': {'name': 'Active'},
+            'location': {'name': device_defaults['site']},
+            'role': {'name': device_defaults['device_role']},
+            "serial": sn,
+        }
 
-        # add tags if it is not None
+        # add tags if tags are not None
         if device_tags is not None:
             device_properties.update({'tags': device_tags})
 
