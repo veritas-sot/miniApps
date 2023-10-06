@@ -24,10 +24,10 @@ files:
     repo: sot_data
     path: __REPO_PATH__
     filename: defaults/platforms.yaml
-  device_roles:
+  roles:
     repo: sot_data
     path: __REPO_PATH__
-    filename: defaults/device_roles.yaml
+    filename: defaults/roles.yaml
   device_types:
     repo: sot_data
     path: __REPO_PATH__

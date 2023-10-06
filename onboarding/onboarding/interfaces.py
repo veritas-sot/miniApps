@@ -100,17 +100,13 @@ def get_interface_properties(sot, args, device_fqdn, device_facts, device_defaul
     device_id = device_facts['id'] if device_facts.get('id') else device_fqdn
     # set the basic properties of the device
     interface_properties = {
-            "device": device_id,
-            "name": name,
-            "type": interface.get('type','1000base-t'),
-            "enabled": 'shutdown' not in interface,
-            "description": description
+            'device': device_id,
+            'name': name,
+            'type': interface.get('type','1000base-t'),
+            'enabled': 'shutdown' not in interface,
+            'description': description,
+            'status': {'name': 'Active'}
     }
-
-    if args.version == 2:
-        interface_properties.update({'status': {'name': 'Active'}})
-    else:
-        interface_properties.update({'status': device_defaults['status']})
 
     # check if interface is lag
     if 'channel_group' in interface:
@@ -181,36 +177,24 @@ def vlans(sot, args, device_fqdn, ciscoconf, device_defaults):
         vid = vlan.get('vid')
         name = vlan.get('name')
         list_of_vlans[vid] = {'name': name,
-                              'site': {'slug': slugify(device_defaults['site'])}}
-
-        if args.version == 2:
-            list_of_vlans[vid].update({'status': {'name': 'Active'}})
-        else:
-            list_of_vlans[vid].update({'status': device_defaults['status']})
+                              'status': {'name': 'Active'},
+                              'site': {'name': slugify(device_defaults['site'])}}
 
     for vlan in svi:
         vid = vlan.get('vid')
         name = vlan.get('name')
         if vid not in list_of_vlans:
             list_of_vlans[vid] = {'name': name,
-                                  'site': {'slug': slugify(device_defaults['site'])}}
-
-        if args.version == 2:
-            list_of_vlans[vid].update({'status': {'name': 'Active'}})
-        else:
-            list_of_vlans[vid].update({'status': device_defaults['status']})
+                                  'status': {'name': 'Active'},
+                                  'site': {'name': slugify(device_defaults['site'])}}
 
     for vlan in trunk_vlans:
         vid = vlan.get('vid')
         name = vlan.get('name')
         if vid not in list_of_vlans:
             list_of_vlans[vid] = {'name': name,
-                                  'site': {'slug': slugify(device_defaults['site'])}}
-
-        if args.version == 2:
-            list_of_vlans[vid].update({'status': {'name': 'Active'}})
-        else:
-            list_of_vlans[vid].update({'status': device_defaults['status']})
+                                  'status': {'name': 'Active'},
+                                  'site': {'name': slugify(device_defaults['site'])}}
 
     if args.write_hldm or args.show_hldm:
         return list_of_vlans

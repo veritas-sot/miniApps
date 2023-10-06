@@ -51,31 +51,17 @@ def to_sot(sot, args, device_fqdn, device_facts, ciscoconf, primary_address, dev
     current_time = now.strftime('%Y-%m-%d %H:%M:%S')
     cf_fields.update({'last_modified': current_time})
 
-    # nautobot version 2 does not have any slug anymore; use name instead
-    if args.version == 2:
-        key = 'name'
-    else:
-        key = 'slug'
-
     try:
         device_properties = {
-                "name": device_fqdn,
-                #"device_type": {key: slugify(device_defaults['device_type'])},
-                "manufacturer": {key: slugify(device_defaults['manufacturer'])},
-                "platform": {key: slugify(device_defaults['platform'])},
+                'name': device_fqdn,
+                'device_type': {'model': slugify(device_defaults['device_type'])},
+                'manufacturer': {'name': device_defaults['manufacturer']},
+                'platform': {'name': device_defaults['platform']},
+                'status': {'name': 'Active'},
+                'location': {'name': device_defaults['site']},
+                'role': {'name': device_defaults['device_role']},
                 "serial": sn,
             }
-
-        if args.version == 2:
-            device_properties.update({'status': {'name': 'Active'}})
-            device_properties.update({'location': {'name': device_defaults['site']}})
-            device_properties.update({'role': {'name': device_defaults['device_role']}})
-            # todo!!!
-            device_properties.update({'device_type': 'a3648f35-4b4e-443f-b7cf-551503ff2025'})
-        else:
-            device_properties.update({'status': device_defaults['status']})
-            device_properties.update({'site': {'slug': slugify(device_defaults['site'])}})
-            device_properties.update({"device_role": {'slug': slugify(device_defaults['device_role'])}})
 
         # add tags if it is not None
         if device_tags is not None:
@@ -103,7 +89,13 @@ def to_sot(sot, args, device_fqdn, device_facts, ciscoconf, primary_address, dev
                     if primary_interface.get('description') == None:
                         logging.info("primary interface has no description configured; using 'primary interface'")
                         primary_interface['description'] = "primary interface"
-            elif key in ['site', 'device_role', 'device_type', 'manufacturer', 'platform'] and len(value) > 0:
+            elif key in ['manufacturer', 'platform'] and len(value) > 0:
+                # manufacturer and platform need the name
+                if isinstance(value, dict):
+                    device_properties[key] = value
+                else:    
+                    device_properties[key] = {'name': slugify(value)}
+            elif key in ['site', 'device_role', 'device_type'] and len(value) > 0:
                 if isinstance(value, dict):
                     device_properties[key] = value
                 else:    
@@ -136,12 +128,8 @@ def to_sot(sot, args, device_fqdn, device_facts, ciscoconf, primary_address, dev
         primary_interface_properties = {'device': {'name': device_fqdn},
                                         'name': primary_interface_name,
                                         'description': primary_interface.get('description'),
-                                        'type': primary_interface.get('type', '1000base-t')}
-
-        if args.version == 2:
-            primary_interface_properties.update({'status': {'name': 'Active'}})
-        else:
-            primary_interface_properties.update({'status': device_defaults['status']})
+                                        'type': primary_interface.get('type', '1000base-t'),
+                                        'status': {'name': 'Active'}}
 
     if args.write_hldm or args.show_hldm:
         user_bc_device.device_post_processing(sot, device_properties, device_defaults, ciscoconf, onboarding_config)
