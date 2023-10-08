@@ -3,16 +3,12 @@ import json
 from businesslogic import your_interfaces as user_int
 from veritas.sot import sot as sot
 from slugify import slugify
+from ipaddress import IPv4Network
 
 
-def to_sot(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
-    list_of_new_interfaces = []
+def get_list_of_interfaces(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
+    list_of_interfaces = []
     interfaces = ciscoconf.get_interfaces()
-    sot_current_interfaces = get_interfaces_from_sot(sot, device_fqdn)
-
-    # load cache / cache vlans and sites / we need these values later
-    sot.get.load_cache()
-    hldm = {}
 
     # Port-channels are used as reference by some physical interfaces so
     # add logical interfaces to sot first
@@ -20,7 +16,6 @@ def to_sot(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
         if 'port-channel' in name.lower():
             logging.debug("port-channel interface: %s" % name)
             props = get_interface_properties(sot, 
-                                             args,
                                              device_fqdn,
                                              device_facts,
                                              device_defaults, 
@@ -28,32 +23,13 @@ def to_sot(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
                                              name)
             # call business logic if the user wants some modifications
             user_int.interface_tags(sot, ciscoconf, interfaces)
-
-            if args.write_hldm or args.show_hldm:
-                hldm[name] = props
-            else:
-                # we have to convert some properties to id eg. site, vlan (tagged and untagged)
-                convert_properties_to_id(sot, args, device_fqdn, device_facts, device_defaults, 
-                                         ciscoconf, interfaces, props)
-                if name in sot_current_interfaces:
-                    update_interface(sot, args, device_fqdn, device_facts, props, sot_current_interfaces)
-                else:
-                    list_of_new_interfaces.append(props)
-
-    if not (args.write_hldm or args.show_hldm) and len(list_of_new_interfaces) > 0:
-        #print(json.dumps(list_of_new_interfaces, indent=4))
-        logging.info(f'adding {len(list_of_new_interfaces)} Port-Channel interface(s)')
-        sot.device(device_fqdn).add_list_of_interfaces(list_of_new_interfaces)
-
-    # clear list
-    list_of_new_interfaces = []
+            list_of_interfaces.append(props)
 
     # now add physical interface to sot
     for name in interfaces:
         if 'port-channel' not in name.lower():
             logging.debug("interface: %s" % name)
             props = get_interface_properties(sot, 
-                                             args,
                                              device_fqdn,
                                              device_facts,
                                              device_defaults, 
@@ -61,36 +37,16 @@ def to_sot(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
                                              name)
             # call business logic if the user wants some mods
             user_int.interface_tags(sot, ciscoconf, props)
-            if args.write_hldm or args.show_hldm:
-                hldm[name] = props
-            else:
-                convert_properties_to_id(sot, args, device_fqdn, device_facts, device_defaults, 
-                                         ciscoconf, interfaces, props)
-                if name in sot_current_interfaces:
-                    logging.debug(f'interface {name} is already in SOT, updating interface')
-                    update_interface(sot, args, device_fqdn, device_facts, props, sot_current_interfaces)
-                else:
-                    list_of_new_interfaces.append(props)
+            list_of_interfaces.append(props)
 
-    if args.write_hldm or args.show_hldm:
-        return hldm
+    return list_of_interfaces
 
-    # do we have some new interfaces to add
-    if len(list_of_new_interfaces) > 0:
-        #print(json.dumps(list_of_new_interfaces, indent=4))
-        logging.info(f'adding {len(list_of_new_interfaces)} interface(s) to device')
-        sot.device(device_fqdn).add_list_of_interfaces(list_of_new_interfaces)
-
-    # # now that we have all interfaces in our sot we assign the Interfaces to the addresses
-    for name in interfaces:
-        assign_interfaces(sot, name, device_fqdn, ciscoconf)
-
-def get_interface_properties(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf, name):
+def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
     # get interfaces
     interfaces = ciscoconf.get_interfaces()
     interface = interfaces.get(name)
     # set site
-    site = args.site or device_defaults['site']
+    site = device_defaults['site']
 
     # description must not be None
     description = interface.get('description')
@@ -222,32 +178,54 @@ def get_interfaces_from_sot(sot, device_fqdn):
 
     return current_sot_interfaces
 
-def convert_properties_to_id(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf, interfaces, props):
-    site = args.site or device_defaults['site']
-    props['device'] = device_facts['id'] if device_facts.get('id') else {'name': device_fqdn}
-    if 'untagged_vlan' in props:
-        props_vlan_id = props.get('untagged_vlan')
-        vlan_id = sot.get.id(item='vlan', vid=props_vlan_id, site=site)
-        logging.debug(f'converted untagged_vlan {props_vlan_id} to {vlan_id}')
-        props['untagged_vlan'] = vlan_id
-    if 'tagged_vlans' in props:
-        tagged_vlans = []
-        props_vlan_id = props.get('tagged_vlans')
-        for vlan in props_vlan_id.split(','):
-            t = sot.get.id(item='vlan', vid=vlan, site=site)
-            tagged_vlans.append(t)
-        props['tagged_vlans'] = tagged_vlans
-    if 'lag' in props:
-        pc = props['lag']
-        props['lag'] = {'device': {'name': device_fqdn}, 'name': pc}
-    if 'site' in props:
-        site_name = props['site']
-        # site_id = sot_sites.get(site_name, site_name)
-        site_id = sot.get.id(item='site', name=site_name)
-        props['site'] = site_id
-    if 'tags' in props:
-        tags = props['tags']
-        tag_slugs = tags.get('tags')
-        content_types = tags.get('content_types')
-        tag_list = [sot.get.id(item='tag', slug=slug, content_types=content_types) for slug in tag_slugs.split(',')]
-        props['tags'] = tag_list
+# def convert_properties_to_id(sot, device_fqdn, device_facts, device_defaults, ciscoconf, interfaces, props):
+#     site = device_defaults['site']
+#     props['device'] = device_facts['id'] if device_facts.get('id') else {'name': device_fqdn}
+#     if 'untagged_vlan' in props:
+#         props_vlan_id = props.get('untagged_vlan')
+#         vlan_id = sot.get.id(item='vlan', vid=props_vlan_id, site=site)
+#         logging.debug(f'converted untagged_vlan {props_vlan_id} to {vlan_id}')
+#         props['untagged_vlan'] = vlan_id
+#     if 'tagged_vlans' in props:
+#         tagged_vlans = []
+#         props_vlan_id = props.get('tagged_vlans')
+#         for vlan in props_vlan_id.split(','):
+#             t = sot.get.id(item='vlan', vid=vlan, site=site)
+#             tagged_vlans.append(t)
+#         props['tagged_vlans'] = tagged_vlans
+#     if 'lag' in props:
+#         pc = props['lag']
+#         props['lag'] = {'device': {'name': device_fqdn}, 'name': pc}
+#     if 'site' in props:
+#         site_name = props['site']
+#         # site_id = sot_sites.get(site_name, site_name)
+#         site_id = sot.get.id(item='site', name=site_name)
+#         props['site'] = site_id
+#     if 'tags' in props:
+#         tags = props['tags']
+#         tag_slugs = tags.get('tags')
+#         content_types = tags.get('content_types')
+#         tag_list = [sot.get.id(item='tag', slug=slug, content_types=content_types) for slug in tag_slugs.split(',')]
+#         props['tags'] = tag_list
+
+def get_primary_interface(primary_address, ciscoconf):
+    primary_interface = {}
+    interface_name = ciscoconf.get_interface_name_by_address(primary_address)
+
+    # if primary_interface_name is none then the IP address was not configured on an interfcae
+    # this can happen when using dhcp (strange but possible) or hsrp (more common)
+    logging.debug(f'primary_interface_name set to {interface_name}')
+    interface = ciscoconf.get_interface(interface_name)
+
+    # if we have the right mask of the interface/ip we use this instead of a /32
+    if interface is not None:
+        primary_interface['name'] = interface_name
+        # convert IP and MASK to cidr notation
+        prefixlen = IPv4Network("0.0.0.0/%s" % interface.get('mask')).prefixlen
+        primary_address = "%s/%s" % (interface.get('ip'), prefixlen)
+        logging.debug(f'found primary interface; setting primary_address interface to {primary_address}')
+        if interface.get('description') == None:
+            logging.info("primary interface has no description configured; using 'primary interface'")
+            primary_interface['description'] = "primary interface"
+
+    return primary_interface

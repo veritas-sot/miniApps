@@ -23,9 +23,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
 
     new_device = sot.onboarding \
     .interface(name='GigabitEthernet0/1', ipv4='192.168.0.1', type='1000base-t', status='Active') \
-    .add_prefix(False) \
-    .is_primary(True) \
-    .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
+        .add_prefix(False) \
+        .is_primary(True) \
+        .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
 
     or to add multiple interfaces and setting one of these interfaces as primary use this code
 
@@ -40,10 +40,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
 
     """
-    # init some vars
-    hldm = {}
-
-    # we need the fqdn of the device
+    # we need the FQDN of the device
     if device_facts is not None and 'fqdn' in device_facts:
         device_fqdn = device_facts['fqdn'].lower()
     else:
@@ -64,81 +61,84 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         primary_address = socket.gethostbyname(device_facts['args.device'])
         logging.info("no primary ip found using %s" % device_facts['args.device'])
 
-    # check if we have all necessary defaults
-    list_def = ['site', 'device_role', 'device_type', 'manufacturer', 'platform', 'status']
-    for i in list_def:
-        if i not in device_defaults:
-            logging.error("%s missing. Please add %s to your default or set as arg" % (i, i))
-            return False
-
-    logging.debug(f'device_defaults are: {device_defaults}')
-
     # now lets start the onboarding process
     # first of all import the device to our sot
-    if args.onboarding or args.write_hldm or args.show_hldm:
-        logging.info("onboarding device")
-        hldm = onboarding_devices.to_sot(sot,
-                                         args,
-                                         device_fqdn,
-                                         device_facts,
-                                         configparser,
-                                         primary_address,
-                                         device_defaults,
-                                         onboarding_config)
+    if args.onboarding:
+        logging.info(f'get device properties of {device_fqdn}')
+        device_properties = onboarding_devices.get_device_properties(sot,
+                                                                     args,
+                                                                     device_fqdn,
+                                                                     device_facts,
+                                                                     configparser,
+                                                                     device_defaults,
+                                                                     onboarding_config)
 
-    # we add the vlans before adding the physical or virtual interfaces
-    # because some interfaces may be access vlans
-    if args.vlans or args.write_hldm or args.show_hldm:
-        logging.info("onboarding vlans")
-        vlans = onboarding_interfaces.vlans(sot,
-                                            args,
-                                            device_fqdn,
-                                            configparser,
-                                            device_defaults)
-        hldm['vlans'] = vlans
+        # primary_interface = device_properties['primary_interface'] \
+        #     if 'primary_interface' in device_properties \
+        #     else onboarding_interfaces.get_primary_interface(primary_address, configparser)
+
+        # primary_interface_properties = {'device': {'name': device_fqdn},
+        #                                 'name': primary_interface.get('name'),
+        #                                 'description': primary_interface.get('description'),
+        #                                 'type': primary_interface.get('type', '1000base-t'),
+        #                                 'status': {'name': 'Active'}}
+
+    # # we add the vlans before adding the physical or virtual interfaces
+    # # because some interfaces may be access vlans
+    # if args.vlans or args.write_hldm or args.show_hldm:
+    #     logging.info("onboarding vlans")
+    #     vlans = onboarding_interfaces.vlans(sot,
+    #                                         args,
+    #                                         device_fqdn,
+    #                                         configparser,
+    #                                         device_defaults)
+    #     hldm['vlans'] = vlans
 
     # now add interfaces to sot
-    if args.interfaces or args.write_hldm or args.show_hldm:
+    if args.interfaces:
         logging.info("onboarding interfaces")
-        interfaces = onboarding_interfaces.to_sot(sot,
-                                                  args,
-                                                  device_fqdn,
-                                                  device_facts,
-                                                  device_defaults,
-                                                  configparser)
-        hldm['interfaces'] = interfaces
+        interfaces = onboarding_interfaces.get_list_of_interfaces(sot,
+                                                                  args,
+                                                                  device_fqdn,
+                                                                  device_facts,
+                                                                  device_defaults,
+                                                                  configparser)
+    print('--- device properties ---')
+    print(device_properties)
+    print('--- interfaces ---')
+    print(interfaces)
 
-    if args.tags or args.write_hldm or args.show_hldm:
-        logging.info("onboarding tags")
-        tags = onboarding_tags.to_sot(sot,
-                                      args,
-                                      device_fqdn,
-                                      device_defaults,
-                                      device_facts,
-                                      configparser)
-        hldm['tags'] = tags
+    # if args.tags or args.write_hldm or args.show_hldm:
+    #     logging.info("onboarding tags")
+    #     tags = onboarding_tags.to_sot(sot,
+    #                                   args,
+    #                                   device_fqdn,
+    #                                   device_defaults,
+    #                                   device_facts,
+    #                                   configparser)
+    #     hldm['tags'] = tags
 
-    # now the most import part: the config_context
-    # do your own business logic in the "businesslogic" subdir
-    if args.config_context or args.write_hldm or args.show_hldm:
-        logging.info("onboarding config context")
-        cc = onboarding_config_context.to_sot(sot,
-                                              args,
-                                              device_fqdn,
-                                              configparser,
-                                              device_defaults,
-                                              onboarding_config)
-        hldm['config_context'] = cc
+    # # now the most import part: the config_context
+    # # do your own business logic in the "businesslogic" subdir
+    # if args.config_context or args.write_hldm or args.show_hldm:
+    #     logging.info("onboarding config context")
+    #     cc = onboarding_config_context.to_sot(sot,
+    #                                           args,
+    #                                           device_fqdn,
+    #                                           configparser,
+    #                                           device_defaults,
+    #                                           onboarding_config)
+    #     hldm['config_context'] = cc
 
-    # at last do a backup of the running config
-    if args.backup:
-        logging.info("onboarding backup")
-        onboarding_devices.backup_config(sot,
-                                         device_fqdn,
-                                         configparser.get_device_config(),
-                                         onboarding_config)
+    # # at last do a backup of the running config
+    # if args.backup:
+    #     logging.info("onboarding backup")
+    #     onboarding_devices.backup_config(sot,
+    #                                      device_fqdn,
+    #                                      configparser.get_device_config(),
+    #                                      onboarding_config)
 
-    return hldm
+    # return hldm
 
 def get_primary_address(device_fqdn, interfaces, cisco_config):
     for iface in interfaces:

@@ -539,20 +539,12 @@ if __name__ == "__main__":
             continue
 
         logging.debug("calling onboarding")
-        hldm = onboarding.onboarding(sot,
+        response = onboarding.onboarding(sot,
                                      args,
                                      device_facts,
                                      configparser,
                                      onboarding_config,
                                      device_defaults)
-
-        if args.show_hldm:
-            print('----- HLDM -----')
-            print(json.dumps(hldm, indent=4))
-
-        if args.write_hldm:
-            directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('hldm','./hldm'))
-            write_hldm(hldm, directory)
 
     # after adding all devices to our sot we add the cables
     if args.cables and not args.write_hldm:
