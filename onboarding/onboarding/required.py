@@ -7,14 +7,13 @@ import json
 import csv
 from slugify import slugify
 from openpyxl import load_workbook
-from veritas.sot import sot as sot
 
 
 # global cache
 _global_cache = {}
 
 
-def required(sot, device_defaults, device_facts, ciscoconf, onboarding_config):
+def required(device_defaults, device_facts, ciscoconf, onboarding_config):
 
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))

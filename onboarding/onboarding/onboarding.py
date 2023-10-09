@@ -35,6 +35,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     ]
     new_device = sot.onboarding \
         .interface(interfaces) \
+        .vlans(vlans) \
         .primary_interface('GigabitEthernet0/1') \
         .add_prefix(False) \
         .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
@@ -71,31 +72,11 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     if args.onboarding:
         logging.info(f'get device properties of {device_fqdn}')
         device_properties = onboarding_devices.get_device_properties(sot,
-                                                                     args,
                                                                      device_fqdn,
                                                                      device_facts,
                                                                      configparser,
                                                                      device_defaults,
                                                                      onboarding_config)
-
-    # get vlan properties
-    if args.interfaces or args.primary_only:
-        logging.info(f'get VLAN properties of {device_fqdn}')
-        vlan_properties = onboarding_interfaces.get_vlan_properties(sot,
-                                                                    args,
-                                                                    device_fqdn,
-                                                                    configparser,
-                                                                    device_defaults)
-
-    # now get interface properties
-    if args.interfaces:
-        logging.info(f'getting interfaces properties if {device_fqdn}')
-        interface_properties = onboarding_interfaces.get_list_of_interfaces(sot,
-                                                                  args,
-                                                                  device_fqdn,
-                                                                  device_facts,
-                                                                  device_defaults,
-                                                                  configparser)
 
     # if args.tags or args.write_hldm or args.show_hldm:
     #     logging.info("onboarding tags")
@@ -107,34 +88,40 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     #                                   configparser)
 
     if args.onboarding:
-        if args.primary_only:
-            primary_interface = device_properties['primary_interface'] \
-                if 'primary_interface' in device_properties \
-                else onboarding_interfaces.get_primary_interface(primary_address, configparser)
+        # get vlan properties
+        if args.interfaces or args.primary_only:
+            logging.info(f'get VLAN properties of {device_fqdn}')
+            vlan_properties = onboarding_interfaces.get_vlan_properties(device_fqdn,
+                                                                        configparser,
+                                                                        device_defaults)
 
+        primary_interface = device_properties['primary_interface'] \
+            if 'primary_interface' in device_properties \
+            else onboarding_interfaces.get_primary_interface(primary_address, configparser)
+
+        if args.primary_only:
             interfaces = [{'name': primary_interface.get('name'),
                            'ipv4': primary_address,
                            'description': primary_interface.get('description','Primary Interface'),
                            'type': primary_interface.get('type', '1000base-t'),
                            'status': {'name': 'Active'}}]
-            # add device to SOT
-            new_device = sot.onboarding \
-                .interfaces(interfaces) \
-                .vlans(vlan_properties) \
-                .is_primary(True) \
-                .add_prefix(False) \
-                .add_device(device_properties)
-
         elif args.interfaces:
-            interfaces = interface_properties
-            new_device = sot.onboarding \
-                .interfaces(interfaces) \
-                .vlans(vlan_properties) \
-                .is_primary(False) \
-                .add_prefix(False) \
-                .add_device(device_properties)
+            logging.info(f'getting interfaces properties if {device_fqdn}')
+            interfaces = onboarding_interfaces.get_interface_properties(sot,
+                                                                       device_fqdn,
+                                                                       device_facts,
+                                                                       device_defaults,
+                                                                       configparser)
         else:
             interfaces = []
+
+        # add device to SOT
+        new_device = sot.onboarding \
+            .interfaces(interfaces) \
+            .vlans(vlan_properties) \
+            .primary_interface(primary_interface.get('name')) \
+            .add_prefix(False) \
+            .add_device(device_properties)
 
     # # now the most import part: the config_context
     # # do your own business logic in the "businesslogic" subdir

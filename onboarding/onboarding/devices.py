@@ -8,7 +8,7 @@ from businesslogic import your_device as user_bc_device
 from onboarding import required as required
 
 
-def get_device_properties(sot, args, device_fqdn, device_facts, ciscoconf, device_defaults, onboarding_config):
+def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defaults, onboarding_config):
     # init some vars
     device_defaults['device_type'] = device_facts['model']
 
@@ -50,8 +50,7 @@ def get_device_properties(sot, args, device_fqdn, device_facts, ciscoconf, devic
         # get additional values
         # additional values are values that MUST exists; otherwise the device 
         # cannot be added to the sot. For example some custom fields may be required
-        additional_values = required.required(sot, 
-                                              device_defaults, 
+        additional_values = required.required(device_defaults, 
                                               device_facts, 
                                               ciscoconf, 
                                               onboarding_config)
@@ -107,12 +106,9 @@ def backup_config(sot, device_fqdn, raw_device_config, onboarding_config):
     logging.info("write backup config")
 
     subdir = ""
-    name_of_repo = args.repo or onboarding_config['git']['backup']['repo']
-    path_to_repo = args.path or onboarding_config['git']['backup']['path']
-    if args.subdir:
-        subdir = args.subdir
-    elif 'subdir' in  onboarding_config['git']['backup']:
-        subdir = onboarding_config['git']['backup']['subdir']
+    name_of_repo = onboarding_config['git']['backup']['repo']
+    path_to_repo = onboarding_config['git']['backup']['path']
+    subdir = onboarding_config['git']['backup']['subdir']
 
     backup_repo = sot.repository(repo=name_of_repo, path=path_to_repo)
     filenane = "%s/%s.conf" %(subdir, device_fqdn)

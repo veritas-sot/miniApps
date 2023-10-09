@@ -6,42 +6,27 @@ from slugify import slugify
 from ipaddress import IPv4Network
 
 
-def get_list_of_interfaces(sot, args, device_fqdn, device_facts, device_defaults, ciscoconf):
+def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf):
     list_of_interfaces = []
     interfaces = ciscoconf.get_interfaces()
 
     # Port-channels are used as reference by some physical interfaces so
     # add logical interfaces to sot first
     for name in interfaces:
-        if 'port-channel' in name.lower():
-            logging.debug("port-channel interface: %s" % name)
-            props = get_interface_properties(sot, 
-                                             device_fqdn,
-                                             device_facts,
-                                             device_defaults, 
-                                             ciscoconf, 
-                                             name)
-            # call business logic if the user wants some modifications
-            user_int.interface_tags(sot, ciscoconf, interfaces)
-            list_of_interfaces.append(props)
-
-    # now add physical interface to sot
-    for name in interfaces:
-        if 'port-channel' not in name.lower():
-            logging.debug("interface: %s" % name)
-            props = get_interface_properties(sot, 
-                                             device_fqdn,
-                                             device_facts,
-                                             device_defaults, 
-                                             ciscoconf, 
-                                             name)
-            # call business logic if the user wants some mods
-            user_int.interface_tags(sot, ciscoconf, props)
-            list_of_interfaces.append(props)
+        logging.debug("get interface: %s" % name)
+        props = get_properties(sot,
+                               device_fqdn,
+                               device_facts,
+                               device_defaults,
+                               ciscoconf,
+                               name)
+        # call business logic if the user wants some modifications
+        user_int.interface_tags(ciscoconf, interfaces)
+        list_of_interfaces.append(props)
 
     return list_of_interfaces
 
-def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
+def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
     # get interfaces
     interfaces = ciscoconf.get_interfaces()
     interface = interfaces.get(name)
@@ -49,10 +34,7 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
     site = device_defaults['site']
 
     # description must not be None
-    description = interface.get('description')
-    if description is None:
-        description = ""
-
+    description = interface.get('description',"")
     device_id = device_facts['id'] if device_facts.get('id') else device_fqdn
     # set the basic properties of the device
     interface_properties = {
@@ -70,7 +52,7 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
     # check if interface is lag
     if 'channel_group' in interface:
         pc = "%s%s" % (ciscoconf.get_name("port-channel"), interface.get('channel_group'))
-        logging.debug(f'interface {name} is part of port-channel {pc}')
+        # logging.debug(f'interface {name} is part of port-channel {pc}')
         interface_properties.update({'lag': {'name': pc }})
 
     # setting switchport or trunk
@@ -78,13 +60,13 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
         mode = interface.get('mode')
         data = {}
         if mode == 'access':
-            logging.debug("interface is access switchport: %s" % name)
+            # logging.debug("interface is access switchport: %s" % name)
             untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), site=site)
             data = {"mode": "access",
                     "untagged_vlan": interface.get('vlan'),
                     "site": site}
         elif mode == 'trunk':
-            logging.debug("interface is a tagged switchport: %s" % name)
+            # logging.debug("interface is a tagged switchport: %s" % name)
             # this port is either a trunked with allowed vlans (mode: tagged)
             # or a trunk with all vlans mode: tagged-all
             if 'vlans_allowed' in interface:
@@ -99,36 +81,7 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
 
     return interface_properties
 
-def update_interface(sot, args, device_fqdn, device_facts, interface_properties, current_sot_interfaces):
-    name = interface_properties.get('name')
-
-    if args.update:
-        logging.info(f'update set; updating interface {name}')
-        success = sot.device(device_fqdn) \
-            .interface(name) \
-            .update(interface_properties)
-        if success:
-            logging.debug(f'interface {name} updated')
-        else:
-            logging.debug(f'interface {name} not updated')
-    else:
-        logging.info(f'skipping interface {name}')
-
-def assign_interfaces(sot, interface_name, device_fqdn, ciscoconf):
-    # assign IP Address
-    logging.debug(f'checking if there is a IP configured on {interface_name}')
-    if ciscoconf.get_ipaddress(interface_name) is not None:
-        addr = ciscoconf.get_ipaddress(interface_name)
-        logging.debug("assigning %s on %s to %s" % (interface_name, device_fqdn, addr))
-        success = sot.ipam \
-            .assign(interface_name) \
-            .on(device_fqdn) \
-            .add_missing_ip(True) \
-            .to(addr)
-    else:
-        logging.debug(f'no IP address configured on interface')
-
-def get_vlan_properties(sot, args, device_fqdn, ciscoconf, device_defaults):
+def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
     global_vlans, svi, trunk_vlans = ciscoconf.get_vlans()
     list_of_vlans = []
 
