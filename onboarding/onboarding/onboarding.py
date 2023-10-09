@@ -40,6 +40,11 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
 
     """
+
+    # we have some empty variables
+    vlan_properties = []
+    interface_properties = []
+
     # we need the FQDN of the device
     if device_facts is not None and 'fqdn' in device_facts:
         device_fqdn = device_facts['fqdn'].lower()
@@ -73,40 +78,24 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                      device_defaults,
                                                                      onboarding_config)
 
-        # primary_interface = device_properties['primary_interface'] \
-        #     if 'primary_interface' in device_properties \
-        #     else onboarding_interfaces.get_primary_interface(primary_address, configparser)
+    # get vlan properties
+    if args.interfaces or args.primary_only:
+        logging.info(f'get VLAN properties of {device_fqdn}')
+        vlan_properties = onboarding_interfaces.get_vlan_properties(sot,
+                                                                    args,
+                                                                    device_fqdn,
+                                                                    configparser,
+                                                                    device_defaults)
 
-        # primary_interface_properties = {'device': {'name': device_fqdn},
-        #                                 'name': primary_interface.get('name'),
-        #                                 'description': primary_interface.get('description'),
-        #                                 'type': primary_interface.get('type', '1000base-t'),
-        #                                 'status': {'name': 'Active'}}
-
-    # # we add the vlans before adding the physical or virtual interfaces
-    # # because some interfaces may be access vlans
-    # if args.vlans or args.write_hldm or args.show_hldm:
-    #     logging.info("onboarding vlans")
-    #     vlans = onboarding_interfaces.vlans(sot,
-    #                                         args,
-    #                                         device_fqdn,
-    #                                         configparser,
-    #                                         device_defaults)
-    #     hldm['vlans'] = vlans
-
-    # now add interfaces to sot
+    # now get interface properties
     if args.interfaces:
-        logging.info("onboarding interfaces")
-        interfaces = onboarding_interfaces.get_list_of_interfaces(sot,
+        logging.info(f'getting interfaces properties if {device_fqdn}')
+        interface_properties = onboarding_interfaces.get_list_of_interfaces(sot,
                                                                   args,
                                                                   device_fqdn,
                                                                   device_facts,
                                                                   device_defaults,
                                                                   configparser)
-    print('--- device properties ---')
-    print(device_properties)
-    print('--- interfaces ---')
-    print(interfaces)
 
     # if args.tags or args.write_hldm or args.show_hldm:
     #     logging.info("onboarding tags")
@@ -116,7 +105,36 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     #                                   device_defaults,
     #                                   device_facts,
     #                                   configparser)
-    #     hldm['tags'] = tags
+
+    if args.onboarding:
+        if args.primary_only:
+            primary_interface = device_properties['primary_interface'] \
+                if 'primary_interface' in device_properties \
+                else onboarding_interfaces.get_primary_interface(primary_address, configparser)
+
+            interfaces = [{'name': primary_interface.get('name'),
+                           'ipv4': primary_address,
+                           'description': primary_interface.get('description','Primary Interface'),
+                           'type': primary_interface.get('type', '1000base-t'),
+                           'status': {'name': 'Active'}}]
+            # add device to SOT
+            new_device = sot.onboarding \
+                .interfaces(interfaces) \
+                .vlans(vlan_properties) \
+                .is_primary(True) \
+                .add_prefix(False) \
+                .add_device(device_properties)
+
+        elif args.interfaces:
+            interfaces = interface_properties
+            new_device = sot.onboarding \
+                .interfaces(interfaces) \
+                .vlans(vlan_properties) \
+                .is_primary(False) \
+                .add_prefix(False) \
+                .add_device(device_properties)
+        else:
+            interfaces = []
 
     # # now the most import part: the config_context
     # # do your own business logic in the "businesslogic" subdir

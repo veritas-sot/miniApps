@@ -56,19 +56,22 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
     device_id = device_facts['id'] if device_facts.get('id') else device_fqdn
     # set the basic properties of the device
     interface_properties = {
-            'device': device_id,
             'name': name,
             'type': interface.get('type','1000base-t'),
             'enabled': 'shutdown' not in interface,
             'description': description,
             'status': {'name': 'Active'}
     }
+    if 'ip' in interface:
+        ipv4 = IPv4Network(f'{interface.get("ip")}/{interface.get("mask")}', strict=False)
+        cidr = f'{interface.get("ip")}/{ipv4.prefixlen}'
+        interface_properties.update({'ipv4': cidr})
 
     # check if interface is lag
     if 'channel_group' in interface:
         pc = "%s%s" % (ciscoconf.get_name("port-channel"), interface.get('channel_group'))
         logging.debug(f'interface {name} is part of port-channel {pc}')
-        interface_properties.update({'lag': pc })
+        interface_properties.update({'lag': {'name': pc }})
 
     # setting switchport or trunk
     if 'mode' in interface:
@@ -125,43 +128,37 @@ def assign_interfaces(sot, interface_name, device_fqdn, ciscoconf):
     else:
         logging.debug(f'no IP address configured on interface')
 
-def vlans(sot, args, device_fqdn, ciscoconf, device_defaults):
+def get_vlan_properties(sot, args, device_fqdn, ciscoconf, device_defaults):
     global_vlans, svi, trunk_vlans = ciscoconf.get_vlans()
-    list_of_vlans = {}
+    list_of_vlans = []
 
     for vlan in global_vlans:
         vid = vlan.get('vid')
         name = vlan.get('name')
-        list_of_vlans[vid] = {'name': name,
-                              'status': {'name': 'Active'},
-                              'site': {'name': slugify(device_defaults['site'])}}
+        list_of_vlan.append({'name': name,
+                             'vid': vid,
+                             'status': {'name': 'Active'},
+                             'site': {'name': slugify(device_defaults['site'])}})
 
     for vlan in svi:
         vid = vlan.get('vid')
         name = vlan.get('name')
         if vid not in list_of_vlans:
-            list_of_vlans[vid] = {'name': name,
+            list_of_vlans.append({'name': name,
+                                  'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'site': {'name': slugify(device_defaults['site'])}}
+                                  'site': {'name': slugify(device_defaults['site'])}})
 
     for vlan in trunk_vlans:
         vid = vlan.get('vid')
         name = vlan.get('name')
         if vid not in list_of_vlans:
-            list_of_vlans[vid] = {'name': name,
+            list_of_vlans.append({'name': name,
+                                  'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'site': {'name': slugify(device_defaults['site'])}}
+                                  'site': {'name': slugify(device_defaults['site'])}})
 
-    if args.write_hldm or args.show_hldm:
-        return list_of_vlans
-
-    for vid, conf in list_of_vlans.items():
-        try:
-            vid_int = int(vid)
-        except Exception:
-            logging.error(f'could not convert string {vid} to int')
-            continue
-        sot.ipam.vlan(vid_int).add(conf)
+    return list_of_vlans
 
 def get_interfaces_from_sot(sot, device_fqdn):
     current_sot_interfaces = {}
@@ -177,36 +174,6 @@ def get_interfaces_from_sot(sot, device_fqdn):
     logging.debug(f'there are currently {len(current_sot_interfaces)} interfaces in the sot')
 
     return current_sot_interfaces
-
-# def convert_properties_to_id(sot, device_fqdn, device_facts, device_defaults, ciscoconf, interfaces, props):
-#     site = device_defaults['site']
-#     props['device'] = device_facts['id'] if device_facts.get('id') else {'name': device_fqdn}
-#     if 'untagged_vlan' in props:
-#         props_vlan_id = props.get('untagged_vlan')
-#         vlan_id = sot.get.id(item='vlan', vid=props_vlan_id, site=site)
-#         logging.debug(f'converted untagged_vlan {props_vlan_id} to {vlan_id}')
-#         props['untagged_vlan'] = vlan_id
-#     if 'tagged_vlans' in props:
-#         tagged_vlans = []
-#         props_vlan_id = props.get('tagged_vlans')
-#         for vlan in props_vlan_id.split(','):
-#             t = sot.get.id(item='vlan', vid=vlan, site=site)
-#             tagged_vlans.append(t)
-#         props['tagged_vlans'] = tagged_vlans
-#     if 'lag' in props:
-#         pc = props['lag']
-#         props['lag'] = {'device': {'name': device_fqdn}, 'name': pc}
-#     if 'site' in props:
-#         site_name = props['site']
-#         # site_id = sot_sites.get(site_name, site_name)
-#         site_id = sot.get.id(item='site', name=site_name)
-#         props['site'] = site_id
-#     if 'tags' in props:
-#         tags = props['tags']
-#         tag_slugs = tags.get('tags')
-#         content_types = tags.get('content_types')
-#         tag_list = [sot.get.id(item='tag', slug=slug, content_types=content_types) for slug in tag_slugs.split(',')]
-#         props['tags'] = tag_list
 
 def get_primary_interface(primary_address, ciscoconf):
     primary_interface = {}
@@ -224,7 +191,7 @@ def get_primary_interface(primary_address, ciscoconf):
         prefixlen = IPv4Network("0.0.0.0/%s" % interface.get('mask')).prefixlen
         primary_address = "%s/%s" % (interface.get('ip'), prefixlen)
         logging.debug(f'found primary interface; setting primary_address interface to {primary_address}')
-        if interface.get('description') == None:
+        if 'description' not in interface:
             logging.info("primary interface has no description configured; using 'primary interface'")
             primary_interface['description'] = "primary interface"
 

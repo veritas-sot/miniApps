@@ -180,8 +180,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # what to do
     parser.add_argument('--onboarding', action='store_true', help='add device to SOT')
+    parser.add_argument('--primary-only', action='store_true', help='add PRIMARY interface only to SOT')
     parser.add_argument('--interfaces', action='store_true', help='add interfaces to SOT')
-    parser.add_argument('--vlans', action='store_true', help='add VLANs to SOT')
     parser.add_argument('--cables', action='store_true', help='add cables to SOT')
     parser.add_argument('--config-context', action='store_true', help='write config context to repo')
     parser.add_argument('--tags', action='store_true', help='write tags')
@@ -189,8 +189,6 @@ if __name__ == "__main__":
     parser.add_argument('--show-facts', action='store_true', help='show facts only')
     parser.add_argument('--show-config', action='store_true', help='show config only')
     parser.add_argument('--update', action='store_true', help='update SOT even if device exists')
-    parser.add_argument('--write-hldm', action='store_true', help='write HLDM to disk')
-    parser.add_argument('--show-hldm', action='store_true', help='show HLDM only')
     parser.add_argument('--export', action='store_true', help='write config and facts to file')
 
     # the user can enter a different config file
@@ -224,9 +222,6 @@ if __name__ == "__main__":
     parser.add_argument('--repo', type=str, required=False, help="name of default repo")
     parser.add_argument('--path', type=str, required=False, help="local path to default repo")
     parser.add_argument('--subdir', type=str, required=False, help="subdir of repo to get/write data from/to")
-
-    # to overwrite the default device properties use these settings
-    parser.add_argument('--hostname', type=str, required=False, help="this hostname is used when offline is used and device is ip")
 
     # parse arguments
     args = parser.parse_args()
@@ -415,9 +410,7 @@ if __name__ == "__main__":
                 # the imported config conatins the IP address
                 device_ip = "0.0.0.0"
 
-        if args.write_hldm:
-            logging.info("writing HLDM to file instead of adding or updating the SOT")
-        elif args.show_facts or args.export or args.show_config or args.show_hldm:
+        if args.show_facts or args.export or args.show_config:
             # processed later
             pass
         else:

@@ -32,12 +32,12 @@ def get_device_properties(sot, args, device_fqdn, device_facts, ciscoconf, devic
     try:
         device_properties = {
             'name': device_fqdn,
-            'device_type': {'model': slugify(device_defaults['device_type'])},
-            'manufacturer': {'name': device_defaults['manufacturer']},
-            'platform': {'name': device_defaults['platform']},
-            'status': {'name': 'Active'},
+            'device_type': slugify(device_defaults['device_type']),
+            'manufacturer': device_defaults['manufacturer'],
+            'platform': device_defaults['platform'],
+            'status': 'Active',
             'location': {'name': device_defaults['site']},
-            'role': {'name': device_defaults['device_role']},
+            'role': device_defaults['device_role'],
             "serial": sn,
         }
 
