@@ -17,30 +17,7 @@ from onboarding import cables as onboarding_cables
 from onboarding import tags as onboarding_tags
 
 def onboarding(sot, args, device_facts, configparser, onboarding_config, device_defaults):
-    """onboard new devices to nautobot
-
-    To onboard a new device use something like this
-
-    new_device = sot.onboarding \
-    .interface(name='GigabitEthernet0/1', ipv4='192.168.0.1', type='1000base-t', status='Active') \
-        .add_prefix(False) \
-        .is_primary(True) \
-        .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
-
-    or to add multiple interfaces and setting one of these interfaces as primary use this code
-
-    interfaces = [
-        {'name': 'GigabitEthernet0/1', 'ipv4': '192.168.0.1/24', 'type': '1000base-t', 'status': 'Active'},
-        {'name': 'GigabitEthernet0/2', 'ipv4': '192.168.0.2/24', 'type': '1000base-t', 'status': 'Active'}
-    ]
-    new_device = sot.onboarding \
-        .interface(interfaces) \
-        .vlans(vlans) \
-        .primary_interface('GigabitEthernet0/1') \
-        .add_prefix(False) \
-        .add_device(name='test.local', role='default-role', device_type='iosv', location='site_1', status='Active')
-
-    """
+    """onboard new devices to nautobot"""
 
     # we have some empty variables
     vlan_properties = []

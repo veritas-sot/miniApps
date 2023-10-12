@@ -43,6 +43,7 @@ def from_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, con
     list_of_models = []
     list_of_manufacturers = []
     list_of_os_version = []
+    response = []
 
     if isinstance(host_or_ip, dict):
         list_of_items.append(host_or_ip)
@@ -66,9 +67,8 @@ def from_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, con
        device_facts['os_version'] in list_of_os_version:
         if 'tags' in config:
             for tag in config['tags']:
-                property = {'name': tag['name'],
-                            'scope': 'dcim.device'}
-                add_tag_to_sot(sot, args, property, device_fqdn, None)
+                response.append({'name': tag['name'], 'scope': 'dcim.device'})
+    return response
 
 def read_file(filename, device_defaults):
     with open(filename) as f:
@@ -96,7 +96,7 @@ def read_file(filename, device_defaults):
 
 def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser):
 
-    response = None
+    response = []
 
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))
@@ -111,26 +111,24 @@ def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparse
         # get the source. It is either a section or a (named) regular expression
         if 'section' in config['source']:
             device_config = configparser.get_section(config['source']['section'])
+            response += parse_config(sot, args, device_config, device_fqdn, config)
         elif 'fullconfig' in config['source']:
             device_config = configparser.get_device_config().splitlines()
+            response += parse_config(sot, args, device_config, device_fqdn, config)
         elif 'device' in config['source']:
-            # TODO die tags werden zentral zur SOT hinzugefügt
-            from_device_properties(sot, args, device_fqdn, device_facts, config['source']['device'], config)
-            continue
+            response += from_device_properties(sot,
+                                               args,
+                                               device_fqdn,
+                                               device_facts,
+                                               config['source']['device'],
+                                               config)
         else:
             logging.error("unknown source %s" % config['source'])
-            continue
-
-        if len(device_config) == 0:
-            logging.error("no device config with configured pattern found")
-            continue
-
-        # print(json.dumps(device_config, indent=4))
-        parse_config(sot, args, device_config, device_fqdn, config)
 
     return response
 
 def parse_config(sot, args, device_config, device_fqdn, config):
+    response = []
     for tags in config.get('tags',[]):
         pattern = tags.get('pattern', None)
         contains = tags.get('contains', None)
@@ -151,25 +149,19 @@ def parse_config(sot, args, device_config, device_fqdn, config):
                 if match:
                     logging.debug(f'pattern found on interface {interface}')
                     if scope_of_tag == "dcim.interface" and interface is not None:
-                        add_tag_to_sot(sot, args, name_of_tag, scope_of_tag, device_fqdn, interface)
+                       response.append({'name': name_of_tag,
+                                        'interface': interface,
+                                        'scope': scope_of_tag})
                     elif scope_of_tag == "dcim.device":
-                        add_tag_to_sot(sot, args, name_of_tag, scope_of_tag, device_fqdn, None)
+                        response.append({'name': name_of_tag,
+                                     'scope': scope_of_tag})
             elif contains and contains in line:
                 logging.debug(f'string found on interface {interface}')
                 if scope_of_tag == "dcim.interface" and interface is not None:
-                    add_tag_to_sot(sot, args, name_of_tag, scope_of_tag, device_fqdn, interface)
+                    response.append({'name': name_of_tag,
+                                     'interface': interafce,
+                                     'scope': scope_of_tag})
                 elif scope_of_tag == "dcim.device":
-                    add_tag_to_sot(sot, args, name_of_tag, scope_of_tag, device_fqdn, None)
-
-def add_tag_to_sot(sot, args, name_of_tag, scope_of_tag, device_fqdn, key):
-    logging.info(f'adding tag {name_of_tag} to {device_fqdn}')
-    for scope in scope_of_tag.split(","):
-        if key is not None and scope == "dcim.interface":
-            tag = sot.device(device_fqdn).interface(key).add_tags(name_of_tag)
-            if tag:
-                logging.info(f'tags added to interface')
-
-        if scope == "dcim.device":
-            tag = sot.device(device_fqdn).add_tags(name_of_tag)
-            if tag:
-                logging.info(f'tags added to device')
+                    response.append({'name': name_of_tag,
+                                     'scope': scope_of_tag})
+    return response
