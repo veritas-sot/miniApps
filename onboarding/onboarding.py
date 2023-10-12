@@ -16,7 +16,6 @@ from veritas.sot import sot as sot
 from veritas.tools import tools
 from veritas.devicemanagement import devicemanagement as dm
 from onboarding import onboarding
-from onboarding import required as required
 from onboarding import cables as cables
 
 # set default config file to your needs
@@ -51,10 +50,10 @@ def get_device_defaults(prefixe, ip):
     """
     the functions returns the default values of a device
     we use the prefix path and merge all values that are on the path
-    0.0.0.0/0 should always exists and contain the default values like default-site
-    or default-role 
+    0.0.0.0/0 should always exists and contain the default values like the location
+    or the default-role 
     If you do not use default values the onboarding process can faile because of missing but
-    required values like site name, model and so on 
+    required values 
     """
     if prefixe is None:
         return {}
@@ -269,7 +268,7 @@ if __name__ == "__main__":
     # read the default values from our YAML file
     # the default values are wvery important. Using this values you
     # can easily import dozens of devices. To achieve this use default
-    # values like 'unknown' or 'default-site'. After adding the devices
+    # values like 'unknown' or 'default-location'. After adding the devices
     # use the kobold script to modify tags, custom fields or mandatory
     # properties. 
     try:

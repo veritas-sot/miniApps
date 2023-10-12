@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 _global_cache = {}
 
 
-def required(device_defaults, device_facts, ciscoconf, onboarding_config):
+def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
 
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))

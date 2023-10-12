@@ -5,7 +5,7 @@ from datetime import datetime
 from slugify import slugify
 from veritas.sot import sot
 from businesslogic import your_device as user_bc_device
-from onboarding import required as required
+from onboarding import additional as additional
 
 
 def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defaults, onboarding_config):
@@ -36,7 +36,7 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
             'manufacturer': device_defaults['manufacturer'],
             'platform': device_defaults['platform'],
             'status': 'Active',
-            'location': {'name': device_defaults['site']},
+            'location': {'name': device_defaults['location']},
             'role': device_defaults['device_role'],
             "serial": sn,
         }
@@ -50,12 +50,12 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
         # get additional values
         # additional values are values that MUST exists; otherwise the device 
         # cannot be added to the sot. For example some custom fields may be required
-        additional_values = required.required(device_defaults, 
-                                              device_facts, 
-                                              ciscoconf, 
-                                              onboarding_config)
+        additional_values = additional.additional(device_defaults,
+                                                  device_facts,
+                                                  ciscoconf,
+                                                  onboarding_config)
 
-        # merge the device properties and the required values
+        # merge the device properties and the additional values
         for key,value in additional_values.items():
             logging.debug(f'updating device_properties with {key}={value}')
             if key == 'primary_ip' and len(value) > 0:
@@ -71,7 +71,7 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
                     device_properties[key] = value
                 else:    
                     device_properties[key] = {'name': slugify(value)}
-            elif key in ['site', 'device_role', 'device_type'] and len(value) > 0:
+            elif key in ['location', 'device_role', 'device_type'] and len(value) > 0:
                 if isinstance(value, dict):
                     device_properties[key] = value
                 else:    

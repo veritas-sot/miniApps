@@ -8,12 +8,8 @@ from ipaddress import IPv4Network
 
 def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf):
     list_of_interfaces = []
-    interfaces = ciscoconf.get_interfaces()
-
-    # Port-channels are used as reference by some physical interfaces so
-    # add logical interfaces to sot first
-    for name in interfaces:
-        logging.debug("get interface: %s" % name)
+    for name in ciscoconf.get_interfaces():
+        logging.debug("get property of interface: %s" % name)
         props = get_properties(sot,
                                device_fqdn,
                                device_facts,
@@ -21,17 +17,18 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
                                ciscoconf,
                                name)
         # call business logic if the user wants some modifications
-        user_int.interface_tags(ciscoconf, interfaces)
+        user_int.interface_tags(ciscoconf, props)
         list_of_interfaces.append(props)
 
     return list_of_interfaces
 
 def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
-    # get interfaces
-    interfaces = ciscoconf.get_interfaces()
-    interface = interfaces.get(name)
-    # set site
-    site = device_defaults['site']
+    """returns all properties of the interface"""
+    all_interfaces = ciscoconf.get_interfaces()
+    interface = all_interfaces.get(name)
+
+    # set location
+    location = device_defaults['location']
 
     # description must not be None
     description = interface.get('description',"")
@@ -60,20 +57,27 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
         mode = interface.get('mode')
         data = {}
         if mode == 'access':
-            # logging.debug("interface is access switchport: %s" % name)
-            untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), site=site)
+            logging.debug("interface is access switchport: %s" % name)
+            untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), location=location)
             data = {"mode": "access",
-                    "untagged_vlan": interface.get('vlan'),
-                    "site": site}
+                    "untagged_vlan": {'vid': interface.get('vlan'),
+                                      'location': {'name': location}
+                                     }
+                   }
         elif mode == 'trunk':
-            # logging.debug("interface is a tagged switchport: %s" % name)
-            # this port is either a trunked with allowed vlans (mode: tagged)
+            logging.debug("interface is a tagged switchport: %s" % name)
+            # this port is either a trunk with allowed vlans (mode: tagged)
             # or a trunk with all vlans mode: tagged-all
             if 'vlans_allowed' in interface:
-                vlans = ",".join(interface.get('vlans_allowed'))
-                data = {'mode': 'tagged', 'tagged_vlans': vlans}
+                vlans = []
+                for vlan in interface.get('vlans_allowed'):
+                    vlans.append({'vid': vlan,
+                                  'location': {'name': location}
+                                })
+                data = {'mode': 'tagged', 
+                        'tagged_vlans': vlans}
             else:
-                data = {"mode": "tagged-all", "site": site }
+                data = {'mode': "tagged-all"}
 
         if len(data) > 0:
             logging.debug("updating interface: %s" % name)
@@ -84,32 +88,38 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
 def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
     global_vlans, svi, trunk_vlans = ciscoconf.get_vlans()
     list_of_vlans = []
+    all_vlans = {}
+    location = device_defaults['location']
 
     for vlan in global_vlans:
         vid = vlan.get('vid')
         name = vlan.get('name')
-        list_of_vlan.append({'name': name,
-                             'vid': vid,
-                             'status': {'name': 'Active'},
-                             'site': {'name': slugify(device_defaults['site'])}})
+        if not f'{vid}__{location}' in all_vlans:
+            all_vlans[f'{vid}__{location}'] = True
+            list_of_vlan.append({'name': name,
+                                 'vid': vid,
+                                 'status': {'name': 'Active'},
+                                 'location': {'name': location}})
 
     for vlan in svi:
         vid = vlan.get('vid')
         name = vlan.get('name')
-        if vid not in list_of_vlans:
+        if not f'{vid}__{location}' in all_vlans:
+            all_vlans[f'{vid}__{location}'] = True
             list_of_vlans.append({'name': name,
                                   'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'site': {'name': slugify(device_defaults['site'])}})
+                                  'location': {'name': device_defaults['location']}})
 
     for vlan in trunk_vlans:
         vid = vlan.get('vid')
         name = vlan.get('name')
-        if vid not in list_of_vlans:
+        if not f'{vid}__{location}' in all_vlans:
+            all_vlans[f'{vid}__{location}'] = True
             list_of_vlans.append({'name': name,
                                   'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'site': {'name': slugify(device_defaults['site'])}})
+                                  'location': {'name': device_defaults['location']}})
 
     return list_of_vlans
 

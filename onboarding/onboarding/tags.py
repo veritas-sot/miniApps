@@ -9,38 +9,28 @@ from veritas.sot import sot as sot
 
 def to_sot(sot, args, device_fqdn, device_defaults, device_facts, configparser):
 
-    hldm = []
+    tags = []
 
-    cli_tags = from_default_and_cli(sot, args, device_fqdn, device_defaults)
+    cli_tags = from_default(sot, args, device_fqdn, device_defaults)
     file_tags = from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser)
 
     if cli_tags:
         for tag in cli_tags:
-            hldm.append(tag)
+            tags.append(tag)
     if file_tags:
         for tag in file_tags:
-            hldm.append(tag)
+            tags.append(tag)
 
-    return hldm
+    return tags
 
-def from_default_and_cli(sot, args, device_fqdn, device_defaults):
-    logging.debug(f'adding tags from default values and cli')
+def from_default(sot, args, device_fqdn, device_defaults):
+    logging.debug(f'adding tags from default values')
 
     response = []
 
-    if args.add_tags:
-        for tag in args.add_tags.split(','):
-            if args.write_hldm or args.show_hldm:
-                response.append({'name': tag, 'scope': 'dcim.device'})
-            else:
-                add_tag_to_sot(sot, args, tag, 'dcim.device', device_fqdn, None)
-
     if 'tag' in device_defaults:
         for tag in device_defaults['tag'].split(','):
-            if args.write_hldm or args.show_hldm:
-                response.append(property = {'name': tag, 'scope': 'dcim.device'})
-            else:
-                add_tag_to_sot(sot, args, tag, 'dcim.device', device_fqdn, None)
+            response.append(property = {'name': tag, 'scope': 'dcim.device'})
 
     return response
 
@@ -106,11 +96,11 @@ def read_file(filename, device_defaults):
 
 def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser):
 
+    response = None
+
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))
     directory = os.path.join(basedir, './tags/')
-    files = []
-    response = None
 
     # we read all *.yaml files in our tags config dir
     for filename in glob.glob(os.path.join(directory, "*.yaml")):
@@ -118,15 +108,13 @@ def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparse
         if config is None:
             continue
 
-        # add filename to our list of files that were processed
-        files.append(os.path.basename(filename))
-
         # get the source. It is either a section or a (named) regular expression
         if 'section' in config['source']:
             device_config = configparser.get_section(config['source']['section'])
         elif 'fullconfig' in config['source']:
             device_config = configparser.get_device_config().splitlines()
         elif 'device' in config['source']:
+            # TODO die tags werden zentral zur SOT hinzugefügt
             from_device_properties(sot, args, device_fqdn, device_facts, config['source']['device'], config)
             continue
         else:

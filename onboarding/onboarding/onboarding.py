@@ -68,7 +68,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         logging.info("no primary ip found using %s" % device_facts['args.device'])
 
     # now lets start the onboarding process
-    # first of all import the device to our sot
+    # first of all add the device to our sot
     if args.onboarding:
         logging.info(f'get device properties of {device_fqdn}')
         device_properties = onboarding_devices.get_device_properties(sot,
@@ -78,7 +78,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                      device_defaults,
                                                                      onboarding_config)
 
-    # if args.tags or args.write_hldm or args.show_hldm:
+    # if args.tags:
     #     logging.info("onboarding tags")
     #     tags = onboarding_tags.to_sot(sot,
     #                                   args,
@@ -94,7 +94,6 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             vlan_properties = onboarding_interfaces.get_vlan_properties(device_fqdn,
                                                                         configparser,
                                                                         device_defaults)
-
         primary_interface = device_properties['primary_interface'] \
             if 'primary_interface' in device_properties \
             else onboarding_interfaces.get_primary_interface(primary_address, configparser)
