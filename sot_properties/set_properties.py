@@ -7,6 +7,7 @@ import sys
 import logging
 import glob
 import os
+from slugify import slugify
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -30,8 +31,13 @@ def read_and_convert_data(sot, config, name):
 def import_data(config, args):
     # we need the SOT object to talk to the SOT
     my_sot = sot.Sot(token=config['sot']['token'], 
-                     url=config['sot']['nautobot'],
-                     ssl_verify=config['sot']['ssl_verify'])
+                     url=config['sot']['nautobot'])
+
+    # first of all import sites
+    if args.sites or args.all:
+        sites = read_and_convert_data(my_sot, config, 'sites')
+        logging.debug(f'import sites')
+        success = my_sot.importer.add(properties=sites['sites'], endpoint='sites')
 
     # the location types
     if args.location_types or args.all:
@@ -57,11 +63,11 @@ def import_data(config, args):
         logging.debug(f'import platforms')
         success = my_sot.importer.add(properties=platforms['platforms'], endpoint='platforms', bulk=True)
 
-    # roles
-    if args.roles or args.all:
-        roles = read_and_convert_data(my_sot, config, 'roles')
-        logging.debug(f'import roles')
-        success = my_sot.importer.add(properties=roles['roles'], endpoint='roles')
+    # device roles
+    if args.device_roles or args.all:
+        device_roles = read_and_convert_data(my_sot, config, 'device_roles')
+        logging.debug(f'import device_roles')
+        success = my_sot.importer.add(properties=device_roles['device_roles'], endpoint='device_roles')
 
     # the prefixe
     if args.prefixes or args.all:
@@ -73,6 +79,13 @@ def import_data(config, args):
     if args.device_types or args.all:
         device_types = read_and_convert_data(my_sot, config, 'device_types')
         logging.debug(f'import device_types')
+        for device in device_types['device_types']:
+            if 'slug' not in device:
+                device['slug'] = slugify(device['name'])
+            if 'model' not in device:
+                device['model'] = device['name']
+            if 'manufacturer' in device:
+                device['manufacturer'] = {'slug': device['manufacturer']}
         success = my_sot.importer.add(properties=device_types['device_types'], endpoint='device_types')
 
     # the device library comes from netbox
@@ -91,7 +104,8 @@ def import_data(config, args):
                 device_types = [{
                     'name': content.get('slug'),
                     'model': content.get('model'),
-                    'manufacturer': {'name': content.get('manufacturer')},
+                    'slug': slugify(content.get('slug')),
+                    'manufacturer': {'slug': slugify(content.get('manufacturer'))},
                     'part_number': content.get('part_number'),
                     'u_height': content.get('u_height'),
                     'is_full_depth': content.get('is_full_depth')}]
@@ -104,25 +118,25 @@ def import_data(config, args):
                 if device_type_added and 'interfaces' in content:
                     data = []
                     for interface in content['interfaces']:
-                        interface.update({'device_type': {'name': content.get('slug')}})
+                        interface.update({'device_type': {'slug': slugify(content.get('slug'))}})
                         data.append(interface)
                     success = my_sot.importer.add(properties=data, endpoint='interface_templates', bulk=True)
                 if device_type_added and 'console-ports' in content:
                     data = []
                     for console in content['console-ports']:
-                        console.update({'device_type': {'name': content.get('slug')}})
+                        console.update({'device_type': {'slug': slugify(content.get('slug'))}})
                         data.append(console)
                     success = my_sot.importer.add(properties=data, endpoint='console_port_templates', bulk=True)
                 if device_type_added and 'power-ports' in content:
                     data = []
                     for power in content['power-ports']:
-                        power.update({'device_type': {'name': content.get('slug')}})
+                        power.update({'device_type': {'slug': slugify(content.get('slug'))}})
                         data.append(power)
                     success = my_sot.importer.add(properties=data, endpoint='power_port_templates', bulk=True)
                 if device_type_added and 'module-bays' in content:
                     data = []
                     for module in content['module-bays']:
-                        module.update({'device_type': {'name': content.get('slug')}})
+                        module.update({'device_type': {'slug': slugify(content.get('slug'))}})
                         data.append(module)
                     success = my_sot.importer.add(properties=data, endpoint='device_bay_templates', bulk=True)
 
@@ -139,9 +153,10 @@ def import_data(config, args):
         countries = []
         for country in raw_countries:
             country = {'name': country.get('country'),
-                       'location_type': {'name': 'country'},
+                       'location_type': {'slug': 'country'},
+                       'slug': slugify(country.get('country','')),
                        'status': 'active',
-                       'site': {'name': 'default-site'}}
+                       'site': {'slug': 'default-site'}}
             countries.append(country)
         logging.debug('now adding countries')
         success = my_sot.importer.locations(properties=countries, bulk=True)
@@ -158,10 +173,9 @@ def import_data(config, args):
         custom_fields = read_and_convert_data(my_sot, config, 'custom_fields')
         custom_field_choices = read_and_convert_data(my_sot, config, 'custom_field_choices')
         for cf in custom_fields['custom_fields']:
-            logging.debug(f'importing {cf}')
             if 'default' in cf:
                 logging.debug('found default value; setting default after creating cf')
-                properties = {'label': cf.get('label'), 'default': cf.get('default')}
+                properties = {'name': cf.get('name'), 'default': cf.get('default')}
                 set_defaults.append(properties)
                 del cf['default']
         logging.debug(f'import custom fields')
@@ -170,7 +184,7 @@ def import_data(config, args):
         success = my_sot.importer.add(properties=custom_fields['custom_field_choices'], endpoint='custom_field_choices')
         # set default value
         for properties in set_defaults:
-            success = my_sot.updater.update(endpoint='custom_fields', getter={'label': properties.get('label')}, values=properties)
+            success = my_sot.updater.update(endpoint='custom_fields', getter={'name': properties.get('name')}, values=properties)
 
     if args.custom_links or args.all:
         locations = read_and_convert_data(my_sot, config, 'custom_links')
@@ -189,10 +203,11 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False)
     # what to import
     parser.add_argument('--all', help='import all values', action='store_true')
+    parser.add_argument('--sites', help='import sites', action='store_true')
     parser.add_argument('--manufacturers', help='import manuifacturers', action='store_true')
     parser.add_argument('--platforms', help='import platforms', action='store_true')
     parser.add_argument('--prefixes', help='import prefixes', action='store_true')
-    parser.add_argument('--roles', help='import roles', action='store_true')
+    parser.add_argument('--device-roles', help='import device roles', action='store_true')
     parser.add_argument('--device-types', help='import device types', action='store_true')
     parser.add_argument('--location-types', help='import location types', action='store_true')
     parser.add_argument('--locations', help='import locations', action='store_true')
