@@ -9,7 +9,7 @@ from ipaddress import IPv4Network
 def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf):
     list_of_interfaces = []
     for name in ciscoconf.get_interfaces():
-        logging.debug("get property of interface: %s" % name)
+        #logging.debug("get property of interface: %s" % name)
         props = get_properties(sot,
                                device_fqdn,
                                device_facts,
@@ -96,7 +96,7 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
         name = vlan.get('name')
         if not f'{vid}__{location}' in all_vlans:
             all_vlans[f'{vid}__{location}'] = True
-            list_of_vlan.append({'name': name,
+            list_of_vlans.append({'name': name,
                                  'vid': vid,
                                  'status': {'name': 'Active'},
                                  'location': {'name': location}})
