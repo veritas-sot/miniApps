@@ -71,18 +71,20 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             vlan_properties = onboarding_interfaces.get_vlan_properties(device_fqdn,
                                                                         configparser,
                                                                         device_defaults)
+
+        # the primary interface can be overwritten by our "additional" feature or the business logic
         primary_interface = device_properties['primary_interface'] \
             if 'primary_interface' in device_properties \
             else onboarding_interfaces.get_primary_interface(primary_address, configparser)
 
         if args.primary_only:
             interfaces = [{'name': primary_interface.get('name'),
-                           'ipv4': primary_address,
+                           'ipv4': primary_interface.get('ip'),
                            'description': primary_interface.get('description','Primary Interface'),
                            'type': primary_interface.get('type', '1000base-t'),
                            'status': {'name': 'Active'}}]
         elif args.interfaces:
-            logging.info(f'getting interfaces properties if {device_fqdn}')
+            logging.info(f'getting interfaces properties of {device_fqdn}')
             interfaces = onboarding_interfaces.get_interface_properties(sot,
                                                                        device_fqdn,
                                                                        device_facts,

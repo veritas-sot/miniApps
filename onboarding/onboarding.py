@@ -464,8 +464,6 @@ if __name__ == "__main__":
         # If 'offline' is set we add the device using the default values to our SOT
         if device_defaults.get('offline', False):
             if args.onboarding:
-                if args.hostname:
-                    hostname = args.hostname
                 logging.info(f'adding {hostname} offline to the sot')
                 # we do not have any facts
                 device_facts = {

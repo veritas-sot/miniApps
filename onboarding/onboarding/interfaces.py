@@ -93,17 +93,21 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
 
     for vlan in global_vlans:
         vid = vlan.get('vid')
-        name = vlan.get('name')
+        name = vlan.get('name','')
+        if '-' in vid or ',' in vid:
+            continue
         if not f'{vid}__{location}' in all_vlans:
             all_vlans[f'{vid}__{location}'] = True
             list_of_vlans.append({'name': name,
-                                 'vid': vid,
-                                 'status': {'name': 'Active'},
-                                 'location': {'name': location}})
+                                  'vid': vid,
+                                  'status': {'name': 'Active'},
+                                  'location': {'name': location}})
 
     for vlan in svi:
         vid = vlan.get('vid')
-        name = vlan.get('name')
+        name = vlan.get('name','')
+        if '-' in vid or ',' in vid:
+            continue
         if not f'{vid}__{location}' in all_vlans:
             all_vlans[f'{vid}__{location}'] = True
             list_of_vlans.append({'name': name,
@@ -113,7 +117,9 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
 
     for vlan in trunk_vlans:
         vid = vlan.get('vid')
-        name = vlan.get('name')
+        name = vlan.get('name','')
+        if '-' in vid or ',' in vid:
+            continue
         if not f'{vid}__{location}' in all_vlans:
             all_vlans[f'{vid}__{location}'] = True
             list_of_vlans.append({'name': name,
@@ -141,10 +147,6 @@ def get_interfaces_from_sot(sot, device_fqdn):
 def get_primary_interface(primary_address, ciscoconf):
     primary_interface = {}
     interface_name = ciscoconf.get_interface_name_by_address(primary_address)
-
-    # if primary_interface_name is none then the IP address was not configured on an interfcae
-    # this can happen when using dhcp (strange but possible) or hsrp (more common)
-    logging.debug(f'primary_interface_name set to {interface_name}')
     interface = ciscoconf.get_interface(interface_name)
 
     # if we have the right mask of the interface/ip we use this instead of a /32
@@ -152,10 +154,15 @@ def get_primary_interface(primary_address, ciscoconf):
         primary_interface['name'] = interface_name
         # convert IP and MASK to cidr notation
         prefixlen = IPv4Network("0.0.0.0/%s" % interface.get('mask')).prefixlen
-        primary_address = "%s/%s" % (interface.get('ip'), prefixlen)
+        primary_interface['ip'] = "%s/%s" % (interface.get('ip'), prefixlen)
         logging.debug(f'found primary interface; setting primary_address interface to {primary_address}')
         if 'description' not in interface:
             logging.info("primary interface has no description configured; using 'primary interface'")
             primary_interface['description'] = "primary interface"
+    else:
+        logging.debug(f'found no interface, setting default values')
+        primary_interface['name'] = "primaryInterface"
+        primary_interface['description'] = "primary interface"
+        primary_interface['ip'] = f'{primary_address}/32'
 
     return primary_interface
