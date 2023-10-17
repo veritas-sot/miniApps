@@ -50,7 +50,6 @@ def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
                                 device_defaults, 
                                 item_config, 
                                 ciscoconf)
-
     return response
 
 def get_additional_values(response, item_config, device_facts, device_defaults, onboarding_config):

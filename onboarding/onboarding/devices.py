@@ -68,13 +68,16 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
                 if new_primary_interface:
                     logging.info(f'change primary_ip to {primary_address} and interface {primary_interface_name}')
                     device_properties['primary_interface'] = new_primary_interface
-            elif key in ['manufacturer', 'platform'] and len(value) > 0:
+            elif key in ['manufacturer', 'device_role'] and len(value) > 0:
                 # manufacturer and platform need the name
                 if isinstance(value, dict):
                     device_properties[key] = value
                 else:    
                     device_properties[key] = {'name': slugify(value)}
-            elif key in ['location', 'device_role', 'device_type'] and len(value) > 0:
+            elif key in ['device_type' ,'platform'] and len(value) > 0:
+                # device_type is simple
+                device_properties[key] = value
+            elif key in ['location'] and len(value) > 0:
                 if isinstance(value, dict):
                     device_properties[key] = value
                 else:    
