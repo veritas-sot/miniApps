@@ -120,7 +120,7 @@ class Worker(threading.Thread):
                 connected = self.try_to_connect(auth, address, 161)
 
             if connected:
-                logging.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device in SOT')
+                logging.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device {hostname} in SOT')
                 self.sot.device(hostname).set_customfield({'custom_fields': {'snmp_credentials': snmp_id}})
                 break
             else:
