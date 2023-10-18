@@ -8,6 +8,7 @@ import ipaddress
 import re
 import time
 import pprint
+import urllib3
 from veritas.tools import tools
 from veritas.sot import sot as sot
 
@@ -89,20 +90,26 @@ def add_host_tag_groups(sot, host_tag_groups):
         if any(d['ident'].startswith('sot__') for d in htg['tags']):
             for tag in htg.get('tags'):
                 ident = tag.get('ident').replace('sot__','')
-                if ident.startswith('prop__site'):
-                    query = "query{ sites { name slug } }"
-                    raw_data = sot.get.query(query=query, parameter={})
+                if ident.startswith('prop__location'):
+                    # query = "query{ location { name } }"
+                    # raw_data = sot.get.query(query=query, parameter={})
+                    raw_data = sot.select('location') \
+                        .using('nb.devices') \
+                        .normalize(False) \
+                        .where()
                     if not 'set' in cfields:
-                        cfields = {'site': set()}
+                        cfields = {'location': set()}
                     for cf_data in raw_data:
                         for key, value in cf_data.items():
                             if key == 'name':
-                                cfields['site'].add(value)
+                                cfields['location'].add(value)
                 if ident.startswith('cf_'):
-                    query = 'query{ devices(name: "") { _custom_field_data } }'
-                    raw_data = sot.get.query(query=query, parameter={})
+                    raw_data = sot.select('hostname', 'custom_fields') \
+                        .using('nb.devices') \
+                        .normalize(False) \
+                        .where()
                     for cf_data in raw_data:
-                        for key, value in cf_data['_custom_field_data'].items():
+                        for key, value in cf_data['custom_field_data'].items():
                             if key not in cfields:
                                 cfields[key] = set()
                             cfields[key].add(value)
@@ -182,7 +189,6 @@ def get_folder_name(properties, folder_config):
     sot_tags = properties.get('tags')
     hostname = properties.get('hostname')
     folders = []
-
     fldrs = folder_config.get('template')
     if 'checkmk_folder' in sot_cf_list and len(sot_cf_list['checkmk_folder']) > 0:
         # if the custom field checkmk_folder is set in our SOT we use this field
@@ -501,9 +507,8 @@ def prepare_host_data(sot, properties, check_mk_config, snmp_id=None, check_mk=N
     if properties.get('primary_ip4') is None:
         logging.error(f'host {hostname} has no primary IP ... skipping')
         return None
-
     ip_address = properties.get('primary_ip4',{}).get('address').split('/')[0]
-    site = properties.get('site',{}).get('name')
+    site = properties.get('location',{}).get('name')
     custom_fields = properties.get('custom_field_data')
 
     # folder, tags, and snmp credentials are dynamic
@@ -842,7 +847,7 @@ def get_missing_devices(sot, check_mk_config):
         parameter = {'name': ''}
 
     if _cache_all_sot_devices is None:
-        _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','site','custom_fields'],
+        _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','location','custom_fields'],
                                                parameter=parameter)
     if _cache_all_cmk_devices is None:
         _cache_all_cmk_devices = get_all_hosts()
@@ -1063,6 +1068,9 @@ def show(sot, check_mk_config, what, check_mk=None):
 
 if __name__ == "__main__":
 
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
     sot_devicelist = []
     cmk_devicelist = []
 
@@ -1124,8 +1132,10 @@ if __name__ == "__main__":
     logging.basicConfig(level=loglevel, format=log_format)
 
     # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=check_mk_config['sot']['token'], url=check_mk_config['sot']['nautobot'])
-
+    sot = sot.Sot(token=check_mk_config['sot']['token'],
+                  ssl_verify=check_mk_config['sot'].get('ssl_verify', False),
+                  url=check_mk_config['sot']['nautobot'])
+    
     # the basic stuff at the beginning
     if args.add_default_folders:
         add_default_folders(check_mk_config)
@@ -1141,15 +1151,14 @@ if __name__ == "__main__":
         add_config_to_checkmk(check_mk_config.get('rules',[]), 
                               '/domain-types/rule/collections/all', 
                               'rules')
-    
+
     # now look at the devices
     if args.devices and (args.add_hosts or args.update_hosts or args.add_folders or args.update_cmk):
-        # in this case we get the devices from our SOT
-        sot_devicelist = sot.select('hostname', 'primary_ip4' ,'site', 'custom_fields') \
-                            .using('nb.devices') \
-                            .normalize(False) \
-                            .where(args.devices)
-
+        sot_devicelist = sot.select('hostname', 'primary_ip4', 'location', 'cf_snmp_credentials') \
+                     .using('nb.devices') \
+                     .normalize(False) \
+                     .where(args.devices)
+        
         for device in sot_devicelist:
             hostname = device.get('hostname')
             logging.debug(f'adding hostname: {hostname}')
@@ -1166,7 +1175,7 @@ if __name__ == "__main__":
             elif key == 'folder':
                 if device.get('folder').startswith(value):
                     cmk_devicelist.append({'host_name': hostname,
-                                       'folder': device.get('folder')})
+                                           'folder': device.get('folder')})
         logging.info(f'added {len(cmk_devicelist)} hosts to our list of devices')
 
     if args.add_hosts:        

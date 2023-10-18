@@ -8,6 +8,7 @@ import ipaddress
 import re
 import threading
 import urllib3
+import sys
 from queue import Queue, Full, Empty
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -121,7 +122,7 @@ class Worker(threading.Thread):
 
             if connected:
                 logging.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device {hostname} in SOT')
-                self.sot.device(hostname).set_customfield({'custom_fields': {'snmp_credentials': snmp_id}})
+                self.sot.device(hostname).update({'custom_fields': {'snmp_credentials': snmp_id}})
                 break
             else:
                 logging.debug(f'({self.thread_number}) connection failed or {snmp_id}; trying next credentials')
@@ -204,12 +205,13 @@ if __name__ == "__main__":
     if args.devices:
         # create list of devices we are looking for
         excluded = str(args.exclude).split(',')
-        devices = sot.select('hostname', 'primary_ip4', 'platform') \
+        devices = sot.select('hostname', 'primary_ip4', 'platform', 'cf_snmp_credentials') \
                      .using('nb.devices') \
                      .normalize(False) \
                      .where(args.devices)
         nn_hosts = 0
         skipped = 0
+        logging.debug(f'got {len(devices)} from nautobot')
         for device in devices:
             host = {'hostname': device.get('hostname')}
             for e in excluded:
@@ -227,13 +229,12 @@ if __name__ == "__main__":
             else:
                 host['platform'] = "unknown"
             if not args.update:
-                dev_cred = device.get('_custom_field_data',{}).get('snmp_credentials')
+                dev_cred = device.get('custom_field_data',{}).get('snmp_credentials')
                 if dev_cred is not None and dev_cred.lower() != 'unknown':
                     logging.debug(f'host {device} has active SNMP credentials')
                     skipped += 1
                     continue
             devicelist.append(host)
-            
             nn_hosts += 1
             logging.debug(f'adding {host["hostname"]} / {host["host"]} plattform: {host["platform"]}')
         logging.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')

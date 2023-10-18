@@ -5,6 +5,7 @@ import argparse
 import logging
 import json
 import yaml
+import urllib3
 from icmplib import async_ping, async_multiping
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -32,6 +33,9 @@ async def do_icmp(sot, set_link_config, addresses):
 
 if __name__ == "__main__":
 
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
     devicelist = []
 
     parser = argparse.ArgumentParser()
@@ -39,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, default="./set_link.yaml", required=False, help="set_link config file")
     # what devices
     parser.add_argument('--devices', type=str, default="", required=False, help="query to get list of devices")
+    parser.add_argument('--update', action='store_true', help='Update LINK even if it set')
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
     # parse arguments
@@ -62,20 +67,26 @@ if __name__ == "__main__":
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=set_link_config['sot']['token'], url=set_link_config['sot']['nautobot'])
-    devices = sot.select('hostname', 'primary_ip4') \
+    devices = sot.select('hostname', 'primary_ip4', 'cf_link') \
                 .using('nb.devices') \
                 .normalize(False) \
                 .where(args.devices)
 
     for device in devices:
+        hostname = device.get("hostname")
+        link = device.get('custom_field_data',{}).get('link','unknown')
+        if link != 'unknown' and not args.update:
+            logging.info(f'skipping {hostname}, link set to {link} and update not active')
+            continue
         primary = device.get('primary_ip4',{}).get('address')
         primary_ip = primary.split('/')[0]
         if primary:
             _all_hosts[primary_ip] = device.get("hostname")
             devicelist.append(primary_ip)
         else:
-            logging.error(f'git no primary ip for {device.get("hostname")}')
+            logging.error(f'got no primary ip for {device.get("hostname")}')
 
     # now ping devices and set custom field
-    host = asyncio.run(do_icmp(sot, set_link_config, devicelist))
+    if len(devicelist) > 0:
+        host = asyncio.run(do_icmp(sot, set_link_config, devicelist))
 
