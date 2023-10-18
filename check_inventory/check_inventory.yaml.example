@@ -1,0 +1,5 @@
+---
+sot:
+  nautobot: __NAUTOBOT_URL__
+  token: "__NAUTOBOT_TOKEN__"
+  ssl_verify: false

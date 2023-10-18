@@ -123,6 +123,10 @@ def read_config_and_facts_from_file(hostname, onboarding_config):
         logging.error(f'could not import config or facts {exc}')
         return None, None
 
+    # TODO, das kann weg
+    device_facts['fqdn'] = device_facts['fqdn'].lower()
+    device_facts['hostname'] = device_facts['hostname'].lower()
+
     return device_config, device_facts
 
 def get_device_config_and_facts(args, device_ip, device_defaults, username, password, hostname, onboarding_config):
@@ -141,6 +145,7 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
     # retrieve facts like fqdn, model and serialnumber
     logging.info(f'now gathering facts from {hostname}')
     device_facts = conn.get_facts()
+
     if device_facts is None:
         logging.error('got no facts; skipping device')
         if conn:
@@ -387,6 +392,10 @@ if __name__ == "__main__":
         host_or_ip = device_dict.get('host').lower()
         # the hostname is ALWAYS lower case
         hostname = device_dict.get('hostname', host_or_ip).lower()
+        # there is no space in a hostname!!!
+        hostname = hostname.split(' ')[0]
+        # write the hostname back
+        device_dict['hostname'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
         logging.info(f'processing {host_or_ip} {hostname} {devices_processed}/{devices_overall}')
 
@@ -436,6 +445,7 @@ if __name__ == "__main__":
         # remove custom_fields
         device_defaults['custom_fields'] = {}
 
+        # now use the device_dict that is the csv/xlsx file
         for key, value in device_dict.items():
             # do not overwrite values with None
             if value is not None:

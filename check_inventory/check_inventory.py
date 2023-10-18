@@ -5,67 +5,88 @@ import logging
 import yaml
 import os
 import json
+import urllib3
 from veritas.sot import sot
+from veritas.tools import tools
 
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
-DEFAULT_CONFIG_FILE = "./conf/convert_csv.yaml"
+DEFAULT_CONFIG_FILE = "./check_inventory.yaml"
 
 if __name__ == "__main__":
 
-    device_ip_in_sot = {}
-    device_names_in_sot = {}
-    device_names_short_in_sot = {}
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
+    devicelist = []
+    missing = []
     number_of_missing_devices = 0
     number_of_found_devices = 0
 
     parser = argparse.ArgumentParser()
 
     # the user can enter a different config file
-    parser.add_argument('--input', type=str, required=True)
-    parser.add_argument('--diff', type=str, required=False)
+    parser.add_argument('--config', type=str, required=False, help="set_snmp config file")
+    parser.add_argument('--filename', type=str, required=True)
+    parser.add_argument('--out', type=str, required=False)
+    # set the log level
+    parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
 
     args = parser.parse_args()
-    sot = sot.Sot(token="", 
-              url="")
 
-    logging.basicConfig(level=logging.DEBUG,
-                        format="%(levelname)s - %(message)s")
+    # read set_snmp config
+    if args.config is not None:
+        config_file = args.config
+    else:
+        config_file = DEFAULT_CONFIG_FILE
 
-    # get all devices form SOT
-    raw = sot.get \
-            .as_dict \
-            .query(name='device_properties', query_params={})
-    for device in raw['data']['devices']:
-            hostname = device.get('hostname')
-            primary_ip = device.get('primary_ip4')
-            device_names_in_sot[hostname.lower()] = primary_ip
-            device_names_short_in_sot[hostname.split('.')[0].lower()] = primary_ip
+    with open(config_file) as f:
+        check_config = yaml.safe_load(f.read())
 
-    # print(json.dumps(device_names_in_sot, indent=4))
-    # print(json.dumps(device_names_short_in_sot, indent=4))
+    # set logging
+    if args.loglevel is None:
+        loglevel = tools.get_loglevel(tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'level']))
+    else:
+        loglevel = tools.get_loglevel(args.loglevel)
 
-    with open(args.input) as f:
-        inventory = yaml.safe_load(f.read())
+    log_format = tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'format'])
+    if log_format is None:
+        log_format = '%(asctime)s %(levelname)s:%(message)s'
+    logfile = tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'filename'])
+    logging.basicConfig(level=loglevel, format=log_format)
 
-    if args.diff:
-        diff_file = open(args.diff,"w")
+    # we need the SOT object to talk to the SOT
+    sot = sot.Sot(token=check_config['sot']['token'], 
+                  url=check_config['sot']['nautobot'],
+                  ssl_verify=check_config['sot'].get('ssl_verify', False))
 
-    for device in inventory:
-        hostname = device.get("hostname").lower().split(' ')[0]
-        host_shorted = hostname.split('.')[0].lower()
-        if hostname not in device_names_in_sot and host_shorted not in device_names_short_in_sot:
-            # check if hostname without domain is in SOT
+    column_mapping = check_config.get('mappings',{}).get('columns',{})
+    table = tools.read_excel_file(args.filename)
+    for row in table:
+        d = {}
+        for k,v in row.items():
+            key = column_mapping.get(k) if k in column_mapping else k
+            d[key] = v
+        devicelist.append(d)
+    
+    for device in devicelist:
+        hostname = device.get('hostname').lower()
+        hostname = hostname.split(' ')[0]
+        id = sot.get.id(item='device', name=hostname)
+        if not id:
+            logging.info(f'{hostname} not found')
             number_of_missing_devices += 1
-            # print(f'device {hostname} NOT found in SOT')
-            if args.diff:
-                # missing = f'- hostname: {device.get("hostname")}\n  host: {device.get("host")}\n  platform: {device.get("platform")}\n  city: {device.get("city")}\n  country: {device.get("country")}\n'
-                missing = f'- hostname: {device.get("hostname")}\n  host: {device.get("host")}\n  platform: {device.get("platform")}\n'
-                diff_file.write(missing)        
+            missing.append(device)
         else:
             number_of_found_devices += 1
-
-    if args.diff:
-        diff_file.close()
     
-    print(f'Found: {number_of_found_devices} missing: {number_of_missing_devices}')
+    print(f'found {number_of_found_devices} hosts; {number_of_missing_devices} are missing')
+    for m in missing:
+        print(m.get('hostname'))
+
+    if args.out:
+        with open(args.out, 'w') as f:
+            for m in missing:
+                f.write(m.get('hostname'))
+                f.write('\n')
+
