@@ -2,6 +2,7 @@
 sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
+  ssl_verify: false
 check_mk:
   url: __CHECKMK__
   site: __SITE__
