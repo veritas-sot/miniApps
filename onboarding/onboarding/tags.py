@@ -7,19 +7,17 @@ import json
 from veritas.sot import sot as sot
 
 
-def to_sot(sot, args, device_fqdn, device_defaults, device_facts, configparser):
+def to_sot(sot, args, device_fqdn, device_defaults, device_facts, configparser, onboarding_config):
 
     tags = []
 
-    cli_tags = from_default(sot, args, device_fqdn, device_defaults)
-    file_tags = from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser)
+    default_tags = from_default(sot, args, device_fqdn, device_defaults)
+    file_tags = from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser, onboarding_config)
 
-    if cli_tags:
-        for tag in cli_tags:
-            tags.append(tag)
-    if file_tags:
-        for tag in file_tags:
-            tags.append(tag)
+    for tag in default_tags:
+        tags.append(tag)
+    for tag in file_tags:
+        tags.append(tag)
 
     return tags
 
@@ -34,8 +32,67 @@ def from_default(sot, args, device_fqdn, device_defaults):
 
     return response
 
-def from_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, config):
-    logging.debug(f'adding device tags depending on hostname or ip')
+def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser, onboarding_config):
+
+    logging.debug(f'adding tags from files')
+
+    response = []
+
+    basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
+                         onboarding_config.get('git').get('app_configs').get('subdir'))
+    directory = os.path.join(basedir, './tags/')
+
+    # we read all *.yaml files in our tags config dir
+    for filename in glob.glob(os.path.join(directory, "*.yaml")):
+        config = read_file(filename, device_defaults)
+        if config is None:
+            continue
+
+        # get the source. It is either a section or a (named) regular expression
+        if 'section' in config['source']:
+            device_config = configparser.get_section(config['source']['section'])
+            response += parse_config(sot, args, device_config, device_fqdn, config)
+        elif 'fullconfig' in config['source']:
+            device_config = configparser.get_device_config().splitlines()
+            response += parse_config(sot, args, device_config, device_fqdn, config)
+        elif 'device' in config['source']:
+            response += parse_device_properties(sot,
+                                                args,
+                                                device_fqdn,
+                                                device_facts,
+                                                config['source']['device'],
+                                                config)
+        else:
+            logging.error("unknown source %s" % config['source'])
+
+    return response
+
+def read_file(filename, device_defaults):
+    with open(filename) as f:
+        config = {}
+        logging.debug("opening file %s to read custom field config" % filename)
+        try:
+            config = yaml.safe_load(f.read())
+            if config is None:
+                logging.error("could not parse file %s" % filename)
+                return None
+        except Exception as exc:
+            logging.error("could not read file %s; got exception %s" % (filename, exc))
+            return None
+
+        name = config.get('name')
+        platform = config.get('platform')
+        if not config.get('active'):
+            logging.debug("tags %s in %s is not active" % (name, filename))
+            return None
+        if platform is not None:
+            if platform != 'all' and platform != device_defaults["platform"]:
+                logging.debug("skipping custom field %s wrong platform %s" % (name, platform))
+                return None
+        return config
+
+def parse_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, config):
+    logging.debug(f'looing for tags depending on hostname or ip')
 
     list_of_items = []
     list_of_ip = []
@@ -68,63 +125,6 @@ def from_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, con
         if 'tags' in config:
             for tag in config['tags']:
                 response.append({'name': tag['name'], 'scope': 'dcim.device'})
-    return response
-
-def read_file(filename, device_defaults):
-    with open(filename) as f:
-        config = {}
-        logging.debug("opening file %s to read custom field config" % filename)
-        try:
-            config = yaml.safe_load(f.read())
-            if config is None:
-                logging.error("could not parse file %s" % filename)
-                return None
-        except Exception as exc:
-            logging.error("could not read file %s; got exception %s" % (filename, exc))
-            return None
-
-        name = config.get('name')
-        platform = config.get('platform')
-        if not config.get('active'):
-            logging.debug("tags %s in %s is not active" % (name, filename))
-            return None
-        if platform is not None:
-            if platform != 'all' and platform != device_defaults["platform"]:
-                logging.debug("skipping custom field %s wrong platform %s" % (name, platform))
-                return None
-        return config
-
-def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser):
-
-    response = []
-
-    basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
-                         onboarding_config.get('git').get('app_configs').get('subdir'))
-    directory = os.path.join(basedir, './tags/')
-
-    # we read all *.yaml files in our tags config dir
-    for filename in glob.glob(os.path.join(directory, "*.yaml")):
-        config = read_file(filename, device_defaults)
-        if config is None:
-            continue
-
-        # get the source. It is either a section or a (named) regular expression
-        if 'section' in config['source']:
-            device_config = configparser.get_section(config['source']['section'])
-            response += parse_config(sot, args, device_config, device_fqdn, config)
-        elif 'fullconfig' in config['source']:
-            device_config = configparser.get_device_config().splitlines()
-            response += parse_config(sot, args, device_config, device_fqdn, config)
-        elif 'device' in config['source']:
-            response += from_device_properties(sot,
-                                               args,
-                                               device_fqdn,
-                                               device_facts,
-                                               config['source']['device'],
-                                               config)
-        else:
-            logging.error("unknown source %s" % config['source'])
-
     return response
 
 def parse_config(sot, args, device_config, device_fqdn, config):

@@ -22,6 +22,8 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     # we have some empty variables
     vlan_properties = []
     interface_properties = []
+    tag_properties = []
+    new_device = None
 
     # we need the FQDN of the device
     if device_facts is not None and 'fqdn' in device_facts:
@@ -55,14 +57,15 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                      device_defaults,
                                                                      onboarding_config)
 
-    # if args.tags:
-    #     logging.info("onboarding tags")
-    #     tags = onboarding_tags.to_sot(sot,
-    #                                   args,
-    #                                   device_fqdn,
-    #                                   device_defaults,
-    #                                   device_facts,
-    #                                   configparser)
+    if args.tags:
+        logging.info("get tags properties")
+        tag_properties = onboarding_tags.to_sot(sot,
+                                                args,
+                                                device_fqdn,
+                                                device_defaults,
+                                                device_facts,
+                                                configparser,
+                                                onboarding_config)
 
     if args.onboarding:
         # get vlan properties
@@ -93,13 +96,57 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         else:
             interfaces = []
 
+        # we have to "adjust" the device properties
+        extend_device_properties(device_properties)
+
         # add device to SOT
-        new_device = sot.onboarding \
-            .interfaces(interfaces) \
-            .vlans(vlan_properties) \
-            .primary_interface(primary_interface.get('name')) \
-            .add_prefix(False) \
-            .add_device(device_properties)
+        if not device_facts['is_in_sot']:
+            new_device = sot.onboarding \
+                .interfaces(interfaces) \
+                .vlans(vlan_properties) \
+                .primary_interface(primary_interface.get('name')) \
+                .add_prefix(False) \
+                .add_device(device_properties)
+        # or update device properties if device exists and args.update
+        elif args.update:
+            new_device = device_facts.get('device_in_nb', sot.get.device(name=device_fqdn))
+            if not new_device:
+                logging.error(f'could not get device {device_fqdn} from SOT')
+                return
+            else:
+                logging.debug(f'updating device properties of {device_fqdn}')
+                new_device.update(device_properties)
+
+    if args.tags:
+        if not new_device:
+            new_device = device_facts.get('device_in_nb', sot.get.device(name=device_fqdn))
+        device_tags = []
+        interface_tags = {}
+        for tag in tag_properties:
+            if tag.get('scope') == 'dcim.device':
+                device_tags.append({'name': tag.get('name')})
+            if tag.get('scope') == 'dcim.interface':
+                interface_name = tag.get('interface')
+                if interface_name not in interface_tags:
+                    interface_tags[interface_name] = []
+                interface_tags[interface_name].append({'name': tag.get('name')})
+
+        # add device scope tags
+        result = new_device.update({'tags': device_tags})
+        if result:
+            logging.debug(f'adding device tags successfully')
+        else:
+            logging.error(f'adding device tags failed')
+
+        # add interface scope tags
+        for interface_name in interface_tags:
+            iface = sot.get.interface(device_id=new_device.id, 
+                                        name=interface_name)
+            result = iface.update({'tags': interface_tags[interface_name]})
+            if result:
+                logging.debug(f'adding interface tag successfully')
+            else:
+                logging.error(f'adding interface tag failed')
 
     # # now the most import part: the config_context
     # # do your own business logic in the "businesslogic" subdir
@@ -121,7 +168,6 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
     #                                      configparser.get_device_config(),
     #                                      onboarding_config)
 
-    # return hldm
 
 def get_primary_address(device_fqdn, interfaces, cisco_config):
     for iface in interfaces:
@@ -131,3 +177,16 @@ def get_primary_address(device_fqdn, interfaces, cisco_config):
             logging.debug(f'no ip address on {iface} found')
 
     return None
+
+def extend_device_properties(properties):
+    """ we have to modify some attributes like device_type and role"""
+    if 'device_type' in properties:
+        properties['device_type'] = {'model': properties['device_type']}
+    if 'role' in properties:
+        properties['role'] = {'name': properties['role']}
+    if 'manufacturer' in properties:
+        properties['manufacturer'] = {'name': properties['manufacturer']}
+    if 'platform' in properties:
+        properties['platform'] = {'name': properties['platform']}
+    if 'status' in properties:
+        properties['status'] = {'name': properties['status']}

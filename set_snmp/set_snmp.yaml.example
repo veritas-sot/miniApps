@@ -2,6 +2,7 @@
 sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
+  ssl_verify: false
 credentials:
   snmp: 
     repo: __SNMP_REPO__

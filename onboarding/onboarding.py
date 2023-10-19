@@ -123,10 +123,6 @@ def read_config_and_facts_from_file(hostname, onboarding_config):
         logging.error(f'could not import config or facts {exc}')
         return None, None
 
-    # TODO, das kann weg
-    device_facts['fqdn'] = device_facts['fqdn'].lower()
-    device_facts['hostname'] = device_facts['hostname'].lower()
-
     return device_config, device_facts
 
 def get_device_config_and_facts(args, device_ip, device_defaults, username, password, hostname, onboarding_config):
@@ -387,7 +383,7 @@ if __name__ == "__main__":
     for device_dict in devicelist:
         devices_processed += 1
         in_sot = False
-        device_uuid = None
+        device_in_nb = None
         # device might be an IP ADDRESS and not the name
         host_or_ip = device_dict.get('host').lower()
         # the hostname is ALWAYS lower case
@@ -399,6 +395,8 @@ if __name__ == "__main__":
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
         logging.info(f'processing {host_or_ip} {hostname} {devices_processed}/{devices_overall}')
 
+        # we first check if the file exists (and the user wants to export the config/facts)
+        # this makes the export faster
         if args.export:
             export_file = "%s/%s.conf" % (export_directory, hostname)
             if os.path.exists(export_file) and not args.update:
@@ -411,12 +409,6 @@ if __name__ == "__main__":
             if not args.use_import:
                 logging.error("could not resolve ip address; we are unable to retrieve the config (%s)" % esc)
                 continue
-            else:
-                logging.error("could not resolve ip address but config will be imported")
-                # we are setting the ip to 0.0.0.0
-                # in this case we get the default values. The config is imported
-                # the imported config conatins the IP address
-                device_ip = "0.0.0.0"
 
         if args.show_facts or args.export or args.show_config:
             # processed later
@@ -424,8 +416,8 @@ if __name__ == "__main__":
         else:
             # check if device is already in sot
             if args.no_polling:
-                device_uuid = sot.get.id(item='device', name=hostname)
-                in_sot = True if device_uuid else False
+                device_in_nb = sot.get.device(name=hostname)
+                in_sot = True if device_in_nb else False
             else:
                 in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
 
@@ -445,7 +437,7 @@ if __name__ == "__main__":
         # remove custom_fields
         device_defaults['custom_fields'] = {}
 
-        # now use the device_dict that is the csv/xlsx file
+        # now use the device_dict - that is the content of the csv/xlsx file
         for key, value in device_dict.items():
             # do not overwrite values with None
             if value is not None:
@@ -503,6 +495,7 @@ if __name__ == "__main__":
                 continue
         else:
             # this device is 'online'
+            # get config and facts from device
             device_platform = device_defaults.get('platform','ios')
             device_config, device_facts = get_device_config_and_facts(args, 
                                                                       device_ip, 
@@ -521,7 +514,7 @@ if __name__ == "__main__":
         # otherwise this would be exported as well!
         if not args.export:
             device_facts['is_in_sot'] = in_sot
-            device_facts['id'] = device_dict.get('id', device_uuid)
+            device_facts['device_in_nb'] = device_in_nb
 
         if args.show_facts:
             print(json.dumps(dict(device_facts), indent=4))
@@ -538,13 +531,12 @@ if __name__ == "__main__":
         if configparser.could_not_parse():
             continue
 
-        logging.debug("calling onboarding")
         response = onboarding.onboarding(sot,
-                                     args,
-                                     device_facts,
-                                     configparser,
-                                     onboarding_config,
-                                     device_defaults)
+                                         args,
+                                         device_facts,
+                                         configparser,
+                                         onboarding_config,
+                                         device_defaults)
 
     # after adding all devices to our sot we add the cables
     if args.cables and not args.write_hldm:

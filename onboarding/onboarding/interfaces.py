@@ -32,7 +32,6 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
 
     # description must not be None
     description = interface.get('description',"")
-    device_id = device_facts['id'] if device_facts.get('id') else device_fqdn
     # set the basic properties of the device
     interface_properties = {
             'name': name,
