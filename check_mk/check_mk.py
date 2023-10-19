@@ -302,6 +302,9 @@ def get_snmp_credentials(sot, properties, check_mk_config, snmp_id=None):
         snmp_credentials_text = repo.get(f'{subdir}/{filename}')
         snmp_credentials = yaml.safe_load(snmp_credentials_text).get('snmp',[])
 
+    if snmp_id == 'unknown':
+        logging.debug(f'this host has "unknown" SNMP-credentials')
+
     for cred in snmp_credentials:
         if cred.get('id') == snmp_id:
             snmp = dict(cred)
@@ -327,6 +330,10 @@ def get_snmp_credentials(sot, properties, check_mk_config, snmp_id=None):
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('SHA2','SHA-2')
                 del snmp['id']
                 del snmp['version']
+
+    if len(snmp) == 0:
+        logging.debug(f'found no SNMP-Credentials for host')
+
     return snmp
 
 def get_host(host, check_mk=None):
@@ -424,7 +431,6 @@ def add_to_check_mk(devices, check_mk=None):
         logging.error(f'got status {status}; maybe host is already in check_mk')
     else:
         logging.error(f'got status {status}; error: {host.content}')
-        print(devices)
 
 def start_discovery(check_mk_config, devices, check_mk=None, bulk=True):
 
@@ -706,6 +712,11 @@ def update_hosts(sot, sot_devices, cmk_devices, check_mk_config, do_update=True)
             snmp_equals = False
             cmk_htg['tag_snmp_ds'] = 'no-snmp'
             cmk_htg['tag_agent'] = 'no-agent'
+            if do_update:
+                need_update = True
+                update_attributes['tag_snmp_ds'] = 'no-snmp'
+                update_attributes['tag_agent'] = 'no-agent'
+                logging.info(f'SNMP credentials of host {hostname} has changed')
         elif len(cmk_snmp_settings) > 0:
             snmp_equals = False
             update_attributes = {'snmp_community' : should_be}
@@ -751,6 +762,9 @@ def update_hosts(sot, sot_devices, cmk_devices, check_mk_config, do_update=True)
                     logging.info(f'tag {key} of {hostname} should be {value}')
         # check if we have to remove some host tag groups
         for htg in cmk_htg:
+            # tag_snmp_ds and tag_agent must always be there
+            if htg in ['tag_snmp_ds', 'tag_agent']:
+                continue
             if htg not in should_be:
                 need_update = True
                 update_htg = True
@@ -1228,7 +1242,7 @@ if __name__ == "__main__":
     if args.update_cmk or args.sync:
         dry_run_data, to_be_updated = get_to_be_updated_device(sot, check_mk_config)
         if args.dry_run:
-            #print(json.dumps(dry_run_data, indent=4))
+            print(json.dumps(dry_run_data, indent=4))
             print(f'{len(to_be_updated)} host be be updated')
         else:
             logging.info(f'updating {len(to_be_updated)} devices in check_mk')
