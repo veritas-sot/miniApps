@@ -6,6 +6,7 @@ import os
 import yaml
 import json
 import jinja2
+import urllib3
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -14,8 +15,10 @@ default_config_file = "./conf/smokeping.yaml"
 
 if __name__ == "__main__":
 
-    # init vars
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
 
+    # init vars
     parser = argparse.ArgumentParser()
     # what to do
     parser.add_argument('--update', action='store_true', help='Update smpkeping config')
@@ -52,7 +55,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
 
     # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=smokeping_config['sot']['token'], url=smokeping_config['sot']['nautobot'])
+    sot = sot.Sot(token=smokeping_config['sot']['token'], 
+                  url=smokeping_config['sot']['nautobot'],
+                  ssl_verify=smokeping_config['sot'].get('ssl_verify', False))
 
     # for each target we query the data, parse the file and write the config to disk
     for target in smokeping_config.get('targets'):
