@@ -2,7 +2,7 @@
 sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
-
+  ssl_verify: false
 general:
   logging:
     # set loglevel to your need (debug, info, error, critical)
