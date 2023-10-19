@@ -14,7 +14,7 @@ general:
     result: stdout
 
 smokeping:
-  configpath: __PATH_TO_YOU_SMOKEPING_VOLUME__
+  configpath: __CONFIG_PATH__
 
 probes:
   filename: Probes
@@ -44,13 +44,13 @@ targets:
     template: target
   - filename: second_net.conf
     query: 
-      select: hostname, site, primary_ip4, cf_net
+      select: hostname, location, primary_ip4, cf_net
       from: nb.devices
       where: cf_net=second_net
     template: networks
   - filename: mynet.conf
     query:
-      select: hostname, site, primary_ip4, cf_net
+      select: hostname, location, primary_ip4, cf_net
       from: nb.devices
       where: cf_net=mynet
     template: networks
@@ -63,12 +63,12 @@ templates:
     + {{ net_name }}
     menu = {{ net_name }}
     title = {{ net_name }}
-    {% for site_name in values["site"] %}
-    ++ {{ site_name }}
-    menu = {{ site_name }}
-    title = {{ site_name }}
+    {% for location_name in values["location"] %}
+    ++ {{ location_name }}
+    menu = {{ location_name }}
+    title = {{ location_name }}
     {% for host in values["devices"] %}
-    {%- if host["custom_field_data"]["net"] == net_name and host["site"]["name"] == site_name %}
+    {%- if host["custom_field_data"]["net"] == net_name and host["location"]["name"] == location_name %}
     +++ {{ host["hostname"] }}
     menu = {{ host["hostname"] }}
     title = {{ host["hostname"] }}
@@ -90,34 +90,3 @@ templates:
     {% for net_name in values["net"] %}
     @include {{ net_name }}.conf
     {%- endfor %}
-
-queries:
-  devices: >
-    query ($site:[String], $name:[String], $role:[String], $model:[String], $tag:[String], __q_cffield__) {
-      devices(name: $name, site: $site, role: $role, tag: $tag, model:$model, __d_cffield__) {
-        hostname: name
-        primary_ip4 {
-          address
-        }
-        site {
-          name
-          slug
-        }
-        device_role {
-          name
-          slug
-        }
-        device_type {
-          model
-          slug
-        }
-        platform {
-          name
-          slug
-        }
-        custom_field_data: _custom_field_data
-        tags {
-          name
-        }
-      }
-    }

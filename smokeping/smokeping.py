@@ -59,7 +59,7 @@ if __name__ == "__main__":
         # the list of devices we process
         devices = []
         # this is the dict we are pasing to the jinja template
-        # this dict comtains either the devices and the 'needed' values like custom fields or sites
+        # this dict comtains either the devices and the 'needed' values like custom fields or location
         unfiltered_values = {}
         values = {'devices': []}
         query_cfg = target.get('query',{})
