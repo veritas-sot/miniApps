@@ -37,7 +37,11 @@ def get_prefix_path(prefixe, ip):
     for prefix_ip in prefixe:
         pyt.insert(prefix_ip, prefix_ip)
 
-    prefix = pyt.get(ip)
+    try:
+        prefix = pyt.get(ip)
+    except Exception as exc:
+        logging.error(f'could not correct prefix; using 0.0.0.0/0')
+        prefix = "0.0.0.0/0"
     prefix_path.append(prefix)
 
     parent = pyt.parent(prefix)
@@ -57,7 +61,7 @@ def get_device_defaults(prefixe, ip):
     """
     if prefixe is None:
         return {}
-
+    logging.debug(f'get device defaults of {ip}')
     prefix_path = get_prefix_path(prefixe, ip)
     defaults = {}
     for prefix in prefix_path:
@@ -85,9 +89,9 @@ def write_hldm(hldm, directory="./hldm"):
             f.write(json.dumps(hldm,indent=4))
             f.close()
 
-def export_config_and_facts(device_config, device_facts, directory="./export"):
-    config_filename = "%s/%s.conf" % (directory, device_facts.get('fqdn','__error__').lower())
-    facts_filename = "%s/%s.facts" % (directory, device_facts.get('fqdn','__error__').lower())
+def export_config_and_facts(device_config, device_facts, directory_name):
+    config_filename = "%s/%s.conf" % (directory_name, device_facts.get('fqdn','__error__').lower())
+    facts_filename = "%s/%s.facts" % (directory_name, device_facts.get('fqdn','__error__').lower())
     if '__error__' in config_filename or '__error__' in config_filename:
         logging.error('could not export config and facts')
         return
@@ -393,7 +397,7 @@ if __name__ == "__main__":
         # write the hostname back
         device_dict['hostname'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
-        logging.info(f'processing {host_or_ip} {hostname} {devices_processed}/{devices_overall}')
+        logging.info(f'processing host_or_ip: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
 
         # we first check if the file exists (and the user wants to export the config/facts)
         # this makes the export faster
@@ -406,6 +410,7 @@ if __name__ == "__main__":
             # maybe the user has set a hostname instead of an address
             device_ip = socket.gethostbyname(host_or_ip)
         except Exception as esc:
+            device_ip = host_or_ip
             if not args.use_import:
                 logging.error("could not resolve ip address; we are unable to retrieve the config (%s)" % esc)
                 continue
@@ -418,8 +423,10 @@ if __name__ == "__main__":
             if args.no_polling:
                 device_in_nb = sot.get.device(name=hostname)
                 in_sot = True if device_in_nb else False
+                logging.debug(f'no polling set; device {hostname}; in_sot={in_sot}')
             else:
                 in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
+                logging.debug(f'no polling NOT set; device {hostname}; in_sot={in_sot}')
 
             if in_sot and not args.update:
                 logging.info(f'device {hostname} is already in sot and update is not active')
@@ -428,7 +435,7 @@ if __name__ == "__main__":
                 logging.debug(f'device {hostname} is new or will be updated')
 
         # get default values from SOT / the lowest priority is the prefix default
-        device_defaults = get_device_defaults(defaults, device_ip)
+        device_defaults = get_device_defaults(defaults, host_or_ip)
         # the second priority is the inventory
         # save customfields; otherwise they are overwritten
         cfields = {}

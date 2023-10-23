@@ -24,9 +24,9 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
 
 def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
     """returns all properties of the interface"""
-    all_interfaces = ciscoconf.get_interfaces()
-    interface = all_interfaces.get(name)
 
+    # get interface
+    interface = ciscoconf.get_interfaces().get(name)
     # set location
     location = device_defaults['location']
 
@@ -41,8 +41,13 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
             'status': {'name': 'Active'}
     }
     if 'ip' in interface:
-        ipv4 = IPv4Network(f'{interface.get("ip")}/{interface.get("mask")}', strict=False)
-        cidr = f'{interface.get("ip")}/{ipv4.prefixlen}'
+        ip = interface.get("ip")
+        # in case there is a / in our IP (this should not happen)
+        if '/' in ip:
+            cidr = interface.get('ip')
+        else:
+            ipv4 = IPv4Network(f'{interface.get("ip")}/{interface.get("mask")}', strict=False)
+            cidr = f'{interface.get("ip")}/{ipv4.prefixlen}'
         interface_properties.update({'ipv4': cidr})
 
     # check if interface is lag
@@ -128,20 +133,20 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
 
     return list_of_vlans
 
-def get_interfaces_from_sot(sot, device_fqdn):
-    current_sot_interfaces = {}
-    interfaces = sot.select('interfaces') \
-                    .using('nb.devices') \
-                    .normalize(False) \
-                    .where(f'name={device_fqdn}')
-    if len(interfaces) == 0:
-        return {}
-    for iface in interfaces[0]['interfaces']:
-        name = iface.get('name')
-        current_sot_interfaces[name] = iface
-    logging.debug(f'there are currently {len(current_sot_interfaces)} interfaces in the sot')
+# def get_interfaces_from_sot(sot, device_fqdn):
+#     current_sot_interfaces = {}
+#     interfaces = sot.select('interfaces') \
+#                     .using('nb.devices') \
+#                     .normalize(False) \
+#                     .where(f'name={device_fqdn}')
+#     if len(interfaces) == 0:
+#         return {}
+#     for iface in interfaces[0]['interfaces']:
+#         name = iface.get('name')
+#         current_sot_interfaces[name] = iface
+#     logging.debug(f'there are currently {len(current_sot_interfaces)} interfaces in the sot')
 
-    return current_sot_interfaces
+#     return current_sot_interfaces
 
 def get_primary_interface(primary_address, ciscoconf):
     primary_interface = {}
@@ -150,6 +155,8 @@ def get_primary_interface(primary_address, ciscoconf):
 
     # if we have the right mask of the interface/ip we use this instead of a /32
     if interface is not None:
+        # we alter the interface so we do have to use a copy!
+        primary_interface = interface.copy()
         primary_interface['name'] = interface_name
         # convert IP and MASK to cidr notation
         prefixlen = IPv4Network("0.0.0.0/%s" % interface.get('mask')).prefixlen
