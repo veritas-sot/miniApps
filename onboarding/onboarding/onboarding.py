@@ -126,8 +126,8 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 all_interfaces = sot.get.interfaces(device_id=new_device.id)
 
             if args.interfaces:
-                # if args.interfaces is set add unknown interfaces to SOT
-                # and update ALL known interfaces
+                # if args.interfaces is set we add unknown interfaces to SOT
+                # and update ALL known interfaces as well
                 new_interfaces = []
                 for interface in interfaces:
                     interface_name = interface.get('name','')
@@ -136,7 +136,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         if interface_name == nb_interface.display:
                             found = True
                             response = nb_interface.update(interface)
-                            logging.debug(f'updating interface {interface_name}; updating response: {response}')
+                            logging.info(f'updating interface {interface_name}; updating response: {response}')
                     if not found:
                         logging.debug(f'interface {interface_name} not found in SOT')
                         new_interfaces.append(interface)
@@ -145,7 +145,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         .add_prefix(False) \
                         .assign_ip(True) \
                         .add_interfaces(device=new_device, interfaces=new_interfaces)
-                    logging.debug(f'adding interface {interface_name}; response: {response}')
+                    logging.info(f'adding interface {interface_name}; response: {response}')
 
             elif args.primary_only:
                 # update primary interface
@@ -154,7 +154,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                     for nb_interface in all_interfaces:
                         if interface_name == nb_interface.display:
                             response = nb_interface.update(interface)
-                            logging.debug(f'updating primary interface {interface_name}; response: {response}')
+                            logging.info(f'updating primary interface {interface_name}; response: {response}')
 
     if args.tags:
         logging.info("get tag properties")
