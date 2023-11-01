@@ -18,7 +18,7 @@ def sync_sot_to_phpipam(sot, phpipam, sync_config, cidr):
     logging.info("syncing %s from SOT to PHPIPAM" % cidr)
 
     sot_prefixe = sot.select(['prefix','description', 'tags']) \
-                     .using('nb.ipam') \
+                     .using('nb.prefixes') \
                      .normalize(True) \
                      .where(f'within_include={cidr}')
 
@@ -32,15 +32,17 @@ def sync_sot_to_phpipam(sot, phpipam, sync_config, cidr):
         if prfx not in subnets:
             logging.info(f'prefix {prfx} not found in PHPIPAM')
             section = "root"
-            for tag in prefix.get('tags', {}):
-                if 'section' in tag['name']:
-                    section = tag['name'].split("section:")[1]
+            if 'tags' in prefix and prefix['tags'] != 'none' and prefix['tags']:
+                for tag in prefix.get('tags', {}):
+                    if 'section' in tag['name']:
+                        section = tag['name'].split("section:")[1]
             phpipam.add_subnet_to_phpipam(prfx, section, description)
         else:
             should_be= "root"
-            for tag in prefix.get('tags', {}):
-                if 'section' in tag['name']:
-                    should_be = tag['name'].split("section:")[1]
+            if 'tags' in prefix and prefix['tags'] != 'none' and prefix['tags']:
+                for tag in prefix.get('tags', {}):
+                    if 'section' in tag['name']:
+                        should_be = tag['name'].split("section:")[1]
             is_in = subnets.get(prfx,{}).get('section_id')
             is_in_name = section_by_id.get(is_in,{}).get('name')
             if should_be != is_in_name:
