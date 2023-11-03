@@ -9,12 +9,23 @@ class Phpipam(object):
 
     def __init__(self, url, app_id, username, password, ssl_verify):
         self._all_subnets = None
-        self.sections_by_name = None
+        self._sections_by_name = None
+        self._sections_by_id = None
         self._pi = phpypam.api(url=url,
                                app_id=app_id,
                                username=username,
                                password=password,
                                ssl_verify=ssl_verify)
+        self.load_sections_and_subnets()
+
+    def load_sections_and_subnets(self, refresh=False):
+        logging.debug('loading sections and subnets')
+        if not self._all_subnets or refresh:
+            logging.debug("getting subnets")
+            self._all_subnets = self.get_prefixe_from_phpipam("0.0.0.0/0")
+        if not self._sections_by_name or refresh:
+            logging.debug("getting sections")
+            self._sections_by_id, self._sections_by_name = self.get_sections_from_phpipam()
 
     def get_sections_from_phpipam(self):
         sections_by_name = {}
@@ -76,16 +87,16 @@ class Phpipam(object):
 
         return subnets
 
-    def add_section_to_phpipam(self, name, description, parent, all_sections):
+    def add_section_to_phpipam(self, name, description, parent):
         my_section = {
             'name': name,
             'description': description,
             'permissions': '{"2":"2","3":"2","4":"2"}'
         }
 
-        if parent in all_sections:
-            logging.debug('found parent in sections; using masterSection %s' % all_sections[parent]['id'])
-            my_section.update({'masterSection': all_sections[parent]['id']})
+        if parent in self._sections_by_name:
+            logging.debug('found parent in sections; using masterSection %s' % self._sections_by_name[parent]['id'])
+            my_section.update({'masterSection': self._sections_by_name[parent]['id']})
 
         try:
             logging.debug(f'trying to add new section {name} to PHPIPAM')
@@ -98,7 +109,7 @@ class Phpipam(object):
             new_section = self._pi.get_entity(controller='sections', controller_path='%s/' % name)
             logging.info(f'added new section {name} to PHPIPAM')
             # save dict for later use
-            all_sections[name] = {'id': new_section['id'],
+            self._sections_by_name[name] = {'id': new_section['id'],
                                 'description': name
                                 }
             return {'success': True,
@@ -109,23 +120,18 @@ class Phpipam(object):
             return {'success': False, 'error': 'got exception %s' % exc}
 
     def add_subnet_to_phpipam(self, prefix, section, description, update=False):
-        if not self._all_subnets:
-            logging.debug("getting subnets")
-            all_subnets = self.get_prefixe_from_phpipam("0.0.0.0/0")
-        if not self.sections_by_name:
-            logging.debug("getting sections")
-            sections_by_id, sections_by_name = self.get_sections_from_phpipam()
-
+        # reload all data
+        self.load_sections_and_subnets(True)
         net, mask = prefix.split("/")
-        if section in sections_by_name:
-            section_id = sections_by_name[section]['id']
+        if section in self._sections_by_name:
+            section_id = self._sections_by_name[section]['id']
             logging.debug(f'found existing section; using section_id {section_id}')
         else:
             logging.debug(f'section {section} not found in PHPIPAM sections; creating new one')
-            response = self.add_section_to_phpipam(section, section, None, sections_by_name)
+            response = self.add_section_to_phpipam(section, section, None)
             if not response['success']:
                 logging.error(f'could not add section {section} to PHPIPAM')
-                return {'success': False, 'error': 'could not add section %s to PHPIPAM' % section}
+                return False
             section_id = response['new_section']
             logging.debug(f'section_id of new subnet {prefix} is {section_id} (parent:{section})')
 
@@ -145,21 +151,17 @@ class Phpipam(object):
                             "description": description
                            }
                 response = self._pi.update_entity(controller='subnets', controller_path=id, data=new_data)
-                return {'success': True,
-                        'log': 'subnet %s updated in phpipam' % prefix}
+                return True
             else:
-                return {'success': True,
-                        'log': 'subnet %s already in phpipam' % prefix}
+                return True
         except PHPyPAMEntityNotFoundException:
             try:
                 self._pi.create_entity(controller='subnets', data=my_subnet)
-                logging.debug(f'subnet {prefix}/{description} added to PHPIPAM')
-                return {'success': True,
-                        'id': 0,
-                        'log': 'subnet %s added to phpipam' % prefix}
+                logging.info(f'subnet {prefix}/{description} added to PHPIPAM')
+                return True
             except Exception as exc:
                 logging.debug("could not add %s to PHPIPAM; got exception %s; looking for supernets" % (prefix, exc))
-                for subnet in all_subnets:
+                for subnet in self._all_subnets:
                     prefix_cidr = IPv4Network(prefix, strict=False)
                     supernet = IPv4Network(subnet, strict=False)
                     logging.debug(f'checking if {prefix_cidr} lies in {supernet} ')
@@ -172,13 +174,12 @@ class Phpipam(object):
                         try:
                             self._pi.create_entity(controller='subnets', data=my_subnet)
                             logging.debug(f'subnet {prefix}/{description} added to PHPIPAM')
-                            return {'success': True,
-                                    'id': 1,
-                                    'log': 'subnet %s added to phpipam' % prefix}
+                            return True
                         except Exception as exc:
                             logging.critical(f'could not add {prefix} to PHPIPAM; got exception {exc}; giving up')
-                            return {'success': False, 'error': 'got exception %s' % exc}
-                return {'success': False, 'error': 'could not add subnet %s; no supernet found but needed' % prefix}
+                            return False
+                logging.error(f'could not add subnet {prefix}; no supernet found but needed')
+                return False
 
     def get_id_of_network(self, prefix):
         logging.debug(f'looking for network {prefix}')

@@ -11,6 +11,8 @@ phpipam:
     phpipam_password: __PHPIPAM_PASSWORD__
     # set $api_allow_unsafe = true; in config.php to disable SSL
     phpipam_ssl_verify: false
+default_section: root
+section: my_custom_field
 logging:
   # set loglevel to your need (debug, info, error, critical)
   level: info
