@@ -127,13 +127,8 @@ class Phpipam(object):
             section_id = self._sections_by_name[section]['id']
             logging.debug(f'found existing section; using section_id {section_id}')
         else:
-            logging.debug(f'section {section} not found in PHPIPAM sections; creating new one')
-            response = self.add_section_to_phpipam(section, section, None)
-            if not response['success']:
-                logging.error(f'could not add section {section} to PHPIPAM')
-                return False
-            section_id = response['new_section']
-            logging.debug(f'section_id of new subnet {prefix} is {section_id} (parent:{section})')
+            logging.error(f'section {section} not found in PHPIPAM')
+            return False
 
         my_subnet = {
             "subnet": net,

@@ -15,7 +15,17 @@ default_config_file = "./config.yaml"
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
-def get_section(prefix, cfg_select, cfg_section):
+def create_sesctions(phpipam, prefix, cfg_select, cfg_section):
+    list_of_sections = cfg_section.split('~')
+    parent = ""
+    for sct in list_of_sections:
+        section = get_section_name(prefix, cfg_select, sct)
+        if section != parent:
+            logging.debug(f'add section: "{section}" parent: "{parent}"')
+            phpipam.add_section_to_phpipam(section, section, parent)
+            parent = section
+
+def get_section_name(prefix, cfg_select, cfg_section):
     # first check if a tag named 'section' is configured
     # print(f'cfg_select: {cfg_select} cfg_section: {cfg_section}')
     if 'tags' in prefix and prefix['tags'] != 'none' and prefix['tags']:
@@ -69,27 +79,23 @@ def sync_sot_to_phpipam(sot, phpipam, sync_config, cidr):
             continue
         description = prefix.get('description','')
         logging.debug(f'looking for prefix {cidr}')
+        if args.create_sections:
+            create_sesctions(phpipam, prefix, cfg_select, cfg_section)
         if cidr not in phpipam_subnets:
-            logging.info(f'prefix {cidr} not found in PHPIPAM')
             list_of_sections = cfg_section.split('~')
-            parent = ""
-            for sct in list_of_sections:
-                # add sections to phpipam
-                section = get_section(prefix, cfg_select, sct)
-                if section != parent:
-                    logging.debug(f'add section: "{section}" parent: "{parent}"')
-                    phpipam.add_section_to_phpipam(section, section, parent)
-                    parent = section
+            l = len(list_of_sections) - 1 if len(list_of_sections) > 0 else 0
+            name_of_section = list_of_sections[l]
+            section = get_section_name(prefix, cfg_select, name_of_section)
             logging.info(f'adding prefix {cidr} to section "{section}"')
             phpipam.add_subnet_to_phpipam(cidr, section, description)
         else:
             logging.info(f'prefix {cidr} found in phpipam')
-            # is_in = phpipam_subnets.get(cidr,{}).get('section_id')
-            # is_in_name = section_by_id.get(is_in,{}).get('name')
-            # should_be = get_section(prefix, cfg_select, cfg_section)
-            # if should_be != is_in_name:
-            #     logging.info(f'prefix {cidr} should be in {should_be} but found in {is_in_name}')
-            #     phpipam.add_subnet_to_phpipam(cidr, should_be, description, True)
+            is_in = phpipam_subnets.get(cidr,{}).get('section_id')
+            is_in_name = section_by_id.get(is_in,{}).get('name')
+            should_be = get_section(prefix, cfg_select, cfg_section)
+            if should_be != is_in_name:
+                logging.info(f'prefix {cidr} should be in {should_be} but found in {is_in_name}')
+                phpipam.add_subnet_to_phpipam(cidr, should_be, description, True)
 
 
 if __name__ == "__main__":
@@ -97,7 +103,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=False, help="sync config file")
     parser.add_argument('--loglevel', type=str, required=False, help="loglevel")
-    parser.add_argument('--cidr', type=str, required=False, default="0.0.0.0/0", help="sync all or only cidr")
+    parser.add_argument('--cidr', type=str, required=False, default="0.0.0.0/0", help="sync all or only specified cidr")
+    parser.add_argument('--create-sections', action='store_true', help='create sections')
 
     args = parser.parse_args()
 
