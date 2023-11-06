@@ -2,7 +2,7 @@
 
 import argparse
 import sys
-import pytricia
+#import pytricia
 import yaml
 import socket
 import os
@@ -22,34 +22,6 @@ from onboarding import cables as cables
 default_config_file = "./conf/config.yaml"
 
 
-def get_prefix_path(prefixe, ip):
-    """
-    the prefix path is used to get the default values of a device
-    The path consists of the individual subpaths eg when the device 
-    has the IP address 192.168.0.1 the path could be 
-    192.168.0.1 / 192.168.0.0/16 / 0.0.0.0/0
-    0.0.0.0 should always exist and set the default values.
-    """
-    prefix_path = []
-    pyt = pytricia.PyTricia()
-
-    # build pytricia tree
-    for prefix_ip in prefixe:
-        pyt.insert(prefix_ip, prefix_ip)
-
-    try:
-        prefix = pyt.get(ip)
-    except Exception as exc:
-        logging.error(f'could not correct prefix; using 0.0.0.0/0')
-        prefix = "0.0.0.0/0"
-    prefix_path.append(prefix)
-
-    parent = pyt.parent(prefix)
-    while (parent):
-        prefix_path.append(parent)
-        parent = pyt.parent(parent)
-    return prefix_path[::-1]
-
 def get_device_defaults(prefixe, ip):
     """
     the functions returns the default values of a device
@@ -62,7 +34,14 @@ def get_device_defaults(prefixe, ip):
     if prefixe is None:
         return {}
     logging.debug(f'get device defaults of {ip}')
-    prefix_path = get_prefix_path(prefixe, ip)
+    """
+    the prefix path is used to get the default values of a device
+    The path consists of the individual subpaths eg when the device 
+    has the IP address 192.168.0.1 the path could be 
+    192.168.0.1 / 192.168.0.0/16 / 0.0.0.0/0
+    0.0.0.0 should always exist and set the default values.
+    """
+    prefix_path = tools.get_prefix_path(prefixe, ip)
     defaults = {}
     for prefix in prefix_path:
         # logging.debug(f'using prefix {prefix} for default_values')

@@ -15,25 +15,59 @@ default_config_file = "./config.yaml"
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
 
-def create_sesctions(phpipam, prefix, cfg_select, cfg_section):
-    list_of_sections = cfg_section.split('~')
-    parent = ""
-    for sct in list_of_sections:
-        section = get_section_name(prefix, cfg_select, sct)
-        if section != parent:
-            logging.debug(f'add section: "{section}" parent: "{parent}"')
-            phpipam.add_section_to_phpipam(section, section, parent)
-            parent = section
+def create_all_sections(sot, ipam, sync_config):
+    """create all sections iin PHPIPAM"""
 
-def get_section_name(prefix, cfg_select, cfg_section):
+    # this is the config like cf_net~cf_net location and reflects the structure to add
+    cfg_section = sync_config.get('sections').get('section','root')
+    cfg_select = sync_config.get('sections').get('select','').split(',')
+    select = ['prefix','description', 'tags', 'type']
+    select += cfg_select
+
+    # get all prefixes
+    sot_prefixe = sot.select(select) \
+                     .using('nb.prefixes') \
+                     .normalize(False) \
+                     .where(within_include='0.0.0.0/0')
+
+    for prefix in sot_prefixe:
+        cidr = prefix.get('prefix')
+        cidr_type = prefix.get('type')
+        if cidr == "0.0.0.0/0" and cidr_type == "CONTAINER":
+            # we have to skip the 0.0.0.0/0 container, otherwise phpipam raises
+            # an error 
+            continue
+        logging.debug(f'processing prefix {cidr}')
+        create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config)
+
+def create_all_locations(sot, ipam):
+    locations_by_id, locations_by_name = ipam.get_locations()
+
+    all_locations = sot.select('locations') \
+                .using('nb.general') \
+                .normalize(False) \
+                .where()
+    for location in all_locations.get('locations'):
+        name = location.get('name')
+        if name not in locations_by_name:
+            logging.info(f'adding {location} to PHPIPAM')
+            ipam.add_location({'name': name})
+
+def get_section_name(prefix, cfg_section, sync_config):
+    """return section name"""
+
+    # the list of fields the user wants to replace
+    cfg_select = sync_config.get('sections').get('select','').split(',')
+
     # first check if a tag named 'section' is configured
-    # print(f'cfg_select: {cfg_select} cfg_section: {cfg_section}')
     if 'tags' in prefix and prefix['tags'] != 'none' and prefix['tags']:
         for tag in prefix.get('tags', {}):
             if 'section' in tag['name']:
                 section = tag['name'].split("section:")[1]
     else:
         # use configured section instead of tag
+        # we iterate through the SELECTED values and replace the configured
+        # section with this values
         section = cfg_section
         for slct in cfg_select:
             # logging.debug(f'- prefix: {prefix.get("prefix")} slct: {slct} cfg_section: {cfg_section}')
@@ -50,53 +84,87 @@ def get_section_name(prefix, cfg_select, cfg_section):
             section = section.replace(slct, v)
 
     section = section.strip()
-    # logging.debug(f'prefix: {prefix.get("prefix")} section: "{section}"')
+    if len(section) == 0:
+        section = sync_config.get('sections').get('default_section','root')
+    logging.debug(f'prefix: {prefix.get("prefix")} section: "{section}"')
     return section
 
-def sync_sot_to_phpipam(sot, phpipam, sync_config, cidr):
-    logging.info("syncing %s from SOT to PHPIPAM" % cidr)
+def create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config):
+    """create section in PHPIPAM"""
+    description = prefix.get('description','')
 
-    cfg_select = sync_config.get('select','').split(',')
-    cfg_section = sync_config.get('section','root')
-    default_section = sync_config.get('default_section','root')
-    select = ['prefix','description', 'tags', 'type']
+    list_of_sections = cfg_section.split('~')
+    parent = ""
+    for sct in list_of_sections:
+        section = get_section_name(prefix, sct, sync_config)
+        if section != parent:
+            logging.info(f'adding section: "{section}" parent: "{parent}"')
+            ipam.add_section(section, description, parent)
+            parent = section
+
+def get_subnet_config(prefix, sync_config):
+    """return subnet config depending of the user config"""
+    if prefix is None:
+        return {}
+
+    # get prefix path
+    prefix_path = tools.get_prefix_path(sync_config.get('subnets'), prefix)
+    subnet_config = {}
+    # now loop through all prefixes
+    for prfx in prefix_path:
+        subnet_config.update(sync_config.get('subnets',{}).get(prfx))
+
+    return subnet_config
+
+def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
+    logging.info("syncing %s from SOT to PHPIPAM" % where_cidr)
+
+    cfg_select = sync_config.get('sections').get('select','').split(',')
+    cfg_section = sync_config.get('sections').get('section','root')
+    default_section = sync_config.get('sections').get('default_section','root')
+    select = ['prefix','description', 'tags', 'type','_custom_field_data']
     select += cfg_select
 
     sot_prefixe = sot.select(select) \
                      .using('nb.prefixes') \
                      .normalize(False) \
-                     .where(f'within_include={cidr}')
+                     .where(f'within_include={where_cidr}')
 
-    section_by_id, section_by_name = phpipam.get_sections_from_phpipam()
-    phpipam_subnets = phpipam.get_prefixe_from_phpipam(cidr)
+    section_by_id, section_by_name = ipam.get_sections_from_phpipam()
+    phpipam_subnets = ipam.get_prefixe_from_phpipam(where_cidr)
 
     for prefix in sot_prefixe:
         cidr = prefix.get('prefix')
         cidr_type = prefix.get('type')
+        logging.debug(f'processing prefix {cidr}')
         if cidr == "0.0.0.0/0" and cidr_type == "CONTAINER":
             # we have to skip the 0.0.0.0/0 container, otherwise phpipam raises
             # an error 
             continue
         description = prefix.get('description','')
         logging.debug(f'looking for prefix {cidr}')
-        if args.create_sections:
-            create_sesctions(phpipam, prefix, cfg_select, cfg_section)
-        if cidr not in phpipam_subnets:
-            list_of_sections = cfg_section.split('~')
-            l = len(list_of_sections) - 1 if len(list_of_sections) > 0 else 0
-            name_of_section = list_of_sections[l]
-            section = get_section_name(prefix, cfg_select, name_of_section)
-            logging.info(f'adding prefix {cidr} to section "{section}"')
-            phpipam.add_subnet_to_phpipam(cidr, section, description)
-        else:
-            logging.info(f'prefix {cidr} found in phpipam')
-            is_in = phpipam_subnets.get(cidr,{}).get('section_id')
-            is_in_name = section_by_id.get(is_in,{}).get('name')
-            should_be = get_section(prefix, cfg_select, cfg_section)
-            if should_be != is_in_name:
-                logging.info(f'prefix {cidr} should be in {should_be} but found in {is_in_name}')
-                phpipam.add_subnet_to_phpipam(cidr, should_be, description, True)
+        #if cidr not in phpipam_subnets:
 
+        list_of_sections = cfg_section.split('~')
+        l = len(list_of_sections) - 1 if len(list_of_sections) > 0 else 0
+        name_of_section = list_of_sections[l]
+        section = get_section_name(prefix, name_of_section, sync_config)
+        if len(section) == 0:
+            section = default_section
+        logging.info(f'adding prefix {cidr} to section "{section}"')
+        subnet_config = get_subnet_config(cidr, sync_config)
+        # the user can set some phpipam specific settings
+        # if 'phpipam' is in our custom_fields overwrite these values
+        nb_phpipam_settinhgs = prefix.get('_custom_field_data',{}).get('phpipam',[])
+        if isinstance(nb_phpipam_settinhgs, str):
+            # if only one choice is selected the value is a string
+            # but we need a list of strings instead
+            nb_phpipam_settinhgs = [nb_phpipam_settinhgs]
+        for setting in nb_phpipam_settinhgs:
+            subnet_config[setting] = 1
+
+        # add or update subnet
+        ipam.add_subnet(cidr, section, subnet_config, description, cidr in phpipam_subnets)
 
 if __name__ == "__main__":
 
@@ -105,6 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('--loglevel', type=str, required=False, help="loglevel")
     parser.add_argument('--cidr', type=str, required=False, default="0.0.0.0/0", help="sync all or only specified cidr")
     parser.add_argument('--create-sections', action='store_true', help='create sections')
+    parser.add_argument('--create-locations', action='store_true', help='create locations')
 
     args = parser.parse_args()
 
@@ -136,10 +205,15 @@ if __name__ == "__main__":
     phpipam_username = sync_config['phpipam']['backend']['phpipam_username']
     phpipam_password = sync_config['phpipam']['backend']['phpipam_password']
 
-    pi = phpipam.Phpipam(url=phpipam_url, 
+    ipam = phpipam.Phpipam(url=phpipam_url, 
                          app_id=phpipam_appid, 
                          username=phpipam_username, 
                          password=phpipam_password,
                          ssl_verify=False)
 
-    sync_sot_to_phpipam(sot, pi, sync_config, args.cidr)
+    if args.create_sections:
+        create_all_sections(sot, ipam, sync_config)
+    if args.create_locations:
+        create_all_locations(sot, ipam)
+    # add subnets to PHPIPAM
+    #sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr)

@@ -11,8 +11,26 @@ phpipam:
     phpipam_password: __PHPIPAM_PASSWORD__
     # set $api_allow_unsafe = true; in config.php to disable SSL
     phpipam_ssl_verify: false
-default_section: root
-section: my_custom_field
+sections:
+  default_section: root
+  select: cf_net,location
+  section: cf_net~cf_net location
+subnets:
+  0.0.0.0/0:
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+    resolveDNS: 0
+  172.16.0.0/16:
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+    resolveDNS: 0
+  172.16.1.0/24:
+    pingSubnet: 1
+    discoverSubnet: 1
+    showName: 1
+    resolveDNS: 1
 logging:
   # set loglevel to your need (debug, info, error, critical)
   level: info
