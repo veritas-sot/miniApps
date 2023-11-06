@@ -216,4 +216,4 @@ if __name__ == "__main__":
     if args.create_locations:
         create_all_locations(sot, ipam)
     # add subnets to PHPIPAM
-    #sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr)
+    sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr)
