@@ -13,6 +13,8 @@ class Phpipam(object):
         self._sections_by_id = None
         self._locations_by_name = {}
         self._locations_by_id = {}
+        self._customers_by_name = {}
+        self._customers_by_id = {}
         self._pi = phpypam.api(url=url,
                                app_id=app_id,
                                username=username,
@@ -20,16 +22,13 @@ class Phpipam(object):
                                ssl_verify=ssl_verify)
         self.load_sections_and_subnets()
 
-    def load_sections_and_subnets(self, refresh=False):
+    def load_sections_and_subnets(self):
+        """get sections and subnets from PHPIPAM"""
         logging.debug('loading sections and subnets')
-        if not self._all_subnets or refresh:
-            logging.debug("getting subnets")
-            self._all_subnets = self.get_prefixe_from_phpipam("0.0.0.0/0")
-        if not self._sections_by_name or refresh:
-            logging.debug("getting sections")
-            self._sections_by_id, self._sections_by_name = self.get_sections_from_phpipam()
+        self._all_subnets = self.get_prefixe("0.0.0.0/0")
+        self._sections_by_id, self._sections_by_name = self.get_sections()
 
-    def get_sections_from_phpipam(self):
+    def get_sections(self):
         sections_by_name = {}
         sections_by_id = {}
 
@@ -52,7 +51,7 @@ class Phpipam(object):
 
         return sections_by_id, sections_by_name
 
-    def get_prefixe_from_phpipam(self, prefix):
+    def get_prefixe(self, prefix):
         subnets = {}
         if prefix == "0.0.0.0/0":
             cp = "/"
@@ -89,6 +88,42 @@ class Phpipam(object):
 
         return subnets
 
+    def get_locations(self):
+        try:
+            all_locations = self._pi.get_entity(controller='tools/locations', controller_path='/')
+        except PHPyPAMEntityNotFoundException:
+            return {},{}
+
+        if all_locations is not None:
+            for location in all_locations:
+                location_name = location['name']
+                self._locations_by_name[location_name] = {'id': location['id'],
+                                                          'name': location_name,
+                                                          'description': location['description'],
+                                                         }
+                self._locations_by_id[location['id']] = {'id': location['id'],
+                                                         'name': location_name,
+                                                         'description': location['description'],
+                                                        }  
+            return self._locations_by_id, self._locations_by_name
+
+    def get_customers(self):
+        try:
+            all_customers = self._pi.get_entity(controller='tools/customers', controller_path='/')
+        except PHPyPAMEntityNotFoundException:
+            return {},{}
+
+        if all_customers is not None:
+            for customer in all_customers:
+                customer_name = customer['title']
+                self._customers_by_name[customer_name] = {'id': customer['id'],
+                                                          'title': customer_name
+                                                         }
+                self._customers_by_id[customer['id']] = {'id': customer['id'],
+                                                          'name': customer_name
+                                                        }  
+            return self._customers_by_id, self._customers_by_name
+
     def get_id_of_network(self, prefix):
         logging.debug(f'looking for network {prefix}')
         try:
@@ -102,11 +137,11 @@ class Phpipam(object):
         except PHPyPAMEntityNotFoundException as exc:
             return None
 
-    def add_section(self, name, description, parent):
+    def add_section(self, name, description, parent, permissions):
         my_section = {
             'name': name,
             'description': description,
-            'permissions': '{"2":"2","3":"1","4":"2"}'
+            'permissions': permissions
         }
 
         if parent in self._sections_by_name:
@@ -119,21 +154,12 @@ class Phpipam(object):
         except Exception as exc:
             logging.critical("got exception: %s" % exc)
             return False
-        try:
-            new_section = self._pi.get_entity(controller='sections', controller_path='%s/' % name)
-            logging.info(f'added new section {name} to PHPIPAM')
-            # save dict for later use
-            self._sections_by_name[name] = {'id': new_section['id'],
-                                            'description': name
-                                           }
-            return True
-        except Exception as exc:
-            logging.critical("oh strange things happened! got exception: %s after adding section to PHPIPAM" % exc)
-            return True
 
     def add_subnet(self, prefix, section, subnet_config, description, update=False):
         # reload all data
-        self.load_sections_and_subnets(True)
+        self.load_sections_and_subnets()
+        self.get_locations()
+
         net, mask = prefix.split("/")
         if section in self._sections_by_name:
             section_id = self._sections_by_name[section]['id']
@@ -148,20 +174,27 @@ class Phpipam(object):
             "sectionId": section_id,
             "description": description
         }
+
         # add or overwrite subnet config
         my_subnet.update(subnet_config)
+
+        # # check if a location is configured
+        if 'location' in subnet_config:
+            location_name = subnet_config['location']
+            location_id = self._locations_by_name.get(location_name)['id']
+            logging.debug(f'location {location_name} is ID {location_id}')
+            my_subnet['location'] = location_id
+
         try:
-            entity = self._pi.get_entity(controller='subnets', controller_path="/cidr/%s" % prefix)
+            entity = self._pi.get_entity(controller='subnets', controller_path=f'/cidr/{prefix}')
             id = entity[0]['id']
             logging.debug(f'subnet {prefix} (id: {id}) found in PHPIPAM')
             if update:
                 logging.info(f'updating prefix {prefix} in PHPIPAM')
-                new_data = {"sectionId": section_id,
-                            "description": description
-                           }
-                # overwrite user settings with new values
-                new_data.update(subnet_config)
-                response = self._pi.update_entity(controller='subnets', controller_path=id, data=new_data)
+                # subnet and mask cannnot be 'updated'
+                del my_subnet['subnet']
+                del my_subnet['mask']
+                response = self._pi.update_entity(controller='subnets', controller_path=id, data=my_subnet)
                 return True
         except PHPyPAMEntityNotFoundException:
             try:
@@ -192,25 +225,6 @@ class Phpipam(object):
 
     def add_location(self, location):
         return self._add_entity('tools/locations', location)
-
-    def get_locations(self):
-        try:
-            all_locations = self._pi.get_entity(controller='tools/locations', controller_path='/')
-        except PHPyPAMEntityNotFoundException:
-            return {},{}
-
-        if all_locations is not None:
-            for location in all_locations:
-                location_name = location['name']
-                self._locations_by_name[location_name] = {'id': location['id'],
-                                                          'name': location_name,
-                                                          'description': location['description'],
-                                                         }
-                self._locations_by_id[location['id']] = {'id': location['id'],
-                                                         'name': location_name,
-                                                         'description': location['description'],
-                                                        }  
-            return self._locations_by_id, self._locations_by_name
     
     def _add_entity(self, controller, data):
         try:
@@ -220,4 +234,3 @@ class Phpipam(object):
             logging.critical("got exception: %s" % exc)
             return False
 
-        

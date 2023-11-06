@@ -53,6 +53,18 @@ def create_all_locations(sot, ipam):
             logging.info(f'adding {location} to PHPIPAM')
             ipam.add_location({'name': name})
 
+def create_all_customers(sot, ipam):
+    customers_by_id, customers_by_name = ipam.get_customers()
+    all_customers = sot.select('tenants') \
+                .using('nb.general') \
+                .normalize(False) \
+                .where()
+    # for customer in all_customers.get('customers'):
+    #     name = customer.get('name')
+    #     if name not in customers_by_name:
+    #         logging.info(f'adding {customer} to PHPIPAM')
+    #         ipam.add_customer({'name': name})
+
 def get_section_name(prefix, cfg_section, sync_config):
     """return section name"""
 
@@ -92,6 +104,7 @@ def get_section_name(prefix, cfg_section, sync_config):
 def create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config):
     """create section in PHPIPAM"""
     description = prefix.get('description','')
+    permissions = sync_config.get('sections',{}).get('permissions','{"2":"3","3":"4","4":"3"}')
 
     list_of_sections = cfg_section.split('~')
     parent = ""
@@ -99,7 +112,7 @@ def create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config):
         section = get_section_name(prefix, sct, sync_config)
         if section != parent:
             logging.info(f'adding section: "{section}" parent: "{parent}"')
-            ipam.add_section(section, description, parent)
+            ipam.add_section(section, description, parent, permissions)
             parent = section
 
 def get_subnet_config(prefix, sync_config):
@@ -122,7 +135,7 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
     cfg_select = sync_config.get('sections').get('select','').split(',')
     cfg_section = sync_config.get('sections').get('section','root')
     default_section = sync_config.get('sections').get('default_section','root')
-    select = ['prefix','description', 'tags', 'type','_custom_field_data']
+    select = ['prefix','description', 'tags', 'type', 'location', '_custom_field_data']
     select += cfg_select
 
     sot_prefixe = sot.select(select) \
@@ -130,8 +143,7 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
                      .normalize(False) \
                      .where(f'within_include={where_cidr}')
 
-    section_by_id, section_by_name = ipam.get_sections_from_phpipam()
-    phpipam_subnets = ipam.get_prefixe_from_phpipam(where_cidr)
+    phpipam_subnets = ipam.get_prefixe(where_cidr)
 
     for prefix in sot_prefixe:
         cidr = prefix.get('prefix')
@@ -143,11 +155,21 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
             continue
         description = prefix.get('description','')
         logging.debug(f'looking for prefix {cidr}')
-        #if cidr not in phpipam_subnets:
 
+        # get location from SOT
+        if 'location' in prefix and prefix['location']:
+            location = prefix.get('location',{}).get('name')
+        else:
+            location = None
+
+        # get section string from config and split it
+        # the user is able to configure sections and subsections
+        # these (sub)sections are splitted by ~
         list_of_sections = cfg_section.split('~')
         l = len(list_of_sections) - 1 if len(list_of_sections) > 0 else 0
+        # we need just the last (sub)section
         name_of_section = list_of_sections[l]
+        # convert the configured section to the real name
         section = get_section_name(prefix, name_of_section, sync_config)
         if len(section) == 0:
             section = default_section
@@ -161,7 +183,12 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
             # but we need a list of strings instead
             nb_phpipam_settinhgs = [nb_phpipam_settinhgs]
         for setting in nb_phpipam_settinhgs:
-            subnet_config[setting] = 1
+            if len(setting) > 0:
+                subnet_config[setting] = 1
+
+        # set location if it is not None
+        if location:
+            subnet_config['location'] = location
 
         # add or update subnet
         ipam.add_subnet(cidr, section, subnet_config, description, cidr in phpipam_subnets)
@@ -174,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument('--cidr', type=str, required=False, default="0.0.0.0/0", help="sync all or only specified cidr")
     parser.add_argument('--create-sections', action='store_true', help='create sections')
     parser.add_argument('--create-locations', action='store_true', help='create locations')
+    parser.add_argument('--create-customers', action='store_true', help='create customers')
 
     args = parser.parse_args()
 
@@ -215,5 +243,7 @@ if __name__ == "__main__":
         create_all_sections(sot, ipam, sync_config)
     if args.create_locations:
         create_all_locations(sot, ipam)
+    if args.create_customers:
+        create_all_customers(sot, ipam)
     # add subnets to PHPIPAM
     sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr)

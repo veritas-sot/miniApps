@@ -15,22 +15,22 @@ sections:
   default_section: root
   select: cf_net,location
   section: cf_net~cf_net location
+  # groupID/permissions (group 2=> operator, group3 => Guest // 0 na, 1 ro, 2 rw, 3 rwa)
+  permissions: '{"2":"3","3":"0"}'
 subnets:
   0.0.0.0/0:
     pingSubnet: 0
     discoverSubnet: 0
     showName: 0
-    resolveDNS: 0
   172.16.0.0/16:
     pingSubnet: 0
     discoverSubnet: 0
     showName: 0
-    resolveDNS: 0
   172.16.1.0/24:
-    pingSubnet: 1
-    discoverSubnet: 1
-    showName: 1
-    resolveDNS: 1
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+
 logging:
   # set loglevel to your need (debug, info, error, critical)
   level: info
