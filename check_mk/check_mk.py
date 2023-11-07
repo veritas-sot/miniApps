@@ -861,7 +861,7 @@ def get_missing_devices(sot, check_mk_config):
         parameter = {'name': ''}
 
     if _cache_all_sot_devices is None:
-        _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','location','custom_fields'],
+        _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','location','custom_field_data'],
                                                parameter=parameter)
     if _cache_all_cmk_devices is None:
         _cache_all_cmk_devices = get_all_hosts()
@@ -1242,7 +1242,7 @@ if __name__ == "__main__":
     if args.update_cmk or args.sync:
         dry_run_data, to_be_updated = get_to_be_updated_device(sot, check_mk_config)
         if args.dry_run:
-            print(json.dumps(dry_run_data, indent=4))
+            #print(json.dumps(dry_run_data, indent=4))
             print(f'{len(to_be_updated)} host be be updated')
         else:
             logging.info(f'updating {len(to_be_updated)} devices in check_mk')
