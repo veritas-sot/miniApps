@@ -7,6 +7,7 @@ import json
 import yaml
 import phpipam
 import sys
+import urllib3
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -129,7 +130,7 @@ def get_subnet_config(prefix, sync_config):
 
     return subnet_config
 
-def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
+def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
     logging.info("syncing %s from SOT to PHPIPAM" % where_cidr)
 
     cfg_select = sync_config.get('sections').get('select','').split(',')
@@ -148,13 +149,15 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
     for prefix in sot_prefixe:
         cidr = prefix.get('prefix')
         cidr_type = prefix.get('type')
-        logging.debug(f'processing prefix {cidr}')
         if cidr == "0.0.0.0/0" and cidr_type == "CONTAINER":
             # we have to skip the 0.0.0.0/0 container, otherwise phpipam raises
             # an error 
             continue
+        if containers and cidr_type != "CONTAINER":
+            continue
+
+        logging.debug(f'processing prefix {cidr} type: {cidr_type}')
         description = prefix.get('description','')
-        logging.debug(f'looking for prefix {cidr}')
 
         # get location from SOT
         if 'location' in prefix and prefix['location']:
@@ -195,6 +198,9 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr):
 
 if __name__ == "__main__":
 
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=False, help="sync config file")
     parser.add_argument('--loglevel', type=str, required=False, help="loglevel")
@@ -202,6 +208,8 @@ if __name__ == "__main__":
     parser.add_argument('--create-sections', action='store_true', help='create sections')
     parser.add_argument('--create-locations', action='store_true', help='create locations')
     parser.add_argument('--create-customers', action='store_true', help='create customers')
+    parser.add_argument('--sync', action='store_true', help='sync prefixe')
+    parser.add_argument('--containers', action='store_true', help='add containers only')
 
     args = parser.parse_args()
 
@@ -234,10 +242,10 @@ if __name__ == "__main__":
     phpipam_password = sync_config['phpipam']['backend']['phpipam_password']
 
     ipam = phpipam.Phpipam(url=phpipam_url, 
-                         app_id=phpipam_appid, 
-                         username=phpipam_username, 
-                         password=phpipam_password,
-                         ssl_verify=False)
+                           app_id=phpipam_appid, 
+                           username=phpipam_username, 
+                           password=phpipam_password,
+                           ssl_verify=False)
 
     if args.create_sections:
         create_all_sections(sot, ipam, sync_config)
@@ -245,5 +253,5 @@ if __name__ == "__main__":
         create_all_locations(sot, ipam)
     if args.create_customers:
         create_all_customers(sot, ipam)
-    # add subnets to PHPIPAM
-    sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr)
+    if args.sync:
+        sync_sot_to_phpipam(sot, ipam, sync_config, args.cidr, args.containers)

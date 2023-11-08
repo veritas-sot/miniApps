@@ -48,7 +48,6 @@ class Phpipam(object):
                                                  'description': section['description'],
                                                  'masterSection': section['masterSection']
                                                 }                                     
-
         return sections_by_id, sections_by_name
 
     def get_prefixe(self, prefix):
@@ -85,7 +84,6 @@ class Phpipam(object):
                                         'master_subnet_id': subnet['masterSubnetId']}
             except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
                 logging.info("no subnets found for %s" % prefix)
-
         return subnets
 
     def get_locations(self):
@@ -203,10 +201,11 @@ class Phpipam(object):
                 return True
             except Exception as exc:
                 logging.debug(f'could not add {prefix} to PHPIPAM; got exception {type(exc).__name__}; looking for supernets')
+                # todo: more than one subnet can match. We have to use the longest matching prefix
                 for subnet in self._all_subnets:
                     prefix_cidr = IPv4Network(prefix, strict=False)
                     supernet = IPv4Network(subnet, strict=False)
-                    logging.debug(f'checking if {prefix_cidr} lies in {supernet} ')
+                    #logging.debug(f'checking if {prefix_cidr} lies in {supernet} ')
                     if prefix_cidr.subnet_of(supernet):
                         logging.debug(f'found possible masterSubnet of {prefix}: {subnet}')
                         masterSubnetId = self.get_id_of_network(subnet)
@@ -218,8 +217,8 @@ class Phpipam(object):
                             logging.debug(f'subnet {prefix}/{description} added to PHPIPAM')
                             return True
                         except Exception as exc:
-                            logging.critical(f'could not add {prefix} to PHPIPAM; got exception {exc}; giving up')
-                            return False
+                            pass
+                            # logging.critical(f'could not add {prefix} to PHPIPAM; got exception {exc}; giving up')
                 logging.error(f'could not add subnet {prefix}; no supernet found but needed')
                 return False
 
