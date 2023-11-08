@@ -9,8 +9,11 @@ class Phpipam(object):
 
     def __init__(self, url, app_id, username, password, ssl_verify):
         self._all_subnets = None
-        self._sections_by_name = None
-        self._sections_by_id = None
+        self._sections_by_name = {}
+        self._sections_by_id = {}
+        self._folders_by_name = {}
+        self._folders_by_id = {}
+        self._folders_by_sectionid = {}
         self._locations_by_name = {}
         self._locations_by_id = {}
         self._customers_by_name = {}
@@ -20,13 +23,15 @@ class Phpipam(object):
                                username=username,
                                password=password,
                                ssl_verify=ssl_verify)
-        self.load_sections_and_subnets()
+        self.load_data()
 
-    def load_sections_and_subnets(self):
-        """get sections and subnets from PHPIPAM"""
-        logging.debug('loading sections and subnets')
+    def load_data(self):
+        """get all PHPIPAM data that is needed later"""
+        logging.debug('loading sections, subnets, folders and locations')
         self._all_subnets = self.get_prefixe("0.0.0.0/0")
         self._sections_by_id, self._sections_by_name = self.get_sections()
+        self.get_folders()
+        self.get_locations()
 
     def get_sections(self):
         sections_by_name = {}
@@ -49,6 +54,12 @@ class Phpipam(object):
                                                  'masterSection': section['masterSection']
                                                 }                                     
         return sections_by_id, sections_by_name
+
+    def get_section(self, name):
+        try:
+            return self._pi.get_entity(controller=f'sections/{name}', controller_path='/')
+        except Exception as exc:
+            return None
 
     def get_prefixe(self, prefix):
         subnets = {}
@@ -86,6 +97,45 @@ class Phpipam(object):
                 logging.info("no subnets found for %s" % prefix)
         return subnets
 
+    def get_folders(self):
+        folders_by_name = {}
+        folders_by_id = {}
+        folders_by_sectionid = {}
+    
+        # get all sections
+        try:
+            all_folders = self._pi.get_entity(controller='folders', controller_path='/')
+        except Exception as exc:
+            return {}, {}
+        if all_folders is not None:
+            for folder in all_folders:
+                folder_name = folder['description']
+                logging.debug(f'got folder {folder_name} from PHPIPAM')
+                folders_by_name[folder_name] = {'id': folder['id'],
+                                                'sectionId': folder['sectionId'],
+                                                'name': folder_name,
+                                                'description': folder['description'],
+                                                'masterSubnetId': folder['masterSubnetId']
+                                               }
+                folders_by_id[folder['id']] = {'id': folder['id'],
+                                               'sectionId': folder['sectionId'],
+                                               'name': folder_name,
+                                               'description': folder['description'],
+                                               'masterSubnetId': folder['masterSubnetId']
+                                              }
+                folders_by_sectionid[folder['sectionId']] = {}
+                folders_by_sectionid[folder['sectionId']][folder_name] = {
+                                                'id': folder['id'],
+                                                'sectionId': folder['sectionId'],
+                                                'name': folder_name,
+                                                'description': folder['description'],
+                                                'masterSubnetId': folder['masterSubnetId']
+                                                }                                 
+        self._folders_by_name = folders_by_name
+        self._folders_by_id = folders_by_id
+        self._folders_by_sectionid = folders_by_sectionid
+        return folders_by_id, folders_by_name, folders_by_sectionid
+     
     def get_locations(self):
         try:
             all_locations = self._pi.get_entity(controller='tools/locations', controller_path='/')
@@ -153,10 +203,32 @@ class Phpipam(object):
             logging.critical("got exception: %s" % exc)
             return False
 
-    def add_subnet(self, prefix, section, subnet_config, description, update=False):
+    def add_folder(self, name, section):
+        section_id = self.get_section(section).get('id')
+        folders_by_id, folders_by_name, folders_by_sectionid = self.get_folders()
+        folder = folders_by_sectionid.get(section_id).get(name)
+
+        if folder:
+            logging.debug(f'folder {name} already exists in {section}')
+            return True
+
+        logging.debug(f'adding folder {name} in section {section}')
+        my_folder = {
+            'description': name,
+            'sectionId': section_id,
+            'isFolder': 1
+        }
+
+        try:
+            self._pi.create_entity(controller='subnets', data=my_folder)
+            return True
+        except Exception as exc:
+            logging.error(f'could not create foler {name} in {section}; got exception {exc}')
+            return False
+
+    def add_subnet(self, prefix, section, folder, subnet_config, description, update=False):
         # reload all data
-        self.load_sections_and_subnets()
-        self.get_locations()
+        self.load_data()
 
         net, mask = prefix.split("/")
         if section in self._sections_by_name:
@@ -170,8 +242,13 @@ class Phpipam(object):
             "subnet": net,
             "mask": mask,
             "sectionId": section_id,
-            "description": description
+            "description": description,
         }
+
+        if folder:
+            folder_id = self._folders_by_sectionid.get(section_id,{}).get(folder,{}).get('id')
+            if folder_id:
+                my_subnet.update({'masterSubnetId': folder_id})
 
         # add or overwrite subnet config
         my_subnet.update(subnet_config)

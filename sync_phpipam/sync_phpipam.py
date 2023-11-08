@@ -39,7 +39,7 @@ def create_all_sections(sot, ipam, sync_config):
             # an error 
             continue
         logging.debug(f'processing prefix {cidr}')
-        create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config)
+        create_section(ipam, prefix, cfg_select, cfg_section, sync_config)
 
 def create_all_locations(sot, ipam):
     locations_by_id, locations_by_name = ipam.get_locations()
@@ -65,6 +65,24 @@ def create_all_customers(sot, ipam):
     #     if name not in customers_by_name:
     #         logging.info(f'adding {customer} to PHPIPAM')
     #         ipam.add_customer({'name': name})
+
+def ceate_section(ipam, prefix, cfg_select, cfg_section, sync_config):
+    """create section in PHPIPAM"""
+    description = prefix.get('description','')
+    permissions = sync_config.get('sections',{}).get('permissions','{"2":"3","3":"4","4":"3"}')
+
+    list_of_sections = cfg_section.split('~')
+    parent = ""
+    for sct in list_of_sections:
+        section = get_section_name(prefix, sct, sync_config)
+        if section != parent:
+            logging.info(f'adding section: "{section}" parent: "{parent}"')
+            ipam.add_section(section, folder, description, parent, permissions)
+            parent = section
+    
+    # the folder is added in the last section
+    folder = get_folder_name(prefix, sync_config)
+    ipam.add_folder(folder, section)
 
 def get_section_name(prefix, cfg_section, sync_config):
     """return section name"""
@@ -102,19 +120,30 @@ def get_section_name(prefix, cfg_section, sync_config):
     logging.debug(f'prefix: {prefix.get("prefix")} section: "{section}"')
     return section
 
-def create_sesctions(ipam, prefix, cfg_select, cfg_section, sync_config):
-    """create section in PHPIPAM"""
-    description = prefix.get('description','')
-    permissions = sync_config.get('sections',{}).get('permissions','{"2":"3","3":"4","4":"3"}')
+def get_folder_name(prefix, sync_config):
 
-    list_of_sections = cfg_section.split('~')
-    parent = ""
-    for sct in list_of_sections:
-        section = get_section_name(prefix, sct, sync_config)
-        if section != parent:
-            logging.info(f'adding section: "{section}" parent: "{parent}"')
-            ipam.add_section(section, description, parent, permissions)
-            parent = section
+    # the list of fields the user wants to replace
+    cfg_select = sync_config.get('sections').get('select','').split(',')
+
+    folder = sync_config.get('sections').get('folders')
+    if not folder or folder == False:
+        return None
+    for fldr in cfg_select:
+        # logging.debug(f'- prefix: {prefix.get("prefix")} fldr: {fldr} cfg_section: {cfg_section}')
+        if fldr.startswith('cf_'):
+            v = prefix.get('_custom_field_data',{}).get(fldr.replace('cf_',''),'')
+        else:
+            v = prefix.get(fldr)
+        if not v:
+            v = ''
+        if isinstance(v, dict):
+            if 'name' in v:
+                v = v.get('name')
+        # logging.debug(f'prefix: {prefix.get("prefix")} fldr: {fldr} v: {v}')
+        folder = folder.replace(fldr, v)
+
+    folder = folder.strip()
+    return folder
 
 def get_subnet_config(prefix, sync_config):
     """return subnet config depending of the user config"""
@@ -194,7 +223,8 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
             subnet_config['location'] = location
 
         # add or update subnet
-        ipam.add_subnet(cidr, section, subnet_config, description, cidr in phpipam_subnets)
+        folder = get_folder_name(prefix, sync_config)
+        ipam.add_subnet(cidr, section, folder, subnet_config, description, cidr in phpipam_subnets)
 
 if __name__ == "__main__":
 
