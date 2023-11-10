@@ -66,7 +66,7 @@ def create_all_customers(sot, ipam):
     #         logging.info(f'adding {customer} to PHPIPAM')
     #         ipam.add_customer({'name': name})
 
-def ceate_section(ipam, prefix, cfg_select, cfg_section, sync_config):
+def create_section(ipam, prefix, cfg_select, cfg_section, sync_config):
     """create section in PHPIPAM"""
     description = prefix.get('description','')
     permissions = sync_config.get('sections',{}).get('permissions','{"2":"3","3":"4","4":"3"}')
@@ -77,12 +77,13 @@ def ceate_section(ipam, prefix, cfg_select, cfg_section, sync_config):
         section = get_section_name(prefix, sct, sync_config)
         if section != parent:
             logging.info(f'adding section: "{section}" parent: "{parent}"')
-            ipam.add_section(section, folder, description, parent, permissions)
+            ipam.add_section(section, description, parent, permissions)
             parent = section
     
     # the folder is added in the last section
     folder = get_folder_name(prefix, sync_config)
-    ipam.add_folder(folder, section)
+    if folder:
+        ipam.add_folder(folder, section)
 
 def get_section_name(prefix, cfg_section, sync_config):
     """return section name"""
