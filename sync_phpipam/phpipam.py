@@ -106,7 +106,7 @@ class Phpipam(object):
         try:
             all_folders = self._pi.get_entity(controller='folders', controller_path='/')
         except Exception as exc:
-            return {}, {}
+            return {}, {}, {}
         if all_folders is not None:
             for folder in all_folders:
                 folder_name = folder['description']
