@@ -95,7 +95,6 @@ def add_host_tag_groups(sot, host_tag_groups):
                     # raw_data = sot.get.query(query=query, parameter={})
                     raw_data = sot.select('location') \
                         .using('nb.devices') \
-                        .normalize(False) \
                         .where()
                     if not 'set' in cfields:
                         cfields = {'location': set()}
@@ -106,7 +105,6 @@ def add_host_tag_groups(sot, host_tag_groups):
                 if ident.startswith('cf_'):
                     raw_data = sot.select('hostname', 'custom_fields') \
                         .using('nb.devices') \
-                        .normalize(False) \
                         .where()
                     for cf_data in raw_data:
                         for key, value in cf_data['custom_field_data'].items():
@@ -704,6 +702,9 @@ def update_hosts(sot, sot_devices, cmk_devices, check_mk_config, do_update=True)
                     snmp_equals = False
             if not snmp_equals:
                 update_attributes = {'snmp_community' : should_be}
+                # activate SNMP in checkmk
+                update_attributes.update({'tag_agent': 'no-agent'})
+                update_attributes.update({'tag_snmp_ds': 'snmp-v2'})
                 if do_update:
                     need_update = True
                     logging.info(f'SNMP credentials of host {hostname} has changed')
@@ -1170,7 +1171,6 @@ if __name__ == "__main__":
     if args.devices and (args.add_hosts or args.update_hosts or args.add_folders or args.update_cmk):
         sot_devicelist = sot.select('hostname', 'primary_ip4', 'location', 'cf_snmp_credentials') \
                      .using('nb.devices') \
-                     .normalize(False) \
                      .where(args.devices)
         
         for device in sot_devicelist:
