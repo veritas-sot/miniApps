@@ -862,7 +862,7 @@ def get_missing_devices(sot, check_mk_config):
 
     if _cache_all_sot_devices is None:
         _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','location','custom_field_data'],
-                                               parameter=parameter)
+                                               where=parameter)
     if _cache_all_cmk_devices is None:
         _cache_all_cmk_devices = get_all_hosts()
 
@@ -885,7 +885,7 @@ def get_to_be_updated_device(sot, check_mk_config):
 
     if _cache_all_sot_devices is None:
         _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','site','custom_fields'],
-                                               parameter=parameter)
+                                               where=parameter)
     if _cache_all_cmk_devices is None:
         _cache_all_cmk_devices = get_all_hosts()
 
@@ -905,7 +905,7 @@ def get_to_be_removed_device(sot, check_mk_config):
 
     if _cache_all_sot_devices is None:
         _cache_all_sot_devices = sot.get.query(values=['hostname', 'primary_ip4','site','custom_fields'],
-                                               parameter=parameter)
+                                               where=parameter)
     if _cache_all_cmk_devices is None:
         _cache_all_cmk_devices = get_all_hosts()
 
@@ -955,7 +955,7 @@ def show(sot, check_mk_config, what, check_mk=None):
     elif 'missing-devices' == what:
         parameter = {'name': ''}
         sot_devicelist = sot.get.query(values=['hostname', 'primary_ip4','site','custom_fields'],
-                                       parameter=parameter)
+                                       where=parameter)
         cmk_devicelist = get_all_hosts()
         print(f'sot: {len(sot_devicelist)} cmk {len(cmk_devicelist)}')
         for device in sot_devicelist:
