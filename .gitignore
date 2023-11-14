@@ -172,3 +172,4 @@ sync_phpipam/config.yaml
 veritas/config.yaml
 convert_cvs/convert_csv.yaml
 Testing/
+sync_cmk/cmk.yaml
