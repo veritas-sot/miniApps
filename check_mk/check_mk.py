@@ -627,12 +627,14 @@ def update_host_in_cmk(hostname, etag, update_attributes, remove_attributes, che
     }
     logging.debug(f'sending request {data} {headers}')
     response = check_mk.put(url=f"/objects/host_config/{hostname}", 
-                             json=data,
-                             headers=headers)
+                            json=data,
+                            headers=headers)
     if response.status_code == 200:
         logging.info('updated successfully')
+        return True
     else:
         logging.error(f'status {response.status_code}; error: {response.content}')
+        return False
 
 def update_hosts(sot, sot_devices, cmk_devices, check_mk_config, do_update=True):
     """

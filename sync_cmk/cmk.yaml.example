@@ -1,0 +1,141 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
+check_mk:
+  url: __CHECKMK__
+  site: __SITE__
+  username: __USERNAME__
+  password: __PASSWORD__
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: __LOGLEVEL__
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+credentials:
+  snmp:
+    repo: __SNMP_REPO__
+    path: __SNMP_PATH__
+    subdir: __SNMP_SUBDIR__
+    filename: __SNMP_FILENAME__
+defaults:
+  ignore_host_tag_groups:
+    - tag_agent
+    - tag_snmp_ds
+  sync:
+    devices:
+      - site: cha
+mappings:
+  # map sot custom fields to cmk host tag groups
+  - sot: cf_name_of_field
+    cmk: host_tag_group_name
+host_groups:
+  - name: Important_Devices
+    alias: Important_Devices 
+host_tag_groups:
+  - title: Interfacename by Alias / Description
+    ident: if_alias_desc
+    topic: interface
+    help: Set Interfacename
+    tags:
+      - ident: if_alias
+        title: use alias
+      - ident: if_description
+        title: use description
+  - title: important
+    ident: important
+    topic: devices
+    help: Device is important
+    tags:
+      - ident: unimportant
+        title: unimporant device
+      - ident: important
+        title: important device
+  - title: site-name
+    ident: site-name
+    topic: devices
+    help: Name of Site
+    tags:
+      - ident: unknown
+        title: unknown
+      - ident: sot__prop__site
+        title: sot__prop__site
+rules:
+  - folder: /
+    ruleset: host_groups
+    value_raw: "'Important_Devices'"
+    properties: {'description': 'Important Devices', 'disabled': False}
+    conditions: {'host_labels': [],'host_tags': [{'key': 'important', 'operator': 'is', 'value': 'important'}], 'service_labels': []}
+  - folder: /
+    ruleset: host_check_commands
+    value_raw: "'ping'"
+    properties: {'description': 'Use ICMP PING', 'disabled': False}
+    conditions: {'host_labels': [], 'host_tags': [], 'service_labels': []}
+  - folder: /
+    ruleset: checkgroup_parameters:if
+    value_raw: "{'speed': None, 'state': None}"
+    properties: {"disabled": false }
+    conditions: {"host_tags": [], "host_labels": [], "service_labels": [{"key": "port", "operator": "is", "value": "client_access"}]}
+  - folder: /
+    ruleset: inventory_if_rules
+    value_raw: "{'discovery_single': (True, {'item_appearance': 'descr', 'pad_portnumbers': True, 'labels': {'port': 'client_access'}}), 'matching_conditions': (False, {'portstates': ['1', '2'], 'match_alias': ['.*CLIENT.*']})}"
+    properties: {"description": "Use Interface Description for client access ports", "disabled": false }
+    conditions: {"host_tags": [], "host_labels": [], "service_labels": [] }
+  - folder: /
+    ruleset: inventory_if_rules
+    value_raw: "{'discovery_single': (True, {'item_appearance': 'alias', 'pad_portnumbers': True}), 'matching_conditions': (False, {'portstates': ['1']})}"
+    properties: {"description": "Use Interface Alias", "comment": "Use Description or Alias on interfaces", "disabled": false }
+    conditions: {"host_tags": [{"key": "if_alias_desc", "operator": "is", "value": "if_alias"}], "host_labels": [], "service_labels": []}
+  - folder: /
+    ruleset: inventory_if_rules
+    value_raw: "{'discovery_single': (True, {'item_appearance': 'descr', 'pad_portnumbers': True}), 'matching_conditions': (False, {'portstates': ['1']})}"
+    properties: {"description": "Use Interface Description", "disabled": false }
+    conditions: {"host_tags": [{"key": "if_alias_desc", "operator": "is", "value": "if_description" } ], "host_labels": [], "service_labels": [] }
+  - folder: /
+    ruleset: inventory_if_rules
+    value_raw: "{'discovery_single': (True, {'item_appearance': 'descr', 'pad_portnumbers': True, 'labels': {'port': 'client_access'}}), 'matching_conditions': (False, {'portstates': ['1', '2'], 'match_alias': ['.*CLIENT.*']})}"
+    properties: {"description": "Use Interface Description for client access ports", "disabled": false }
+    conditions: {"host_tags": [], "host_labels": [], "service_labels": [] }
+  - folder: /
+    ruleset: checkgroup_parameters:if
+    value_raw: "{'speed': None, 'state': None}"
+    properties: {"disabled": false }
+    conditions: {"host_tags": [], "host_labels": [], "service_labels": [{"key": "port", "operator": "is", "value": "client_access" }]}
+folders:
+  config:
+      # default values of folders like contact groups and host tags
+      - name: default
+        contactgroups:
+          groups: [all]
+          recurse_perms: True
+          recurse_use: True
+          use: True
+          use_for_services: False
+        tag_if_alias_desc: if_description
+  structure: 
+    template: polling_engine~network~site
+    polling_engine: 
+      default: default_polling_engine
+      cidr:
+        - net: 10.0.0.0/8
+          folder: my_10er
+        - net: 192.168.0.0/16
+          folder: my_192er
+    network:
+      default: default_network
+      custom_field: my_cfield
+    site:
+      default: None
+      # abhaengig vom Wert in Feld 'net' wird das Feld cf__net_name (bei tdn)
+      # oder cf__ast (bei ipana) genutzt
+      depending_on:
+        - custom_field: my_cfield
+          value: my_value
+          folder: prop__site__name
+        - custom_field: another_cfield
+          value: another_value
+          folder: cf__cfieldname
