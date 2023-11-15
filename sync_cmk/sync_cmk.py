@@ -15,8 +15,11 @@ from veritas.checkmk import checkmk
 default_config_file = "cmk.yaml"
 snmp_credentials = None
 
-def sync(args, sot, checkmk_config):
+def update_hosts(args, sot, checkmk_config):
     """sync sot with cmk"""
+    nn_of_devices_to_be_updated = 0
+    devices_to_be_updated = []
+
     cmk = checkmk.Checkmk(sot=sot, 
                           url=checkmk_config.get('check_mk',{}).get('url'),
                           site=checkmk_config.get('check_mk',{}).get('site'),
@@ -44,19 +47,26 @@ def sync(args, sot, checkmk_config):
                                                             device_cmk_properties,
                                                             checkmk_config)
 
-        print(json.dumps(sot_dev_config, indent=4))
-        print(json.dumps(cmk_dev_config, indent=4))
+        # print(json.dumps(sot_dev_config, indent=4))
+        # print(json.dumps(cmk_dev_config, indent=4))
 
         attributes, htg, remove_attributes, folder = get_new_cmk_device_config(sot_dev_config, cmk_dev_config)
-        logging.debug('---- new config ----')
-        logging.debug(f'attributes: {attributes}')
-        logging.debug(f'remove: {remove_attributes}')
-        logging.debug(f'htg: {htg}')
-        logging.debug(f'folder: {folder}')
+        if args.dry_run:
+            logging.debug(f'attributes: {attributes} htg: {htg} remove_attributes: {remove_attributes} folder: {folder}')
+            if attributes or htg or remove_attributes or folder:
+                nn_of_devices_to_be_updated += 1
+                devices_to_be_updated.append(device_properties['hostname'])
+        else:
+            etag = cmk.get_etag(device_properties['hostname'])
+            if folder:
+                cmk.move_host_to_folder(device_properties['hostname'], etag, folder)
+            if attributes or htg or remove_attributes:
+                cmk.update_host_in_cmk(device_properties['hostname'], etag, attributes, remove_attributes)
 
-        # now check what to do
-        if folder:
-            cmk.update_folders([{'folder': folder}], check_mk_config)
+        if args.dry_run:
+            print(f'{nn_of_devices_to_be_updated} devices to be updated')
+            for d in devices_to_be_updated:
+                print(d)
 
 def get_current_device_configs(sot, device_sot_properties, device_cmk_properties, check_mk_config):
     """return difference between sot config and checkmk config of a host"""
@@ -127,7 +137,12 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
     elif len(sot_dev_config['snmp']) > 0 and len(cmk_dev_config['snmp']) > 0:
         # sot and cmk have snmp config => compare snmp keys
         for key, value in cmk_dev_config['snmp'].items():
-            if key not in sot_dev_config['snmp'] or value != sot_dev_config[key]:
+            #logging.debug(f'key: {key} value: {value}')
+            if key not in sot_dev_config['snmp']:
+                logging.debug(f'key {key} not found in cmk config')
+                snmp_equals = False
+            elif key in sot_dev_config['snmp'] and value != sot_dev_config['snmp'].get(key):
+                logging.debug(f'key {key} differs in cmk config {value} vs. {sot_dev_config["snmp"].get(key)}')
                 snmp_equals = False
     elif len(sot_dev_config['snmp']) == 0 and len(cmk_dev_config['snmp']) > 0:
         # remove snmp config
@@ -359,14 +374,12 @@ if __name__ == "__main__":
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="check_mk loglevel")
     # what to do
-    parser.add_argument('--add-hosts', action='store_true', help='Add hosts to check_mk')
-    parser.add_argument('--update-hosts', action='store_true', help='Update devices in check_mk')
-    parser.add_argument('--add-host-tag-groups', action='store_true', help='Add host tag groups')
-    parser.add_argument('--add-host-groups', action='store_true', help='Add host groups')
-    parser.add_argument('--add-rules', action='store_true', help='Add rules to checkmk')
-    parser.add_argument('--add-default-folders', action='store_true', help='Add default folders')
-    parser.add_argument('--delete-hosts', action='store_true', help='Delete hosts in check_mk')
-    parser.add_argument('--add-folders', action='store_true', help='Add folder if missing')
+    #parser.add_argument('--add-host-tag-groups', action='store_true', help='Add host tag groups')
+    #parser.add_argument('--add-host-groups', action='store_true', help='Add host groups')
+    #parser.add_argument('--add-rules', action='store_true', help='Add rules to checkmk')
+    #parser.add_argument('--add-default-folders', action='store_true', help='Add default folders')
+    #parser.add_argument('--delete-hosts', action='store_true', help='Delete hosts in check_mk')
+    #parser.add_argument('--add-folders', action='store_true', help='Add folder if missing')
     # start a service discovery on the devices
     parser.add_argument('--service-discovery', action='store_true', help='Start Service discovery')
     parser.add_argument('--activate-changes', action='store_true', help='Start Service discovery')
@@ -374,10 +387,9 @@ if __name__ == "__main__":
     # status
     parser.add_argument('--show', type=str, required=False, help="Show status/rules/etc.")
     # sync
-    parser.add_argument('--sync', action='store_true', help='Sync SOT and checkmk')
-    parser.add_argument('--update-cmk', action='store_true', help='Update all hosts in checkmk')
-    parser.add_argument('--missing-cmk', action='store_true', help='Add missing devices to checkmk')
-    parser.add_argument('--remove-cmk', action='store_true', help='Remove devices from checkmk')
+    parser.add_argument('--update-hosts', action='store_true', help='Update all hosts in checkmk')
+    parser.add_argument('--add-hosts', action='store_true', help='Add missing devices to checkmk')
+    parser.add_argument('--remove-hosts', action='store_true', help='Remove devices from checkmk')
     parser.add_argument('--dry-run', action='store_true', help='Just print what to do')
 
     # parse arguments
@@ -409,5 +421,6 @@ if __name__ == "__main__":
                   ssl_verify=check_mk_config['sot'].get('ssl_verify', False),
                   url=check_mk_config['sot']['nautobot'])
     
-    if args.sync or args.update_cmk or args.missing_cmk or args.remove_cmk:
-        sync(args, sot, check_mk_config)
+    if args.update_hosts:
+        update_hosts(args, sot, check_mk_config)
+    
