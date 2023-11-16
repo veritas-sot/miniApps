@@ -4,7 +4,7 @@ import argparse
 import logging
 import json
 import yaml
-import flatdict
+import tabulate
 import urllib3
 import ipaddress
 from veritas.tools import tools
@@ -15,9 +15,80 @@ from veritas.checkmk import checkmk
 default_config_file = "cmk.yaml"
 snmp_credentials = None
 
+
+def add_new_hosts(args, sot, checkmk_config):
+    """add new hosts to cmk"""
+    nn_of_devices_to_be_added = 0
+    devices_to_be_added = []
+
+    cmk = checkmk.Checkmk(sot=sot, 
+                          url=checkmk_config.get('check_mk',{}).get('url'),
+                          site=checkmk_config.get('check_mk',{}).get('site'),
+                          username=checkmk_config.get('check_mk',{}).get('username'),
+                          password=checkmk_config.get('check_mk',{}).get('password'))
+
+    all_cmk_devices = cmk.get_all_hosts()
+    all_sot_devices = sot.select('hostname', 'primary_ip4','location','custom_field_data') \
+                         .using('nb.devices') \
+                         .where(args.devices)
+
+    for device_properties in all_sot_devices:
+        sot_device_name = device_properties.get('hostname')
+        device_cmk_properties = next((item for item in all_cmk_devices if item['host_name'] == sot_device_name), {})
+        
+        # check if device is in cmk
+        if len(device_cmk_properties) == 0:
+            sot_dev_config,x = get_current_device_configs(sot, 
+                                                    device_properties, 
+                                                    device_cmk_properties,
+                                                    checkmk_config)
+            if not sot_dev_config.get('ip'):
+                logging.info(f'device {sot_device_name} has no primary IP configured; ignoring host')
+            else:
+                logging.info(f'device {sot_device_name} not found in cmk')
+                nn_of_devices_to_be_added += 1
+                devices_to_be_added.append(sot_dev_config)
+    
+    if args.dry_run:
+        print(f'{nn_of_devices_to_be_added}/{len(all_sot_devices)} devices are new')
+        for d in devices_to_be_added:
+            print(d)
+
+def remove_hosts(args, sot, checkmk_config):
+    """remove hosts in cmk"""
+    nn_of_devices_to_be_removed = 0
+    devices_to_be_renmoved = []
+
+    cmk = checkmk.Checkmk(sot=sot, 
+                          url=checkmk_config.get('check_mk',{}).get('url'),
+                          site=checkmk_config.get('check_mk',{}).get('site'),
+                          username=checkmk_config.get('check_mk',{}).get('username'),
+                          password=checkmk_config.get('check_mk',{}).get('password'))
+
+    all_cmk_devices = cmk.get_all_hosts()
+    all_sot_devices = sot.select('hostname', 'primary_ip4','location','custom_field_data') \
+                         .using('nb.devices') \
+                         .where(args.devices)
+
+    for device_properties in all_cmk_devices:
+        # check if device is in cmk
+        hostname = device_properties.get('host_name')
+        if not any(d['hostname'] == hostname for d in all_sot_devices):
+            logging.debug(f'{hostname} found in cmk but not in sot; removing it')
+            nn_of_devices_to_be_removed += 1
+            devices_to_be_renmoved.append(hostname)
+    
+    if args.dry_run:
+        print(f'{nn_of_devices_to_be_removed}/{len(all_sot_devices)} devices found in cmk but not in sot')
+        for d in devices_to_be_renmoved:
+            print(d)
+
 def update_hosts(args, sot, checkmk_config):
     """sync sot with cmk"""
     nn_of_devices_to_be_updated = 0
+    nn_of_new_hosts = 0
+    nn_of_success = 0
+    nn_of_failed = 0
     devices_to_be_updated = []
 
     cmk = checkmk.Checkmk(sot=sot, 
@@ -31,9 +102,6 @@ def update_hosts(args, sot, checkmk_config):
                          .using('nb.devices') \
                          .where(args.devices)
 
-    # print(json.dumps(all_sot_devices, indent=4))
-    # print(json.dumps(all_cmk_devices, indent=4))
-
     for device_properties in all_sot_devices:
         sot_device_name = device_properties.get('hostname')
         device_cmk_properties = next((item for item in all_cmk_devices if item['host_name'] == sot_device_name), {})
@@ -41,6 +109,8 @@ def update_hosts(args, sot, checkmk_config):
         # check if device is in cmk
         if len(device_cmk_properties) == 0:
             logging.info(f'device {sot_device_name} not found in cmk')
+            nn_of_new_hosts += 1
+            continue
 
         sot_dev_config, cmk_dev_config = get_current_device_configs(sot, 
                                                             device_properties, 
@@ -51,22 +121,43 @@ def update_hosts(args, sot, checkmk_config):
         # print(json.dumps(cmk_dev_config, indent=4))
 
         attributes, htg, remove_attributes, folder = get_new_cmk_device_config(sot_dev_config, cmk_dev_config)
-        if args.dry_run:
-            logging.debug(f'attributes: {attributes} htg: {htg} remove_attributes: {remove_attributes} folder: {folder}')
-            if attributes or htg or remove_attributes or folder:
-                nn_of_devices_to_be_updated += 1
-                devices_to_be_updated.append(device_properties['hostname'])
-        else:
-            etag = cmk.get_etag(device_properties['hostname'])
-            if folder:
-                cmk.move_host_to_folder(device_properties['hostname'], etag, folder)
-            if attributes or htg or remove_attributes:
-                cmk.update_host_in_cmk(device_properties['hostname'], etag, attributes, remove_attributes)
+        if attributes or htg or remove_attributes or folder:
+            nn_of_devices_to_be_updated += 1
+            new_properties = {'host': device_properties['hostname'],
+                              'attributes': attributes,
+                              'remove_attributes': remove_attributes,
+                              'htg': htg,
+                              'folder': folder}
 
-        if args.dry_run:
-            print(f'{nn_of_devices_to_be_updated} devices to be updated')
-            for d in devices_to_be_updated:
-                print(d)
+            if not args.dry_run:
+                etag = cmk.get_etag(device_properties['hostname'])
+                res_folder = res_update = True
+                if folder:
+                    res_folder = cmk.move_host_to_folder(device_properties['hostname'], etag, folder)
+                if attributes or htg or remove_attributes:
+                    res_update = cmk.update_host_in_cmk(device_properties['hostname'], etag, attributes, remove_attributes)
+                success = res_folder and res_update
+                new_properties.update({'success': success})
+                if success:
+                    nn_of_success += 1
+                else:
+                    nn_of_failed += 1
+
+            devices_to_be_updated.append(new_properties)
+
+
+    if nn_of_devices_to_be_updated > 0:
+        header = devices_to_be_updated[0].keys()
+        tab = tabulate.tabulate(devices_to_be_updated, headers="keys")
+        print(tab)
+    if nn_of_new_hosts > 0:
+        print(f'there are {nn_of_new_hosts} hosts found in SOT; please add those hosts')
+
+    if args.dry_run:
+        print(f'{nn_of_devices_to_be_updated}/{len(all_sot_devices)} devices to be updated')
+    else:
+        print(f'{nn_of_devices_to_be_updated}/{len(all_sot_devices)} were to be updated')
+        print(f'success: {nn_of_success} failed: {nn_of_failed}')
 
 def get_current_device_configs(sot, device_sot_properties, device_cmk_properties, check_mk_config):
     """return difference between sot config and checkmk config of a host"""
@@ -131,10 +222,10 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
 
     # snmp
     snmp_equals = True
-    if len(sot_dev_config['snmp']) > 0 and len(cmk_dev_config['snmp']) == 0:
+    if len(sot_dev_config.get('snmp',{})) > 0 and len(cmk_dev_config.get('snmp',{})) == 0:
         # sot has SNMP config but not cmk
         snmp_equals = False
-    elif len(sot_dev_config['snmp']) > 0 and len(cmk_dev_config['snmp']) > 0:
+    elif len(sot_dev_config.get('snmp',{})) > 0 and len(cmk_dev_config.get('snmp',{})) > 0:
         # sot and cmk have snmp config => compare snmp keys
         for key, value in cmk_dev_config['snmp'].items():
             #logging.debug(f'key: {key} value: {value}')
@@ -144,7 +235,7 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
             elif key in sot_dev_config['snmp'] and value != sot_dev_config['snmp'].get(key):
                 logging.debug(f'key {key} differs in cmk config {value} vs. {sot_dev_config["snmp"].get(key)}')
                 snmp_equals = False
-    elif len(sot_dev_config['snmp']) == 0 and len(cmk_dev_config['snmp']) > 0:
+    elif len(sot_dev_config.get('snmp',{})) == 0 and len(cmk_dev_config.get('snmp',{})) > 0:
         # remove snmp config
         if not htg:
             htg = {}
@@ -163,8 +254,10 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
     # check if we have to add/update some host tag groups
     for key, value in sot_dev_config['htg'].items():
         if key in cmk_dev_config['htg'] and cmk_dev_config['htg'][key] == value:
-            logging.debug(f'tag {key} of {hostname} matches')
+            logging.debug(f'tag {key} matches')
         else:
+            if not attributes:
+                attributes = {}
             attributes.update({key: value})
     # check if we have to remove some host tag groups
     for h in cmk_dev_config['htg']:
@@ -220,7 +313,7 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
 
     if snmp_id == 'unknown':
         logging.debug(f'this host has "unknown" SNMP-credentials')
-        return None
+        return {}
 
     for cred in snmp_credentials:
         if cred.get('id') == snmp_id:
@@ -241,7 +334,7 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
                 # HMAC-SHA1-96 => SHA-1-96
                 if 'privacy_protocol' in snmp and '256' in snmp['privacy_protocol']:
                     #logging.debug(f'checkmk does not support AES-256')
-                    return None
+                    return {}
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('HMAC-','')
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('SHA1','SHA-1')
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('SHA2','SHA-2')
@@ -312,7 +405,7 @@ def get_folder_name(properties, folder_config):
                         net = depends_on.get('net')
                         if not net:
                             continue
-                        ip = properties.get('primary_ip4',{}).get('address')
+                        ip = None if not properties['primary_ip4'] else properties.get('primary_ip4',{}).get('address')
                         if ip is None:
                             logging.error(f'{hostname} has no primary IP!!!')
                             fldr = default
@@ -358,6 +451,18 @@ def get_folder_name(properties, folder_config):
 
     logging.debug(f'folder of {hostname}: {folder}')
     return "~" + '~'.join(folder)
+
+def get_value(values, keys):
+    if isinstance(values, list):
+        my_list = []
+        for value in values:
+            my_list.append(get_value(value.get(keys[0]), keys[1:]))
+        return my_list
+    elif isinstance(values, str):
+        return values
+    if len(keys) == 1:
+        return values.get(keys[0])
+    return get_value(values.get(keys[0]), keys[1:])
 
 
 if __name__ == "__main__":
@@ -423,4 +528,7 @@ if __name__ == "__main__":
     
     if args.update_hosts:
         update_hosts(args, sot, check_mk_config)
-    
+    if args.add_hosts:
+        add_new_hosts(args, sot, check_mk_config)
+    if args.remove_hosts:
+        remove_hosts(args, sot, check_mk_config)
