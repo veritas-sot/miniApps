@@ -117,9 +117,6 @@ def update_hosts(args, sot, checkmk_config):
                                                             device_cmk_properties,
                                                             checkmk_config)
 
-        # print(json.dumps(sot_dev_config, indent=4))
-        # print(json.dumps(cmk_dev_config, indent=4))
-
         attributes, htg, remove_attributes, folder = get_new_cmk_device_config(sot_dev_config, cmk_dev_config)
         if attributes or htg or remove_attributes or folder:
             nn_of_devices_to_be_updated += 1
@@ -478,19 +475,6 @@ if __name__ == "__main__":
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="check_mk loglevel")
-    # what to do
-    #parser.add_argument('--add-host-tag-groups', action='store_true', help='Add host tag groups')
-    #parser.add_argument('--add-host-groups', action='store_true', help='Add host groups')
-    #parser.add_argument('--add-rules', action='store_true', help='Add rules to checkmk')
-    #parser.add_argument('--add-default-folders', action='store_true', help='Add default folders')
-    #parser.add_argument('--delete-hosts', action='store_true', help='Delete hosts in check_mk')
-    #parser.add_argument('--add-folders', action='store_true', help='Add folder if missing')
-    # start a service discovery on the devices
-    parser.add_argument('--service-discovery', action='store_true', help='Start Service discovery')
-    parser.add_argument('--activate-changes', action='store_true', help='Start Service discovery')
-    parser.add_argument('--repair-services', action='store_true', help='Start Service discovery')
-    # status
-    parser.add_argument('--show', type=str, required=False, help="Show status/rules/etc.")
     # sync
     parser.add_argument('--update-hosts', action='store_true', help='Update all hosts in checkmk')
     parser.add_argument('--add-hosts', action='store_true', help='Add missing devices to checkmk')
