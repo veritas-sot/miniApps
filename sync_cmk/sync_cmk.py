@@ -39,9 +39,10 @@ def add_new_hosts(args, sot, checkmk_config):
         # check if device is in cmk
         if len(device_cmk_properties) == 0:
             sot_dev_config,x = get_current_device_configs(sot, 
-                                                    device_properties, 
-                                                    device_cmk_properties,
-                                                    checkmk_config)
+                                                          device_properties, 
+                                                          device_cmk_properties,
+                                                          checkmk_config)
+            sot_dev_config.update({'hostname': sot_device_name})
             if not sot_dev_config.get('ip'):
                 logging.info(f'device {sot_device_name} has no primary IP configured; ignoring host')
             else:
@@ -55,16 +56,21 @@ def add_new_hosts(args, sot, checkmk_config):
             print(d)
     else:
         result = []
+        logging.debug(f'updating folders...')
+        cmk.update_folders(devices_to_be_added, 
+                          checkmk_config.get('folders',{}).get('config',[]))
+        # prepare device list
+        device_list = prepare_device_list(devices_to_be_added)
         if args.no_bulk:
-            for d in devices_to_be_added:
+            for d in device_list:
                 success = cmk.add_hosts([d])
                 result.append({'host': d['hostname'], 'success': success})
             tab = tabulate.tabulate(result, headers="keys")
             print(tab)
         else:
-            success = cmk.add_hosts(devices_to_be_added)
+            success = cmk.add_hosts(device_list)
             if success:
-                print(f'added {len(devices_to_be_added)} to cmk')
+                print(f'added {len(device_list)} devices to cmk')
             else:
                 print(f'could not add devices to cmk')
 
@@ -194,6 +200,12 @@ def get_current_device_configs(sot, device_sot_properties, device_cmk_properties
             cmk_htg[key] = value
     cmk_config['htg'] = cmk_htg
 
+    # we are using two custom fields to set labels and host tag groups
+    # 1. checkmk_htg
+    #    format: tag_name=tag_value
+    # 2. checkmk_labels
+    #    format: labelname:labelvalue
+
     sot_config['htg'] = get_cfield_from_sot(device_sot_properties, 'checkmk_htg', '=', 'tag_')
     # add mappings to our tags
     for mapping in check_mk_config.get('mappings',{}):
@@ -202,7 +214,6 @@ def get_current_device_configs(sot, device_sot_properties, device_cmk_properties
         cmk_field = mapping.get('cmk')
         if sot_value and sot_field and cmk_field:
             cmkf = 'tag_' + cmk_field
-            logging.debug(f'mapping {sot_field} to {cmk_field}')
             sot_config['htg'].update({cmkf: sot_value})
 
     # check labels
@@ -210,6 +221,9 @@ def get_current_device_configs(sot, device_sot_properties, device_cmk_properties
     cmk_config['labels'] = device_cmk_properties.get('extensions',{}).get('attributes',{}).get('labels',{})
 
     # checking folder
+    # it is possible to set a static value in nautobot to configure the folder nane
+    # the custom_field is named 'checkmk_folder'
+    
     sot_config['folder'] = get_folder_name(device_sot_properties, check_mk_config.get('folders',{}).get('structure',{}))
     cmk_config['folder'] = device_cmk_properties.get('extensions',{}).get('folder')
     if cmk_config['folder']:
@@ -304,6 +318,42 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
 # internal methods
 #
 
+def prepare_device_list(devices):
+    """prepare device list so that the list can be used to add devices to cmk"""
+    entries = []
+    for device in devices:
+        # for each device build dict with mandatory attributes
+        e = {'folder': device['folder'],
+             'host_name': device['hostname'],
+             'attributes': get_attributes(device)}
+        entries.append(e)
+    return entries
+
+def get_attributes(device):
+    attributes = {
+        'ipaddress': device['ip'],
+        'alias': device['hostname'],
+    }
+
+    if len(device['htg']) > 0:
+        attributes.update(device['htg'])
+    if len(device['labels']) > 0:
+        attributes.update({'labels': device['labels']})
+    
+    if len(device['snmp']) > 0:
+        snmp = device['snmp']
+        if snmp.get('version') == 1:
+            attributes.update({'management_snmp_community': snmp})
+        else:
+            attributes.update({'snmp_community': snmp})
+            attributes.update({'tag_agent': 'no-agent'})
+            attributes.update({'tag_snmp_ds': 'snmp-v2'})
+    else:
+        attributes.update({'tag_snmp_ds': 'no-snmp'})
+        attributes.update({'tag_agent': 'no-agent'})
+
+    return attributes
+
 def get_snmp_credentials(sot, device_properties, check_mk_config):
     global snmp_credentials
     snmp = {}
@@ -362,6 +412,7 @@ def get_cfield_from_sot(properties, tagfield, seperator, key_prefix):
     htg_string = properties.get('custom_field_data',{}).get(tagfield,'')
     htgs = htg_string.replace(' ','').split(',')
     for htg in htgs:
+        print(f'tagfield: {tagfield} htg: {htg} sep: {seperator}')
         if len(htg) > 0:
             key, value = htg.split(seperator)
             response[f'{key_prefix}{key}'] = value
@@ -525,10 +576,9 @@ if __name__ == "__main__":
                   ssl_verify=check_mk_config['sot'].get('ssl_verify', False),
                   url=check_mk_config['sot']['nautobot'])
 
-    print(args.no_bulk)    
-    # if args.update_hosts:
-    #     update_hosts(args, sot, check_mk_config)
-    # if args.add_hosts:
-    #     add_new_hosts(args, sot, check_mk_config)
-    # if args.remove_hosts:
-    #     remove_hosts(args, sot, check_mk_config)
+    if args.update_hosts:
+        update_hosts(args, sot, check_mk_config)
+    if args.add_hosts:
+        add_new_hosts(args, sot, check_mk_config)
+    if args.remove_hosts:
+        remove_hosts(args, sot, check_mk_config)

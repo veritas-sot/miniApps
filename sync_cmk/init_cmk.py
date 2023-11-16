@@ -20,21 +20,21 @@ def add_default_folders(checkmk_config):
                           username=checkmk_config.get('check_mk',{}).get('username'),
                           password=checkmk_config.get('check_mk',{}).get('password'))
 
-    for folder in check_mk_config.get('folders',{}).get('init',[]):
+    for folder in checkmk_config.get('folders',{}).get('init',[]):
         name = folder.get('name')
         parent = folder.get('parent')
         data = {"name": name,
                 "title": folder.get('title', name),
                 "parent": parent
                }
-        folder_config = cmk.get_folder_config(check_mk_config, name)
-        success = cmk.add_folder(folder_config)
+        success = cmk.add_folder(data, 
+                                 checkmk_config.get('folders',{}).get('config',[]))
         if success:
             print(f'folder {name} successfully created in cmk')
         else:
             print(f'could not create folder {name} in cmk')
 
-def add_config_to_checkmk(checkmk_config, url, title):
+def add_config_to_checkmk(checkmk_config, config, url, title):
 
     cmk = checkmk.Checkmk(sot=sot, 
                           url=checkmk_config.get('check_mk',{}).get('url'),
@@ -42,16 +42,16 @@ def add_config_to_checkmk(checkmk_config, url, title):
                           username=checkmk_config.get('check_mk',{}).get('username'),
                           password=checkmk_config.get('check_mk',{}).get('password'))
 
-    for item in checkmk_config:
+    for item in config:
         title = item.get('value_raw', title)
         logging.debug(f'adding {title}')
-        success = cmk.add_config(item, url, title)
+        success = cmk.add_config(item, url)
         if success:
             print(f'added config {title} successfully')
         else:
             print(f'could not add config {title} to cmk')
 
-def add_host_tag_groups(sot, host_tag_groups):
+def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
     simple_htg = []
     cfields = {}
 
@@ -101,7 +101,9 @@ def add_host_tag_groups(sot, host_tag_groups):
             htg['tags'] = tags_copy
 
     # now add host tag groups to cmk
-    add_config_to_checkmk(host_tag_groups, '/domain-types/host_tag_group/collections/all', 'host tag groups')   
+    add_config_to_checkmk(checkmk_config, 
+                          host_tag_groups, 
+                          '/domain-types/host_tag_group/collections/all', 'host tag groups')   
 
 
 if __name__ == "__main__":
@@ -121,8 +123,7 @@ if __name__ == "__main__":
     parser.add_argument('--add-host-tag-groups', action='store_true', help='Add host tag groups')
     parser.add_argument('--add-host-groups', action='store_true', help='Add host groups')
     parser.add_argument('--add-rules', action='store_true', help='Add rules to checkmk')
-    parser.add_argument('--add-default-folders', action='store_true', help='Add default folders')
-    parser.add_argument('--add-folders', action='store_true', help='Add folder if missing')
+    parser.add_argument('--add-default-folders', action='store_true', help='Add folders')
     parser.add_argument('--dry-run', action='store_true', help='Just print what to do')
 
     # parse arguments
@@ -155,16 +156,20 @@ if __name__ == "__main__":
                   url=check_mk_config['sot']['nautobot'])
     
     if args.add_default_folders:
-        add_default_folders(check_mk_config)
+        add_folders(check_mk_config)
     
     if args.add_host_groups:
-        add_config_to_checkmk(check_mk_config.get('host_groups',[]), 
+        add_config_to_checkmk(check_mk_config,
+                              check_mk_config.get('host_groups',[]), 
                               '/domain-types/host_group_config/collections/all', 
                               'host groups')
     if args.add_host_tag_groups:
-        add_host_tag_groups(sot, check_mk_config.get('host_tag_groups',[]))
+        add_host_tag_groups(sot, 
+                            check_mk_config,
+                            check_mk_config.get('host_tag_groups',[]))
 
     if args.add_rules:
-        add_config_to_checkmk(check_mk_config.get('rules',[]), 
+        add_config_to_checkmk(check_mk_config,
+                              check_mk_config.get('rules',[]), 
                               '/domain-types/rule/collections/all', 
                               'rules')
