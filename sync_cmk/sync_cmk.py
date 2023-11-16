@@ -53,6 +53,20 @@ def add_new_hosts(args, sot, checkmk_config):
         print(f'{nn_of_devices_to_be_added}/{len(all_sot_devices)} devices are new')
         for d in devices_to_be_added:
             print(d)
+    else:
+        result = []
+        if args.no_bulk:
+            for d in devices_to_be_added:
+                success = cmk.add_hosts([d])
+                result.append({'host': d['hostname'], 'success': success})
+            tab = tabulate.tabulate(result, headers="keys")
+            print(tab)
+        else:
+            success = cmk.add_hosts(devices_to_be_added)
+            if success:
+                print(f'added {len(devices_to_be_added)} to cmk')
+            else:
+                print(f'could not add devices to cmk')
 
 def remove_hosts(args, sot, checkmk_config):
     """remove hosts in cmk"""
@@ -480,6 +494,7 @@ if __name__ == "__main__":
     parser.add_argument('--add-hosts', action='store_true', help='Add missing devices to checkmk')
     parser.add_argument('--remove-hosts', action='store_true', help='Remove devices from checkmk')
     parser.add_argument('--dry-run', action='store_true', help='Just print what to do')
+    parser.add_argument('--no-bulk', action='store_true', help='add host using a single bulk request')
 
     # parse arguments
     args = parser.parse_args()
@@ -509,10 +524,11 @@ if __name__ == "__main__":
     sot = sot.Sot(token=check_mk_config['sot']['token'],
                   ssl_verify=check_mk_config['sot'].get('ssl_verify', False),
                   url=check_mk_config['sot']['nautobot'])
-    
-    if args.update_hosts:
-        update_hosts(args, sot, check_mk_config)
-    if args.add_hosts:
-        add_new_hosts(args, sot, check_mk_config)
-    if args.remove_hosts:
-        remove_hosts(args, sot, check_mk_config)
+
+    print(args.no_bulk)    
+    # if args.update_hosts:
+    #     update_hosts(args, sot, check_mk_config)
+    # if args.add_hosts:
+    #     add_new_hosts(args, sot, check_mk_config)
+    # if args.remove_hosts:
+    #     remove_hosts(args, sot, check_mk_config)
