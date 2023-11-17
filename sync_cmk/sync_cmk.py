@@ -412,7 +412,6 @@ def get_cfield_from_sot(properties, tagfield, seperator, key_prefix):
     htg_string = properties.get('custom_field_data',{}).get(tagfield,'')
     htgs = htg_string.replace(' ','').split(',')
     for htg in htgs:
-        print(f'tagfield: {tagfield} htg: {htg} sep: {seperator}')
         if len(htg) > 0:
             key, value = htg.split(seperator)
             response[f'{key_prefix}{key}'] = value
