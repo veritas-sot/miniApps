@@ -247,7 +247,7 @@ def remove_prefixe_from_phpipam(sot, ipam, sync_config, where_cidr, containers):
 def add_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
 
     sot_adresses = sot.select('address, description, primary_ip4_for, name, parent') \
-                     .using('nb.ipadresses') \
+                     .using('nb.ipaddresses') \
                      .where(f'prefix={args.cidr}')
 
     for address in sot_adresses:
