@@ -160,7 +160,7 @@ def get_subnet_config(prefix, sync_config):
 
     return subnet_config
 
-def sync_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
+def add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
     logging.info("syncing %s from SOT to PHPIPAM" % where_cidr)
 
     cfg_select = sync_config.get('sections').get('select','').split(',')
@@ -226,7 +226,25 @@ def sync_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
         folder = get_folder_name(prefix, sync_config)
         ipam.add_subnet(cidr, section, folder, subnet_config, description, cidr in phpipam_subnets)
 
-def sync_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
+def remove_prefixe_from_phpipam(sot, ipam, sync_config, where_cidr, containers):
+    """remove prefixe from phpipam if prefixe are not known by sot"""
+
+    sot_prefixe = sot.select('prefix') \
+                     .using('nb.prefixes') \
+                     .where(f'within_include={where_cidr}')
+    
+    phpipam_subnets = ipam.get_prefixe(where_cidr)
+    for prefix in phpipam_subnets:
+        if not any(d['prefix'] == prefix for d in sot_prefixe):
+            id = phpipam_subnets[prefix]["id"]
+            logging.info(f'found unknown prefix {prefix} ({id})')
+            success = ipam.remove_subnet(prefix, id)
+            if success:
+                logging.info(f'subnet {prefix} ({id}) removed from phpipam')
+            else:
+                logging.info(f'could not remove subnet {prefix} ({id})')
+
+def add_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
 
     sot_adresses = sot.select('address, description, primary_ip4_for, name, parent') \
                      .using('nb.ipadresses') \
@@ -243,8 +261,9 @@ def sync_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
             logging.error(f'failed to add {addr} / {prefix}')
 
 def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
-    # sync_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
-    sync_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
+    add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
+    remove_prefixe_from_phpipam(sot, ipam, sync_config, where_cidr, containers)
+    add_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
 
 if __name__ == "__main__":
 
