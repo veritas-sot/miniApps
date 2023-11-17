@@ -299,6 +299,49 @@ class Phpipam(object):
                 logging.error(f'could not add subnet {prefix}; no supernet found but needed')
                 return False
 
+    def add_address(self, address, update=False):
+        """add address to subnet"""
+        addr = address.get('address')
+        prefix = address.get('parent',{}).get('prefix')
+        primary = address.get('primary_ip4_for')
+        if primary:
+            hostname = primary[0].get('name')
+        else:
+            hostname = addr
+
+        try:
+            entity = self._pi.get_entity(controller='subnets', controller_path=f'/cidr/{prefix}')
+            subnet_id = int(entity[0]['id'])
+        except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+            logging.error(f'unknown prefix {prefix}')
+            return False
+
+        my_addr = {'ip': addr.split('/')[0],
+                   'subnetId': subnet_id,
+                   'description': address.get('description',''),
+                   'hostname': hostname
+                  }
+
+        # check if address is already there
+        entity = self._pi.get_entity(controller='addresses', controller_path=f'/search/{addr}')
+        id = entity[0]['id']
+        logging.debug(f'address {addr} (id: {id}) found in PHPIPAM')
+        if update and len(entity) > 0:
+            # the IP address and the subnet cannot be changed
+            del my_addr['ip']
+            del my_addr['subnetId']
+            self._pi.update_entity(controller='addresses', controller_path=id, data=my_addr)
+            return True
+
+        # new address; add it to phpipam
+        try:
+            self._pi.create_entity(controller='addresses', data=my_addr)
+            logging.info(f'addresss {addr}/{description} added to subnet {prefix}')
+            return True
+        except Exception as exc:
+            logging.error(f'could not add address {addr} to phpipam; got exceptiom {exc}')
+            return False
+
     def add_location(self, location):
         return self._add_entity('tools/locations', location)
     

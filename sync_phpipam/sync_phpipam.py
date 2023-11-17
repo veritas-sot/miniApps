@@ -160,7 +160,7 @@ def get_subnet_config(prefix, sync_config):
 
     return subnet_config
 
-def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
+def sync_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
     logging.info("syncing %s from SOT to PHPIPAM" % where_cidr)
 
     cfg_select = sync_config.get('sections').get('select','').split(',')
@@ -171,7 +171,6 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
 
     sot_prefixe = sot.select(select) \
                      .using('nb.prefixes') \
-                     .normalize(False) \
                      .where(f'within_include={where_cidr}')
 
     phpipam_subnets = ipam.get_prefixe(where_cidr)
@@ -226,6 +225,26 @@ def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
         # add or update subnet
         folder = get_folder_name(prefix, sync_config)
         ipam.add_subnet(cidr, section, folder, subnet_config, description, cidr in phpipam_subnets)
+
+def sync_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
+
+    sot_adresses = sot.select('address, description, primary_ip4_for, name, parent') \
+                     .using('nb.ipadresses') \
+                     .where(f'prefix={args.cidr}')
+
+    for address in sot_adresses:
+        addr = address.get('address')
+        prefix = address.get('parent',{}).get('prefix')
+        logging.debug(f'adding {addr} to prefix {prefix}')
+        success = ipam.add_address(address, update=True)
+        if success:
+            logging.info(f'added {addr} / {prefix} successfully')
+        else:
+            logging.error(f'failed to add {addr} / {prefix}')
+
+def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
+    # sync_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
+    sync_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
 
 if __name__ == "__main__":
 
