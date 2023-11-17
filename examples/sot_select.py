@@ -102,14 +102,14 @@ my_sot = sot.Sot(token="your_token",
 
 # get id, hostname, and primary_ip of the host with IP=192.168.0.1
 # devices = my_sot.select('id, hostname, primary_ip4') \
-#                 .using('nb.ipadresses') \
+#                 .using('nb.ipaddresses') \
 #                 .normalize(False) \
 #                 .where('address=192.168.0.1')
 # print(json.dumps(devices, indent=4))
 
 # get ALL hosts where the IP address is of type host
 # devices = my_sot.select('id, hostname, primary_ip4') \
-#                 .using('nb.ipadresses') \
+#                 .using('nb.ipaddresses') \
 #                 .normalize(False) \
 #                 .where('type__ic=host')
 # print(json.dumps(devices, indent=4))
