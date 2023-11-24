@@ -2,76 +2,84 @@
 globals:
   import: ./import
 jobs:
-  - job: 1
-    name: test
-    comment: test playbook
-    devices: 
-      select: id, hostname
-      from: nb.devices
-      where: site=default-site and name__ic=local
-    global_config:
-      - policy: or
-        contains: netflow
-    interface_config:
-        - contains: netflow
-    tasks:
-      - add_tag:
-        scope: dcim.device
-        tag: netflow
-
-  - job: 2
-    name: test
-    comment: test playbook
+  - job: device_tags
+    description: set device tag
     devices:
-      name__ic: lab.local
-      config:
-        - pattern: hostname lab
-    # or: True if global_config OR interfaces_config matches
-    # and: True if global_config __AND__ interfaces_config matches
-    policy: or
-    global_config:
-        # or: True if __ONE__ of the patterns matches
-        # and: True if __ALL__ of the patterns matches
-        policy: and
-        patterns:
-          - match__ic: hostname
-            ignore_leading_spaces: True
-    interface_config:
-        policy: or
-        patterns:
-          - match__ic: dhcp
-            ignore_leading_spaces: True
-          - match__ic: ip address
-            ignore_leading_spaces: True
+      sql:
+        select: hostname
+        from: nb.devices
+        where: location=default-site and name__ic=local
     tasks:
-      - add_tag:
-        scope: dcim.interface
-        tag: ospf
       - set_tag:
-        scope: dcim.interface
-        tag: ospf
+        scope: dcim.device
+        tag: test
+
+  - job: interface_tags
+    description: set interface tag
+    devices:
+      sql:
+        select: hostname, interfaces
+        from: nb.devices
+        where: name__ic=local and interfaces_name__ic=GigabitEthernet
+    tasks:
       - delete_tag:
         scope: dcim.interface
-        tag: ospf
-      - custom_field:
-        - test: testvalue
-          scope: dcim.interface
-        - net: netvalue
-          scope: dcim.interface          
-      - update_device:
-        - serial: device_facts__serial_number
-        - platform__slug: ios
-      - update_interface:
-        - description: description
-  
-  - job: 3
-    name: properties
-    comment: export properties
+        tag: dhcp
+
+  - job: device_cf_field
+    description: set custom field on device
     devices:
-      # of course the selected colums must include the columns you export
-      select: id, hostname, site__name, cf_net, cf_test
-      from: nb.devices
-      where: name=lab-01.local
+      sql:
+        select: hostname, interfaces
+        from: nb.devices
+        where: name=eins.local
+    tasks:
+      - custom_field:
+        - net: eins
+          scope: dcim.device
+
+  - job: interface_cf_field
+    description: set interface custom field
+    devices:
+      sql:
+        select: hostname, interfaces
+        from: nb.devices
+        where: name__ic=local and interfaces_name__ic=GigabitEthernet
+    tasks:
+      - custom_field:
+        - iface_field: test
+          scope: dcim.interface
+
+  - job: update_device
+    description: update device
+    devices:
+      sql:
+        select: hostname, interfaces
+        from: nb.devices
+        where: name=eins.local
+    tasks:
+      - update_device:
+          serial: 12345
+
+  - job: update_interface
+    description: update interface
+    devices:
+      sql:
+        select: hostname, interfaces
+        from: nb.devices
+        where: name__ic=local and interfaces_name__ic=GigabitEthernet
+    tasks:
+      - update_interface:
+          description: mydescr
+
+  - job: export_properties
+    description: export properties
+    devices:
+      sql:
+        # of course the selected colums must include the columns you export
+        select: id, hostname, location, cf_net, cf_select
+        from: nb.devices
+        where: name=eins.local
     tasks:
       - export: 
         - content: properties
@@ -79,7 +87,7 @@ jobs:
           header: True
           # columns: hostname, primary_ip4__address, interfaces__name, interfaces__ip_addresses__address
           # columns: interfaces__name, interfaces__description
-          columns: id, hostname, site__name,cf_net,cf_test, checksum
+          columns: id, hostname, location__name, cf_net,cf_select, checksum
           # columns: interfaces__id, interfaces__name, interfaces__description,checksum
           format: csv
           delimiter: ","
@@ -87,30 +95,31 @@ jobs:
           quoting: minimal
           filename: ./export/properties.csv
 
-  - job: 4
-    name: export high level data model (hldm)
-    comment: export HLDM
+  - job: export_config
+    description: export configs, facts and properties
     devices:
-      select: hostname,cf_net,site
-      from: nb.devices
-      where: name=lab-01.local
-    tasks:
-      - export: 
-        # content can be either config, facts, hldm or properties
-        - content: hldm
-          directory: hldm2/__cf_net__/__site_slug__
-          filename: __hostname__.json
-
-  - job: 5
-    name: export config and facts
-    comment: export configs, facts and properties
-    devices:
-      select: hostname, id, primary_ip4, cf_net, site
-      from: nb.devices
-      where: name=lab-01.local
+      sql:
+        select: id, hostname, platform, primary_ip4
+        from: nb.devices
+        where: name=eins.local
     tasks:
       - export: 
         # content can be either config, facts, hldm or properties
         - content: config, facts
           directory: configs
           filename: __hostname__.json
+
+  - job: export_hldm
+    description: export HLDM
+    devices:
+      sql:
+        select: hostname,cf_net,location
+        from: nb.devices
+        where: name=eins.local
+    tasks:
+      - export: 
+        # content can be either config, facts, hldm or properties
+        - content: hldm
+          directory: hldm/__cf_net__/__location_name__
+          filename: __hostname__.json
+

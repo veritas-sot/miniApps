@@ -1,139 +1,206 @@
-#!/usr/bin/env python
-
-import argparse
-import yaml
 import logging
+import yaml
+import json
+import getpass
 import os
-from veritas.sot import sot as sot
-from veritas.tools import tools
-from dotenv import load_dotenv, dotenv_values
-import run_playbook as pb
-import import_update as imp_upd
+import export
 
-# set default config file to your needs
-default_config_file = "./conf/kobold.yaml"
 
-def set_custom_field(args, sot, devicelist):
-    for device in devicelist:
-        hostname = device.get('hostname')
-        address = device.get('host')
-        cf_list = args.custom_field.split(',')
-        updates = {}
-        for custom_field in cf_list:
-            cfs = custom_field.split('=')
-            updates[cfs[0]] = cfs[1]
-        logging.info(f'setting custom fields {updates} on {hostname}')
-        sot.device(hostname).set_customfield(updates)
+class Kobold(object):
 
-def set_tags(args, sot, devicelist):
-    if args.interfaces:
-        set_tags_on_interfaces(args, sot, devicelist)
-    else:
-        set_tags_on_devices(args, sot, devicelist)
-
-def set_tags_on_interfaces(args, sot, devicelist):
-    tags = args.set_tags.split(',')
-    interfaces = args.interfaces.split(',')
-    for device in devicelist:
-        for interface in interfaces:
-            if args.dry_run:
-                print(f'setting tag {tags} on {device["hostname"]}/{interface}')
-            else:
-                logging.info(f'setting tag {tags} on {device["hostname"]}/{interface}')
-                sot.device(device["hostname"]).interface(interface).add_tags(tags)
+    def __init__(self, sot, playbook):
+        self._sot = sot
+        self._playbook = None
+        self._jobs = {}
+        self._username = None
+        self._password = None
+        self._profile = False
+        self._tcp_port = 22
+        self._scrapli_loglevel = "error"
+        self.read_playbook_config(playbook)
+    
+    def read_playbook_config(self, playbook):
+        # load playbook
+        logging.debug(f'reading playbook {playbook}')
+        with open(playbook) as f:
+            try:
+                self._playbook = yaml.safe_load(f.read())
+            except Exception as exc:
+                raise Exception (f'could not parse yaml file {playbook}; got {exc}')
         
-def set_tags_on_devices(args, sot, devicelist):
-    tags = args.set_tags.split(',')
-    for device in devicelist:
-        if args.dry_run:
-            print(f'setting tag {tags} on {device["hostname"]}')
+        for job in self._playbook.get('jobs',{}):
+            self._jobs[job['job']] = job
+
+    def set_profile(self, username=None, token=None, profile=False):
+        self._username = username
+        self._token = token
+        self._profile = profile
+
+    def set_tcp_port(self, port):
+        self._tcp_port = port
+
+    def set_scrapli_loglevel(self, loglevel):
+        self._scrapli_loglevel = loglevel
+
+    def get_username_and_password(self):
+        """return username and password"""
+        if self._username and self._password:
+            return self._username, self._password
+        elif self._profile:
+            # get username and password from profile if user configured args.profile
+            auth = self._sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
+                            salt=os.getenv('SALT'), 
+                            iterations=int(os.getenv('ITERATIONS')))
+            self._password = auth.decrypt(self._token)
+            return self._username, self._password
         else:
-            logging.info(f'setting tag {tags} on {device["hostname"]}')
-            sot.device(device["hostname"]).add_tags(tags)
+            self._username = input("Username (%s): " % getpass.getuser()) if not self._username else self._username
+            self._password = getpass.getpass(prompt="Enter password for %s: " % self._username) if not self._password else self._password
+            return self._username, self._password
 
-if __name__ == "__main__":
+    def get_tcp_port(self):
+        return self._tcp_port
 
-    devicelist = []
+    def get_scrapli_loglevel(self):
+        return self._scrapli_loglevel
 
-    parser = argparse.ArgumentParser()
+    def get_jobs(self):
+        return self._jobs
 
-    # the user can enter a different config file
-    parser.add_argument('--config', type=str, required=False, help="kobold config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="kobold loglevel")
-    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
-    # what devices 
-    parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    parser.add_argument('--interfaces', type=str, required=False, help="list of interfaces we are using")
-    # what to do
-    parser.add_argument('--playbook', type=str, required=False, help="run playbook")
-    parser.add_argument('--job', type=str, required=False, help="run job(s) in playboook")
-    parser.add_argument('--dry-run', action='store_true', help='just print what todo on what device or interface')
-    parser.add_argument('--set-tags', type=str, required=False, help="set tags on device or interface")
-    parser.add_argument('--custom-field', type=str, required=False, help="set value on custom field")
-    # import or update device configgs
-    parser.add_argument('--data', type=str, required=False, help='filename of data')
-    parser.add_argument('--update', action='store_true', help='update device in SOT')
-    parser.add_argument('--import', action='store_true', dest='import_data', help='import data from file')
-    parser.add_argument('--value-mapping', type=str, required=False, help="filename to read value mapping")
-    parser.add_argument('--force', action='store_true', help='update data even if no update were detected')
+    def get_mapping(self):
+        return []
 
-    # we need username and password if the config is retrieved by the device
-    # credentials can be configured using a profile
-    # have a look at the config file
-    parser.add_argument('--username', type=str, required=False)
-    parser.add_argument('--password', type=str, required=False)
-    parser.add_argument('--profile', type=str, required=False)
-    # which TCP port should we use to connect to devices
-    parser.add_argument('--port', type=int, default=22, help="TCP Port to connect to device", required=False)
+    def run(self, job_id):
+        job = self._jobs.get(job_id)
+        if not job:
+            logging.error(f'unknown job {job_id}')
+            return False
 
-    # parse arguments
-    args = parser.parse_args()
+        name = job.get('job')
+        description = job.get('description','no description')
+        logging.info(f'starting job {name} / {description}')
 
-     # Get the path to the directory this file is in
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-    # Connect the path with the '.env' file name
-    load_dotenv(os.path.join(BASEDIR, '.env'))
+        if 'sql' in job.get('devices',{}):
+            sql = job.get('devices').get('sql')
+            device_list = self._sot.select(sql.get('select')) \
+                                   .using(sql.get('from'), sql.get('using')) \
+                                   .where(sql.get('where'))
+            logging.debug(f'got {len(device_list)} devices')
+        tasks = job.get('tasks')
+        if tasks is None:
+            logging.error(f'no task configured!!!')
+            return False
 
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
+        for task in tasks:
+            if 'export' in task:
+                export.export(self, self._sot, task['export'], device_list)
+            if 'add_tag' in task or 'set_tag' in task or 'delete_tag' in task:
+                self.tag_management(task, device_list)
+            if 'custom_field' in task:
+                self.custom_field(task, device_list)
+            if 'update_device' in task:
+                self.update_device(task, device_list)
+            if 'update_interface' in task:
+                self.update_interface(task, device_list)
 
-    with open(config_file) as f:
-        kobold_config = yaml.safe_load(f.read())
+    # certain jobs
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(kobold_config, ['kobold', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
+    def tag_management(self, task, device_list):
+        scope = task.get('scope')
+        configured_tags = task.get('tag', [])
+        if isinstance(configured_tags, str):
+            tags = [ configured_tags ]
+        else:
+            tags = configured_tags
+        if scope is None or len(tags) == 0:
+            logging.error(f'scope and tags must be configured to set tags')
+            return
+        for device in device_list:
+            hostname = device.get('hostname')
+            if scope == "dcim.interface":
+                for interface in device.get('interfaces', []):
+                    interface_name = interface.get('name')
+                    if 'add_tag' in task:
+                        logging.info(f'adding tag {tags} on {hostname}/{interface_name}')
+                        self._sot.device(hostname).interface(interface_name).add_tags(tags)
+                    elif 'set_tag' in task:
+                        logging.info(f'setting tag {tags} on {hostname}/{interface_name}')
+                        self._sot.device(hostname).interface(interface_name).set_tags(tags)
+                    elif 'delete_tag':
+                        logging.info(f'deleting tag {tags} on {hostname}/{interface_name}')
+                        self._sot.device(hostname).interface(interface_name).delete_tags(tags)
+            elif scope == "dcim.device":
+                if 'add_tag' in task:
+                    logging.info(f'add tag {tags} on {hostname}')
+                    self._sot.device(hostname).add_tags(tags)
+                elif 'set_tag' in task:
+                    logging.info(f'setting tag {tags} on {hostname}')
+                    self._sot.device(hostname).set_tags(tags)
+                elif 'delete_tag' in task:
+                    logging.info(f'deleting tag {tags} on {hostname}')
+                    self._sot.device(hostname).delete_tags(tags)
 
-    log_format = tools.get_value_from_dict(kobold_config, ['kobold', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(kobold_config, ['kobold', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    def custom_field(self, task, device_list):
+        custom_fields = task.get('custom_field')
+        for device in device_list:
+            hostname = device.get('hostname')
+            device_scope = {}
+            interface_scope = {}
+            # custom_fields is the list of custom_fields to update
+            for properties in custom_fields:
+                prop = dict(properties)
+                scope = prop.get('scope')
+                print(f'{hostname} {prop} {scope}')
+                del prop['scope']
+                if scope == "dcim.device":
+                    logging.info(f'setting custom field {prop} on {hostname}')
+                    device_scope.update(prop)
+                elif scope == "dcim.interface":
+                    for interface in device.get('interfaces', []):
+                        interface_name = interface.get('name')
+                        logging.info(f'setting custom field {prop} on {hostname}/{interface_name}')
+                        if interface_name not in interface_scope:
+                            interface_scope[interface_name] = {}
+                        interface_scope[interface_name].update(prop)
 
-    # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=kobold_config['sot']['token'], 
-                  url=kobold_config['sot']['nautobot'])
+            logging.debug(f'adding device scope custom fields to {hostname}')
+            if len(device_scope) > 0:
+                success = self._sot.device(hostname).set_customfield({'custom_fields': device_scope})
+                if success:
+                    logging.info(f'device custom field updated on {hostname}')
+                else:
+                    logging.error(f'could not set custom field on {hostname}')
 
-    if args.playbook:
-        # use playboook
-        pb.run_playbook(args, sot, kobold_config)
-    elif args.devices:
-        devices = sot.select('hostname', 'primary_ip4', 'platform') \
-                     .using('nb.devices') \
-                     .normalize(False) \
-                     .where(args.devices)
+            for interface in interface_scope:
+                logging.debug(f'adding interface scope custom fields to {hostname}/{interface}')
+                success = self._sot.device(hostname) \
+                              .interface(interface) \
+                              .set_customfield({'custom_fields': interface_scope[interface]})
+                if not success:
+                    logging.error(f'could not set custom field on {hostname}/{interface}')
 
-        if args.set_tags:
-            set_tags(args, sot, devices)
-        if args.custom_field:
-            set_custom_field(args, sot, devices)
-    elif args.import_data and not args.update:
-        imp_upd.import_data(args, sot, kobold_config)
-    elif args.import_data and args.update:
-        imp_upd.update_data(args, sot, kobold_config)
+    def update_device(self, task, device_list):
+        for device in device_list:
+            hostname = device.get('hostname', device.get('name'))
+            properties = task.get('update_device')
+            logging.debug(f'updating {hostname}')
+            success = self._sot.device(hostname).update(properties)
+            if success:
+                logging.info(f'updated {hostname} successfully')
+            else:
+                logging.info(f'could not update {hostname}')
+
+    def update_interface(self, task, device_list):
+        for device in device_list:
+            hostname = device.get('hostname', device.get('name'))
+            properties = task.get('update_interface',{})
+            for interface in device.get('interfaces', []):
+                interface_name = interface.get('name')
+                logging.debug(f'updating {hostname}/{interface_name}')
+                success = self._sot.device(hostname) \
+                                   .interface(interface_name) \
+                                   .update(properties)
+                if success:
+                    logging.info(f'updated {hostname}/{interface_name} successfully')
+                else:
+                    logging.info(f'could not update {hostname}/{interface_name}')

@@ -2,7 +2,6 @@ import logging
 import os
 import json
 import csv
-import hashlib
 import xlsxwriter
 import re
 import os
@@ -41,26 +40,14 @@ def get_number_of_rows(raw_data):
                     return None
     return rows
 
-def calculate_md5(row):
-    data = ""
-    for d in row:
-        if isinstance(d, list):
-            my_list = ''.join(d)
-            data += my_list
-        elif d is None:
-            pass
-        else:
-            data += d
-    return hashlib.md5(data.encode('utf-8')).hexdigest()
-
-def get_device_config_and_facts(args, sot, device_properties, kobold_config):
+def get_device_config_and_facts(kobold, sot, device_properties):
     device_facts = {}
 
     hostname = device_properties.get('hostname')
     device_ip = device_properties.get('primary_ip4',{}).get('address')
     # check if device_ip is cidr notation
     device_ip=device_ip.split('/')[0]
-    platform = device_properties.get('platform',{}).get('slug')
+    platform = device_properties.get('platform',{}).get('name')
     manufacturer = device_properties.get('platform',{}).get('manufacturer',{}).get('name','cisco')
 
     # Get the path to the directory this file is in
@@ -68,32 +55,20 @@ def get_device_config_and_facts(args, sot, device_properties, kobold_config):
     # Connect the path with the '.env' file name
     load_dotenv(os.path.join(BASEDIR, '.env'))
     
-    # get username and password from profile if user configured args.profile
-    if args.profile is not None:
-        username = kobold_config.get('profiles',{}).get(args.profile,{}).get('username')
-        token = kobold_config.get('profiles',{}).get(args.profile,{}).get('password')
-        auth = sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                        salt=os.getenv('SALT'), 
-                        iterations=int(os.getenv('ITERATIONS')))
-        password = auth.decrypt(token)
+    # get username and password
+    username, password = kobold.get_username_and_password()
 
-    # overwrite username and password if configured by user
-    username = args.username if args.username else username
-    password = args.password if args.password else password
-
-    username = input("Username (%s): " % getpass.getuser()) if not username else username
-    password = getpass.getpass(prompt="Enter password for %s: " % username) if not password else password
-
+    logging.info(f'ssh to {username}@{device_ip}:{kobold.get_tcp_port()} on platform {platform}')
     conn = dm.Devicemanagement(ip=device_ip,
                                platform=platform,
                                manufacturer=manufacturer.lower(),
                                username=username,
                                password=password,
-                               port=args.port,
-                               scrapli_loglevel=args.scrapli_loglevel)
+                               port=kobold.get_tcp_port(),
+                               scrapli_loglevel=kobold.get_scrapli_loglevel())
 
     # retrieve facts like fqdn, model and serialnumber
-    logging.info(f'now gathering facts from {device_ip}')
+    logging.debug(f'now gathering facts from {device_ip}')
     device_facts = conn.get_facts()
     if device_facts is None:
         logging.error('got no facts; skipping device')
@@ -117,7 +92,7 @@ def get_device_config_and_facts(args, sot, device_properties, kobold_config):
 
     return device_config, device_facts
 
-def get_data_to_export(args, sot, task, devices, kobold_config):
+def get_data_to_export(kobold, sot, task, devices):
     """
     prepare data to export by scanning through ALL devices and build table
     """
@@ -125,7 +100,7 @@ def get_data_to_export(args, sot, task, devices, kobold_config):
     data_to_export = []
     calculate_checksum = False
     # get mapping to map column name to SOT property name
-    mappings = kobold_config.get('mappings',{}).get('export')
+    mappings = kobold.get_mapping() # ('mappings',{}).get('export')
     # columns is the list of device/interface properties the user wants to export
     columns = task.get('columns').replace(' ','').split(',')
 
@@ -141,7 +116,7 @@ def get_data_to_export(args, sot, task, devices, kobold_config):
         values = set()
         for column in columns:
             if column.startswith('cf_'):
-                values.add('custom_fields')
+                values.add('custom_field_data')
             elif '__' in column:
                 values.add(column.split('__')[0])
             elif column == 'checksum':
@@ -203,14 +178,14 @@ def get_data_to_export(args, sot, task, devices, kobold_config):
                 number_of_column += 1
             # calculate checksum if necessary
             if calculate_checksum:
-                row[len(columns)-1] = calculate_md5(row)
+                row[len(columns)-1] = tools.calculate_md5(row)
 
             # now put row to the list of exported values
             data_to_export.append(row)
 
     return data_to_export
 
-def export_as_csv(args, task, data_to_export, kobold_config):
+def export_as_csv(task, data_to_export):
     logging.info(f'exporting {len(data_to_export)} entries as CSV')
     delimiter = task.get('delimiter',',')
     quotechar = task.get('quotechar','|')
@@ -231,19 +206,23 @@ def export_as_csv(args, task, data_to_export, kobold_config):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
+    logging.info(f'exporting data to {filename}')
+
     # now write our csv file
     with open(filename, 'w', newline='') as csvfile:
         export_writer = csv.writer(csvfile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
         for line in data_to_export:
             export_writer.writerow(line)
 
-def export_as_excel(args, task, data_to_export, kobold_config):
+def export_as_excel(task, data_to_export):
     header = []
     table_start_col = 65 # 65=A
     table_start_row = 1
     number_of_cols = 0
     filename = task.get('filename','export.xlsx')
     
+    logging.info(f'exporting data as EXCEL to {filename}')
+
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
     if not os.path.exists(directory):
@@ -266,18 +245,18 @@ def export_as_excel(args, task, data_to_export, kobold_config):
     worksheet.autofit()
     workbook.close()
 
-def export_device_properties(args, sot, task, devices, kobold_config):
-    data_to_export = get_data_to_export(args, sot, task, devices, kobold_config)
+def export_device_properties(kobold, sot, task, devices):
+    data_to_export = get_data_to_export(kobold, sot, task, devices)
     if task.get('format') == 'csv':
-        return export_as_csv(args, task, data_to_export, kobold_config)
+        return export_as_csv(task, data_to_export)
     if task.get('format') == 'excel':
-        return export_as_excel(args, task, data_to_export, kobold_config)
+        return export_as_excel(task, data_to_export)
 
-def export_config_and_facts(args, sot, task, device_properties, kobold_config):
+def export_config_and_facts(kobold, sot, task, device_properties):
 
     hostname = device_properties.get('hostname')
     logging.debug(f'getting config and facts from {hostname}')
-    device_config, device_facts = get_device_config_and_facts(args, sot, device_properties, kobold_config)
+    device_config, device_facts = get_device_config_and_facts(kobold, sot, device_properties)
     content = task.get('content')
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -320,7 +299,7 @@ def get_val(p, data):
     key = p.replace('__','')
 
     if key.startswith('cf_'):
-        key = ['custom_fields', key.replace('cf_','')]
+        key = ['custom_field_data', key.replace('cf_','')]
         return tools.get_value_from_dict(data, key)
     else:
         # eg site_slug
@@ -346,7 +325,7 @@ def pattern_to_filename(path, data):
     # we loop through our pattern and check if a '__' is found
     # if we found this pattern we add the corresponding start and end values to our list
     # it seems that there is no easy regex to get all __xxx__ matches if it is allowed
-    # to use multiple occurences of this pattern like __cf_net____site/slug__
+    # to use multiple occurences of this pattern like __cf_net____location/name__
     i = 0
     active = False
     while i < len(path) - 2:
@@ -366,13 +345,13 @@ def pattern_to_filename(path, data):
     # now we have a list of all dynamic fields
     # we have to check if there is a gap between two fields
     # in this case there is a static value we use additionaly eg. 
-    # __cf_net__xxx__site/slug__ where xxx is a static value between the two dynamic fields
+    # __cf_net__xxx__location/name__ where xxx is a static value between the two dynamic fields
 
     last_index = 0
     for i in indexes:
         start = i.get('start')
         end = i.get('end')
-        logging.debug(f'start {start} end {end}')
+        # logging.debug(f'start {start} end {end}')
         if last_index == 0 and start > last_index:
             value = path[last_index:start]
             prefix = "%s%s" % (prefix, value)
@@ -396,7 +375,7 @@ def pattern_to_filename(path, data):
 
     return prefix
 
-def export_hldm(args, sot, task, devices, kobold_config):
+def export_hldm(kobold, sot, task, devices):
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
     filename_pattern = task.get('filename', '__hostname__')
     subdir_pattern = task.get('directory', '')
@@ -404,7 +383,8 @@ def export_hldm(args, sot, task, devices, kobold_config):
     for device in devices:
         hostname = device.get('hostname')
         logging.debug(f'exporting HLDM of {hostname}')
-        hldm = sot.get.hldm(device=hostname)['data']['devices'][0]
+        hldm = sot.get.hldm(device=hostname)[0]
+        print(json.dumps(hldm, indent=4))
         subdir = pattern_to_filename(subdir_pattern, hldm)
         filename = pattern_to_filename(filename_pattern, hldm)
 
@@ -415,7 +395,7 @@ def export_hldm(args, sot, task, devices, kobold_config):
         with open(f'{subdir}/{filename}', "w") as f:
             f.write(json.dumps(hldm, indent=4))
 
-def export(args, sot, tasks, devices, kobold_config):
+def export(kobold, sot, tasks, devices):
     logging.info(f'exporting {tasks}')
     device_config = device_facts = None
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
@@ -430,9 +410,9 @@ def export(args, sot, tasks, devices, kobold_config):
 
         if 'config' in content or 'facts' in content:
             for device in  devices:
-                export_config_and_facts(args, sot, task, device, kobold_config)
+                export_config_and_facts(kobold, sot, task, device)
         elif 'hldm' in content:
-            export_hldm(args, sot, task, devices, kobold_config)
+            export_hldm(kobold, sot, task, devices)
         elif 'properties' in content:
             # export columns of all devices
-            export_device_properties(args, sot, task, devices, kobold_config)
+            export_device_properties(kobold, sot, task, devices)

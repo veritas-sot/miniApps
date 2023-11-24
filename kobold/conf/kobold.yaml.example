@@ -2,6 +2,7 @@
 sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
+  ssl_verify: false
 kobold:
   logging:
     # set loglevel to your need (debug, info, error, critical)
@@ -43,44 +44,3 @@ mappings:
     interface_address: interfaces__ip_addresses__address
   import:
     myField: cf_field
-
-queries:
-  devices: >
-        query ($site:[String], $__name__:[String], $role:[String], $model:[String] $tag:[String]) {
-          devices(__name__: $__name__, site: $site, role: $role, tag: $tag, model:$model) {
-            hostname: name
-            id
-            platform {
-              name
-              slug
-              manufacturer {
-                name
-                slug
-              }
-            }
-            primary_ip4 {
-              address
-            }
-          }
-        }
-  
-  by_cidr: >
-        query ($cidr: String) {
-          ip_addresses(parent: $cidr) {
-            primary_ip4_for {
-              hostname: name
-              id
-              platform {
-                name
-                slug
-                manufacturer {
-                  name
-                  slug
-                }
-              }
-              primary_ip4 {
-                address
-              }
-            }
-          }
-        }
