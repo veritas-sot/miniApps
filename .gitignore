@@ -174,3 +174,4 @@ convert_cvs/convert_csv.yaml
 Testing/
 sync_cmk/cmk.yaml
 updater/conf/updater.yaml
+sync_smokeping/conf/smokeping.yaml
