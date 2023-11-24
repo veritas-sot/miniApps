@@ -173,3 +173,4 @@ veritas/config.yaml
 convert_cvs/convert_csv.yaml
 Testing/
 sync_cmk/cmk.yaml
+updater/conf/updater.yaml
