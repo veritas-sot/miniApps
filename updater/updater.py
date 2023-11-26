@@ -150,9 +150,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # the user can enter a different config file
-    parser.add_argument('--config', type=str, required=False, help="kobold config file")
+    parser.add_argument('--config', type=str, required=False, help="updater config file")
     # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="kobold loglevel")
+    parser.add_argument('--loglevel', type=str, required=False, help="updater loglevel")
     parser.add_argument('--filename', type=str, required=False, help="data to update")
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     sot = sot.Sot(token=updater_config['sot']['token'],
                   ssl_verify=updater_config['sot'].get('ssl_verify', False),
                   url=updater_config['sot']['nautobot'],
-                  git=updater_config['git'])
+                  git=None)
 
     # get mapping from config
     key_mapping = updater_config.get('mappings',{}).get('keys',{})

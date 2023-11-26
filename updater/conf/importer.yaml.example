@@ -3,7 +3,7 @@ sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
   ssl_verify: false
-updater:
+importer:
   logging:
     # set loglevel to your need (debug, info, error, critical)
     level: __LOGLEVEL__
@@ -20,18 +20,3 @@ profiles:
       username: "__USERNAME__"
       # encrypted and base64 encoded password
       password: "__PASSWORD__"
-defaults:
-  import:
-    delimiter: ","
-    quotechar: "|"
-    quoting: minimal
-    primary_interface: Management0/0
-# mappings are used to map column names to SOT names
-mappings:
-  export:
-    device_id: id
-    primary_ip: primary_ip4__address
-    interface_name: interfaces__name
-    interface_address: interfaces__ip_addresses__address
-  import:
-    myField: cf_field
