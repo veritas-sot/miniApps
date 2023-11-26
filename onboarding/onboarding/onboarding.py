@@ -77,8 +77,12 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             if 'primary_interface' in device_properties \
             else onboarding_interfaces.get_primary_interface(primary_address, configparser)
         if args.primary_only:
+
+            #'ipv4': primary_interface.get('ip'), (this is the old version)
             interfaces = [{'name': primary_interface.get('name'),
-                           'ipv4': primary_interface.get('ip'),
+                           'ip_addresses': [{'address': primary_interface.get('ip'),
+                                             'status': {'name': 'Active'}
+                                            }],
                            'description': primary_interface.get('description','Primary Interface'),
                            'type': primary_interface.get('type', '1000base-t'),
                            'status': {'name': 'Active'}}]
@@ -113,7 +117,12 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 .add_device(device_properties)
         else:
             # update device properties; the device exists and args.update is set
-            new_device = device_facts.get('device_in_nb', sot.get.device(name=device_fqdn))
+            device_in_nb = device_facts.get('device_in_nb')
+            if not device_in_nb:
+                new_device = sot.get.device(name=device_fqdn)
+            else:
+                new_device = device_facts.get('device_in_nb')
+
             if not new_device:
                 logging.error(f'could not get device {device_fqdn} from SOT')
                 return
@@ -145,7 +154,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         .add_prefix(False) \
                         .assign_ip(True) \
                         .add_interfaces(device=new_device, interfaces=new_interfaces)
-                    logging.info(f'adding interface {interface_name}; response: {response}')
+                    logging.info(f'adding {len(new_interfaces)} interface; response: {response}')
 
             elif args.primary_only:
                 # update primary interface

@@ -271,7 +271,6 @@ if __name__ == "__main__":
         logging.debug('getting all devices from SOT')
         raw = sot.select('hostname', 'primary_ip4', 'platform', 'interfaces') \
                             .using('nb.devices') \
-                            .normalize(False) \
                             .where()
         for device in raw:
             hostname = device.get('hostname')
@@ -289,7 +288,6 @@ if __name__ == "__main__":
     if args.sot:
         sot_devicelist = sot.select('id', 'hostname', 'primary_ip4', 'platform') \
                             .using('nb.devices') \
-                            .normalize(False) \
                             .where(args.sot)
 
         for device in sot_devicelist:
