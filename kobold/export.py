@@ -384,7 +384,6 @@ def export_hldm(kobold, sot, task, devices):
         hostname = device.get('hostname')
         logging.debug(f'exporting HLDM of {hostname}')
         hldm = sot.get.hldm(device=hostname)[0]
-        print(json.dumps(hldm, indent=4))
         subdir = pattern_to_filename(subdir_pattern, hldm)
         filename = pattern_to_filename(filename_pattern, hldm)
 

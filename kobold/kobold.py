@@ -150,7 +150,6 @@ class Kobold(object):
             for properties in custom_fields:
                 prop = dict(properties)
                 scope = prop.get('scope')
-                print(f'{hostname} {prop} {scope}')
                 del prop['scope']
                 if scope == "dcim.device":
                     logging.info(f'setting custom field {prop} on {hostname}')
