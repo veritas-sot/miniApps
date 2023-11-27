@@ -57,5 +57,6 @@ onboarding:
       filename: inventory.yaml
   offline_config:
     model: unknown
-    serial_number: offline
+    serial: offline
+    platform: ios
     filename: ./conf/offline.conf
