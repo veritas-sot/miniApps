@@ -176,3 +176,4 @@ sync_cmk/cmk.yaml
 updater/conf/updater.yaml
 sync_smokeping/conf/smokeping.yaml
 updater/conf/importer.yaml
+onboarding/inventory.xlsx
