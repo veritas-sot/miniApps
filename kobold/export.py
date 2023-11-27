@@ -92,7 +92,7 @@ def get_device_config_and_facts(kobold, sot, device_properties):
 
     return device_config, device_facts
 
-def get_data_to_export(kobold, sot, task, devices):
+def get_device_data_to_export(kobold, sot, task, devices):
     """
     prepare data to export by scanning through ALL devices and build table
     """
@@ -109,7 +109,7 @@ def get_data_to_export(kobold, sot, task, devices):
     for device_properties in devices:
         device_id = device_properties.get('id')
         hostname = device_properties.get('hostname')
-        logging.debug(f'getting data for {hostname}')
+        logging.debug(f'getting data of {hostname}')
         device_data = {}
         cf_fields = ""
 
@@ -128,7 +128,7 @@ def get_data_to_export(kobold, sot, task, devices):
         raw_data = sot.get.query(values=list(values),
                                  parameter=parameter)
 
-        # we are using the unique device ID. So we get only one element back!!!
+        # we are getting a list with one device in it
         data = raw_data[0]
         # now get the values
         for column in columns:
@@ -246,7 +246,7 @@ def export_as_excel(task, data_to_export):
     workbook.close()
 
 def export_device_properties(kobold, sot, task, devices):
-    data_to_export = get_data_to_export(kobold, sot, task, devices)
+    data_to_export = get_device_data_to_export(kobold, sot, task, devices)
     if task.get('format') == 'csv':
         return export_as_csv(task, data_to_export)
     if task.get('format') == 'excel':

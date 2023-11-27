@@ -70,39 +70,6 @@ class Kobold(object):
     def get_mapping(self):
         return []
 
-    def run(self, job_id):
-        job = self._jobs.get(job_id)
-        if not job:
-            logging.error(f'unknown job {job_id}')
-            return False
-
-        name = job.get('job')
-        description = job.get('description','no description')
-        logging.info(f'starting job {name} / {description}')
-
-        if 'sql' in job.get('devices',{}):
-            sql = job.get('devices').get('sql')
-            device_list = self._sot.select(sql.get('select')) \
-                                   .using(sql.get('from'), sql.get('using')) \
-                                   .where(sql.get('where'))
-            logging.debug(f'got {len(device_list)} devices')
-        tasks = job.get('tasks')
-        if tasks is None:
-            logging.error(f'no task configured!!!')
-            return False
-
-        for task in tasks:
-            if 'export' in task:
-                export.export(self, self._sot, task['export'], device_list)
-            if 'add_tag' in task or 'set_tag' in task or 'delete_tag' in task:
-                self.tag_management(task, device_list)
-            if 'custom_field' in task:
-                self.custom_field(task, device_list)
-            if 'update_device' in task:
-                self.update_device(task, device_list)
-            if 'update_interface' in task:
-                self.update_interface(task, device_list)
-
     # certain jobs
 
     def tag_management(self, task, device_list):
@@ -203,3 +170,39 @@ class Kobold(object):
                     logging.info(f'updated {hostname}/{interface_name} successfully')
                 else:
                     logging.info(f'could not update {hostname}/{interface_name}')
+
+    # the main RUN command
+
+    def run(self, job_id):
+        job = self._jobs.get(job_id)
+        if not job:
+            logging.error(f'unknown job {job_id}')
+            return False
+
+        name = job.get('job')
+        description = job.get('description','no description')
+        logging.info(f'starting job {name} / {description}')
+
+        if 'sql' in job.get('devices',{}):
+            sql = job.get('devices').get('sql')
+            device_list = self._sot.select(sql.get('select')) \
+                                   .using(sql.get('from'), sql.get('using')) \
+                                   .where(sql.get('where'))
+            logging.debug(f'got {len(device_list)} devices')
+        tasks = job.get('tasks')
+        if tasks is None:
+            logging.error(f'no task configured!!!')
+            return False
+
+        for task in tasks:
+            if 'export' in task:
+                export.export(self, self._sot, task['export'], device_list)
+            if 'add_tag' in task or 'set_tag' in task or 'delete_tag' in task:
+                self.tag_management(task, device_list)
+            if 'custom_field' in task:
+                self.custom_field(task, device_list)
+            if 'update_device' in task:
+                self.update_device(task, device_list)
+            if 'update_interface' in task:
+                self.update_interface(task, device_list)
+

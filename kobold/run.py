@@ -63,7 +63,7 @@ if __name__ == "__main__":
     sot = sot.Sot(token=kobold_config['sot']['token'],
                   ssl_verify=kobold_config['sot'].get('ssl_verify', False),
                   url=kobold_config['sot']['nautobot'],
-                  git=kobold_config['git'])
+                  git=None)
 
     if args.playbook:
         kobold = kobold.Kobold(sot, args.playbook)
