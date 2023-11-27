@@ -77,8 +77,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             if 'primary_interface' in device_properties \
             else onboarding_interfaces.get_primary_interface(primary_address, configparser)
         if args.primary_only:
-
-            #'ipv4': primary_interface.get('ip'), (this is the old version)
+            logging.debug(f'adding primary interface to list of interfaces')
             interfaces = [{'name': primary_interface.get('name'),
                            'ip_addresses': [{'address': primary_interface.get('ip'),
                                              'status': {'name': 'Active'}
@@ -94,7 +93,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                         device_defaults,
                                                                         configparser)
         else:
+            logging.info(f'no interfaces found')
             interfaces = []
+
         # we have to "adjust" the device properties
         extend_device_properties(device_properties)
 
@@ -107,7 +108,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
         if not device_facts['is_in_sot']:
-            logging.debug(f'device {device_fqdn} not found in SOT')
+            logging.debug(f'device {device_fqdn} not found in SOT; adding it')
             # add new device to SOT
             new_device = sot.onboarding \
                 .interfaces(interfaces) \

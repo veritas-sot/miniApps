@@ -180,8 +180,8 @@ if __name__ == "__main__":
     parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
 
-    # should we deactivate the polling of all devices from the sot to check if a device is present
-    parser.add_argument('--no-polling', action='store_true', help="do not poll devices from SOT to check if device is present")
+    # should we activate the polling of all devices from the sot to check if a device is present
+    parser.add_argument('--polling', action='store_true', help="poll ALL devices from SOT to check if device is present")
 
     # where do we get our data from
     parser.add_argument('--device', type=str, required=False, help="hostname or IP address of device")
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument('--profile', type=str, required=False, help="profile name to connect to devices")
 
     # to read the defaults values we use our sot (repo)
-    parser.add_argument('--defaults', type=str, help="filename of defaulkt values in repo", required=False)
+    parser.add_argument('--defaults', type=str, help="filename of default values in repo", required=False)
     parser.add_argument('--repo', type=str, required=False, help="name of default repo")
     parser.add_argument('--path', type=str, required=False, help="local path to default repo")
     parser.add_argument('--subdir', type=str, required=False, help="subdir of repo to get/write data from/to")
@@ -267,13 +267,13 @@ if __name__ == "__main__":
     # If you have a large number of devices in the database, this process will take a long time.
     # But controlling each device individually also takes a long time and requires a large 
     # number of database connections.
-    if not args.no_polling:
+    if args.polling:
         logging.debug('getting all devices from SOT')
-        raw = sot.select('hostname', 'primary_ip4', 'platform', 'interfaces') \
-                            .using('nb.devices') \
-                            .where()
+        raw = sot.select('name', 'primary_ip4', 'platform', 'interfaces') \
+                 .using('nb.devices') \
+                 .where()
         for device in raw:
-            hostname = device.get('hostname')
+            hostname = device.get('name')
             device_names_in_sot[hostname.lower()] = True
             primary_ip = device.get('primary_ip4',{}).get('address','').split('/')[0] if device.get('primary_ip4') else None
             if not primary_ip:
@@ -286,17 +286,17 @@ if __name__ == "__main__":
 
     # add inventory from SOT
     if args.sot:
-        sot_devicelist = sot.select('id', 'hostname', 'primary_ip4', 'platform') \
+        sot_devicelist = sot.select('id', 'name', 'primary_ip4', 'platform') \
                             .using('nb.devices') \
                             .where(args.sot)
 
         for device in sot_devicelist:
-            hostname = device.get('hostname')
+            hostname = device.get('name')
             primary_ip = device.get('primary_ip4',{}).get('address','').split('/')[0]
             if len(primary_ip) == 0:
-                devicelist.append({'id': device.get('id'), 'hostname': hostname, 'host': hostname})
+                devicelist.append({'id': device.get('id'), 'name': hostname, 'host': hostname})
             else:
-                devicelist.append({'id': device.get('id'), 'hostname': hostname, 'host': primary_ip})
+                devicelist.append({'id': device.get('id'), 'name': hostname, 'host': primary_ip})
 
     # add inventory from file
     if args.inventory:
@@ -311,7 +311,7 @@ if __name__ == "__main__":
             )
             if filename:
                 # read mapping from file
-                logging.debug(f'reading additional values from {filename}')
+                logging.debug(f'reading mapping_config from {filename}')
                 with open(filename) as f:
                     mapping_config = yaml.safe_load(f.read())
                 column_mapping = mapping_config.get('mappings',{}).get('columns',{})
@@ -328,6 +328,11 @@ if __name__ == "__main__":
                             value = value_mapping[key].get(v, v)
                     else:
                         value = v
+                    # convert 'true' or 'false' to boolean values
+                    if isinstance(value, str) and value.lower() == 'true':
+                        value = True
+                    if isinstance(value, str) and value.lower() == 'false':
+                        value = False
                     d[key] = value
                 devicelist.append(d)
         elif '.csv' in args.inventory:
@@ -335,22 +340,20 @@ if __name__ == "__main__":
                 config = yaml.safe_load(f.read())
                 for d in config:
                     # the inventory includes host (IP), hostname (name) and platform (ios or nxos)
-                    # check if hostname has no space in name
-                    d['hostname'] = d['hostname'].split(' ')[0]
                     # use a simple filter to exclude devices
                     if args.filter:
-                        if args.filter.lower() not in d['hostname'].lower():
+                        if args.filter.lower() not in d['name'].lower():
                             continue
                     devicelist.append(d)
                 f.close()
         else:
-            logging.error(f'cannot read {args.inventory}; unknown file format')
+            logging.error(f'cannot read {args.inventory}; unknown file or format')
             sys.exit()
 
     # add inventory from cli
     if args.device is not None:
         for d in args.device.split(','):
-            devicelist.append({'host': d, 'hostname': d})
+            devicelist.append({'host': d, 'name': d})
 
     devices_processed = 0
     devices_overall = len(devicelist)
@@ -368,11 +371,11 @@ if __name__ == "__main__":
         # device might be an IP ADDRESS and not the name
         host_or_ip = device_dict.get('host').lower()
         # the hostname is ALWAYS lower case
-        hostname = device_dict.get('hostname', host_or_ip).lower()
+        hostname = device_dict.get('name', host_or_ip).lower()
         # there is no space in a hostname!!!
         hostname = hostname.split(' ')[0]
         # write the hostname back
-        device_dict['hostname'] = hostname
+        device_dict['name'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
         logging.info(f'processing host_or_ip: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
 
@@ -397,13 +400,13 @@ if __name__ == "__main__":
             pass
         else:
             # check if device is already in sot
-            if args.no_polling:
+            if args.polling:
+                in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
+                logging.debug(f'polling set; device {hostname}; in_sot={in_sot}')
+            else:
                 device_in_nb = sot.get.device(name=hostname)
                 in_sot = True if device_in_nb else False
-                logging.debug(f'no polling set; device {hostname}; in_sot={in_sot}')
-            else:
-                in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
-                logging.debug(f'no polling NOT set; device {hostname}; in_sot={in_sot}')
+                logging.debug(f'polling not set; device {hostname}; in_sot={in_sot}')
 
             if in_sot and not args.update:
                 logging.info(f'device {hostname} is already in sot and update is not active')
@@ -442,45 +445,67 @@ if __name__ == "__main__":
                     value is not None:
                 device_defaults['custom_fields'][key] = value
 
+        # now we have all the device defaults
+        logging.debug(device_defaults)
+
         # If 'ignore' is set, the device will not be processed.
         if device_defaults.get('ignore', False):
             logging.info(f'ignore set to true on {hostname}; skipping device')
             continue
 
-        # If 'offline' is set we add the device using the default values to our SOT
+        # If 'offline' is set we add the device using some default values
         if device_defaults.get('offline', False):
             if args.onboarding:
                 logging.info(f'adding {hostname} offline to the sot')
                 # we do not have any facts
+                model = device_defaults.get('model', 
+                        onboarding_config['onboarding']['offline_config'].get('model','unknown'))
+                serial = device_defaults.get('serial', 
+                         onboarding_config['onboarding']['offline_config'].get('serial','offline'))
+                manufacturer = device_defaults.get('manufacturer', 
+                               onboarding_config['onboarding']['offline_config'].get('manufacturer','cisco'))
+                platform = device_defaults.get('platform', 
+                               onboarding_config['onboarding']['offline_config'].get('platform','ios'))
                 device_facts = {
-                    "manufacturer": "cisco",
-                    "model": onboarding_config['onboarding']['offline_config'].get('model','unknown'),
-                    "serial_number": onboarding_config['onboarding']['offline_config'].get('serial_number','offline'),
+                    "manufacturer": manufacturer,
+                    "model": model,
+                    "serial_number": serial,
                     "hostname": hostname,
                     "fqdn": hostname,
                     "args.device": device_ip
                 }
-                # read default offline device config
-                offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
-                logging.debug(f'reading offline config {offline_config}')
-                # we do overwrite the device platform but only to parse the config right
-                # the right value will be imported to nautobot
-                device_platform = "ios"
-                try:
-                    with open(offline_config, 'r') as f:
-                        device_config = f.read()
-                        device_config = device_config.replace('__PRIMARY_IP__', device_ip)
-                        device_config = device_config.replace('__HOSTNAME__', hostname)
-                except Exception as exc:
-                    logging.error(f'could not read offline config {exc}')
-                    continue
+
+                if 'config' in device_defaults:
+                    # should we use a local device config?
+                    if device_defaults.get('config').lower() == 'none':
+                        # no config at all
+                        device_config = ""
+                        offline_config = None
+                    else:
+                        # yes, the config was configured in our inventory
+                        offline_config = BASEDIR + "/" + device_defaults.get('config')
+                else:
+                    # use default offline config
+                    offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
+
+                if offline_config:
+                    # read default offline device config
+                    logging.debug(f'reading offline config {offline_config}')
+                    try:
+                        with open(offline_config, 'r') as f:
+                            device_config = f.read()
+                            device_config = device_config.replace('__PRIMARY_IP__', device_ip)
+                            device_config = device_config.replace('__HOSTNAME__', hostname)
+                    except Exception as exc:
+                        logging.error(f'could not read offline config {exc}')
+                        continue
             elif args.export:
                 logging.info(f'device {hostname} is marked as "offline"')
                 continue
         else:
             # this device is 'online'
             # get config and facts from device
-            device_platform = device_defaults.get('platform','ios')
+            platform = device_defaults.get('platform','ios')
             device_config, device_facts = get_device_config_and_facts(args, 
                                                                       device_ip, 
                                                                       device_defaults, 
@@ -511,7 +536,10 @@ if __name__ == "__main__":
             continue
 
         # parse config / configparser is a dict that contains all necessary data
-        configparser = sot.configparser(config=device_config, platform=device_platform)
+        configparser = sot.configparser(config=device_config, 
+                                        platform=platform, 
+                                        empty_config=len(device_config)==0)
+
         if configparser.could_not_parse():
             continue
 

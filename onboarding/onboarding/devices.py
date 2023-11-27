@@ -8,9 +8,9 @@ from businesslogic import your_device as user_bc_device
 from onboarding import additional as additional
 
 
-def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defaults, onboarding_config):
-    # init some vars
-    device_defaults['device_type'] = device_facts['model']
+def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_properties, onboarding_config):
+    # if the device model was set in device_facts we use this value instead of the default value
+    device_properties['device_type'] = device_facts.get('device_type', device_facts.get('model'))
 
     # check if serial_number is list or string. We need {'12345','12345'}
     if isinstance(device_facts["serial_number"], list):
@@ -20,7 +20,7 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
 
     # set custom fields; slugify value
     cf_fields = {}
-    for key, value in device_defaults.get('custom_fields',{}).items():
+    for key, value in device_properties.get('custom_fields',{}).items():
         if value is not None:
             cf_fields[key.lower()] = slugify(value)
 
@@ -30,19 +30,8 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
     cf_fields.update({'last_modified': current_time})
 
     try:
-        device_properties = {
-            'name': device_fqdn,
-            'device_type': slugify(device_defaults['device_type']),
-            'manufacturer': device_defaults['manufacturer'],
-            'platform': device_defaults['platform'],
-            'status': 'Active',
-            'location': {'name': device_defaults['location']},
-            'role': device_defaults['device_role'],
-            "serial": sn,
-        }
-
         # add tags if tags are not None
-        device_tags = device_defaults.get('tags', None)
+        device_tags = device_properties.get('tags', None)
 
         if device_tags is not None:
             device_properties.update({'tags': device_tags})
@@ -50,7 +39,7 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
         # get additional values
         # additional values are values that MUST exists; otherwise the device 
         # cannot be added to the sot. For example some custom fields may be required
-        additional_values = additional.additional(device_defaults,
+        additional_values = additional.additional(device_properties,
                                                   device_facts,
                                                   ciscoconf,
                                                   onboarding_config)
@@ -97,14 +86,13 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_defa
                                                                                              exc_type,
                                                                                              exc_obj,
                                                                                              exc_tb))
-        logging.error(f'values: {device_defaults}')
         logging.error(f'device_properties: {device_properties}')
         return
 
     # call the user defined business logic
     # the business logic can be used to modify the data that is onboarded
     logging.debug("calling (pre processing) business logic of device %s to sot" % device_fqdn)
-    user_bc_device.device_pre_processing(sot, device_properties, device_defaults, ciscoconf, onboarding_config)
+    user_bc_device.device_pre_processing(sot, device_properties, device_properties, ciscoconf, onboarding_config)
 
     return device_properties
 
