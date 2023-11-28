@@ -24,6 +24,10 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
         if value is not None:
             cf_fields[key.lower()] = slugify(value)
 
+    # slugify device_type
+    if 'device_type' in device_properties:
+        device_properties['device_type'] = slugify(device_properties['device_type'])
+
     # set current time
     now = datetime.now()
     current_time = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -57,13 +61,15 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
                 if new_primary_interface:
                     logging.info(f'change primary_ip to {primary_address} and interface {primary_interface_name}')
                     device_properties['primary_interface'] = new_primary_interface
-            elif key in ['manufacturer', 'device_role'] and len(value) > 0:
+            elif key in ['manufacturer', 'role'] and len(value) > 0:
                 # manufacturer and platform need the name
                 if isinstance(value, dict):
                     device_properties[key] = value
                 else:    
                     device_properties[key] = {'name': slugify(value)}
-            elif key in ['device_type' ,'platform'] and len(value) > 0:
+            elif key in ['device_type'] and len(value) > 0:
+                device_properties[key] = {'model': slugify(value)}
+            elif key in ['platform'] and len(value) > 0:
                 # device_type is simple
                 device_properties[key] = value
             elif key in ['location'] and len(value) > 0:
@@ -76,7 +82,6 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
                 cf_fields[k] = value
             else:
                 device_properties[key] = value
-
         # add custom fields to device properties
         device_properties.update({'custom_fields': cf_fields})
     except Exception as exc:
