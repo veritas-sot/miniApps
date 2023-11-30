@@ -161,10 +161,21 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 # update primary interface
                 for interface in interfaces:
                     interface_name = interface.get('name','')
+                    primary_interface_found = False
                     for nb_interface in all_interfaces:
                         if interface_name == nb_interface.display:
+                            primary_interface_found = True
                             response = nb_interface.update(interface)
                             logging.info(f'updating primary interface {interface_name}; response: {response}')
+                    if not primary_interface_found:
+                        logging.debug(f'no primary inteface found; seems to be a new one; adding it')
+                        response = sot.onboarding \
+                                       .add_prefix(False) \
+                                       .assign_ip(True) \
+                                       .add_interfaces(device=new_device, interfaces=interfaces)
+
+            # maybe the primary IP has changed. Check it and update if necessary
+            sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
         logging.info("get tag properties")
