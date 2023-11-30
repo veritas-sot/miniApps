@@ -93,7 +93,7 @@ if __name__ == "__main__":
         # loop through devices and write additional values to our dict
         for device in unfiltered_values:
             # we need the custom fields
-            cf_data = device.get('_custom_field_data')
+            cf_data = device.get('custom_field_data', device.get('_custom_field_data',{}))
             for key, val in cf_data.items():
                 if key not in values:
                     values[key] = set()
