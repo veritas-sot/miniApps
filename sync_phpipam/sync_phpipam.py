@@ -104,7 +104,8 @@ def get_section_name(prefix, cfg_section, sync_config):
         for slct in cfg_select:
             # logging.debug(f'- prefix: {prefix.get("prefix")} slct: {slct} cfg_section: {cfg_section}')
             if slct.startswith('cf_'):
-                v = prefix.get('_custom_field_data',{}).get(slct.replace('cf_',''),'')
+                v = prefix.get('custom_field_data', 
+                               prefix.get('_custom_field_data',{})).get(slct.replace('cf_',''),'')
             else:
                 v = prefix.get(slct)
             if not v:
@@ -132,7 +133,8 @@ def get_folder_name(prefix, sync_config):
     for fldr in cfg_select:
         # logging.debug(f'- prefix: {prefix.get("prefix")} fldr: {fldr} cfg_section: {cfg_section}')
         if fldr.startswith('cf_'):
-            v = prefix.get('_custom_field_data',{}).get(fldr.replace('cf_',''),'')
+            v = prefix.get('custom_field_data',
+                       prefix.get('_custom_field_data',{})).get(fldr.replace('cf_',''),'')
         else:
             v = prefix.get(fldr)
         if not v:
