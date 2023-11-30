@@ -73,9 +73,8 @@ if __name__ == "__main__":
         logging.debug(f'select {select} from nb.devices where {where}')
         unfiltered_values = sot.select(select) \
                                .using('nb.devices') \
-                               .normalize(False) \
                                .where(where)
-
+        #print(json.dumps(unfiltered_values, indent=4))
         # filter out devices with no primary IP address
         for device in unfiltered_values:
             # check if host has a primary ip
@@ -94,11 +93,12 @@ if __name__ == "__main__":
         # loop through devices and write additional values to our dict
         for device in unfiltered_values:
             # we need the custom fields
-            cf_data = device.get('custom_field_data')
+            cf_data = device.get('_custom_field_data')
             for key, val in cf_data.items():
                 if key not in values:
                     values[key] = set()
                 values[key].add(val)
+                # logging.debug(f'adding {key}={val}')
 
             # and all the selected values
             for s in select.replace(' ','').split(','):
@@ -107,9 +107,11 @@ if __name__ == "__main__":
                     if 'name' in vls:
                         if s not in values:
                             values[s] = set()
-                        values[s].add(vls.get('name'))                        
+                        values[s].add(vls.get('name'))     
+                        # logging.debug(f'adding {s}={vls.get("name")}')          
                 else:
                     values[s] = vls
+                    # logging.debug(f'adding {s}={vls}')
 
         tmpl_name = target.get('template')
         template = smokeping_config.get('templates',{}).get(tmpl_name)
