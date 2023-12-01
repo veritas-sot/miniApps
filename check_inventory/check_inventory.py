@@ -6,6 +6,7 @@ import yaml
 import os
 import json
 import urllib3
+import xlsxwriter
 from veritas.sot import sot
 from veritas.tools import tools
 
@@ -27,8 +28,9 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="set_snmp config file")
-    parser.add_argument('--filename', type=str, required=True)
-    parser.add_argument('--out', type=str, required=False)
+    parser.add_argument('--filename', type=str, required=True, help="input file")
+    parser.add_argument('--out', type=str, required=False, help="output file")
+    parser.add_argument('--format', type=str, required=False, help="format (text, csv, excel)")
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
 
@@ -68,25 +70,51 @@ if __name__ == "__main__":
             key = column_mapping.get(k) if k in column_mapping else k
             d[key] = v
         devicelist.append(d)
-    
+
     for device in devicelist:
         hostname = device.get('hostname').lower()
         hostname = hostname.split(' ')[0]
-        id = sot.get.id(item='device', name=hostname)
+        id = sot.get.device(hostname)
         if not id:
             logging.info(f'{hostname} not found')
             number_of_missing_devices += 1
-            missing.append(device)
+            row = []
+            for d in device:
+                row.append(device[d])
+            missing.append(row)
         else:
             number_of_found_devices += 1
-    
+
     print(f'found {number_of_found_devices} hosts; {number_of_missing_devices} are missing')
     for m in missing:
-        print(m.get('hostname'))
+        print(m)
 
     if args.out:
-        with open(args.out, 'w') as f:
-            for m in missing:
-                f.write(m.get('hostname'))
-                f.write('\n')
+        if args.format == "text":
+            with open(args.out, 'w') as f:
+                for m in missing:
+                    f.write(m.get('hostname'))
+                    f.write('\n')
+        elif args.format == "excel":
+            table_start_col = 65 # 65=A
+            table_start_row = 1
+            header = []
+            workbook = xlsxwriter.Workbook(args.out)
+            worksheet = workbook.add_worksheet()
+            header_data = devicelist[0].keys()
+            number_of_cols = len(header_data)
+            table_coordinations = '%s%s:%s%s' % (chr(table_start_col),
+                                                 table_start_row,
+                                                 chr(table_start_col + len(header_data) - 1),
+                                                 table_start_row + (len(missing) ))
+            logging.debug(f'table_coordinations={table_coordinations}')
+            for c in header_data:
+                header.append({'header': c})
+            worksheet.add_table(table_coordinations, {'data': missing, 
+                                                      'header_row': True, 
+                                                      'columns': header
+                                                     })
+            worksheet.autofit()
+            workbook.close()
+
 

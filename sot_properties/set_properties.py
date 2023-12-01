@@ -7,6 +7,7 @@ import sys
 import logging
 import glob
 import os
+import urllib3
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -67,7 +68,7 @@ def import_data(config, args):
     if args.prefixes or args.all:
         prefixes = read_and_convert_data(my_sot, config, 'prefixes')
         logging.debug(f'import prefixes')
-        success = my_sot.importer.add(properties=prefixes['prefixes'], endpoint='prefixes', bulk=True)
+        success = my_sot.importer.add(properties=prefixes['prefixes'], endpoint='prefixes', bulk=False)
 
     # the device types
     if args.device_types or args.all:
@@ -184,6 +185,9 @@ def import_data(config, args):
         success = my_sot.importer.add(properties=locations['webhooks'], endpoint='webhooks')
 
 if __name__ == "__main__":
+
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=False)

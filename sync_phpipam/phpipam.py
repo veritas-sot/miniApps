@@ -340,19 +340,23 @@ class Phpipam(object):
                   }
 
         # check if address is already there
-        entity = self._pi.get_entity(controller='addresses', controller_path=f'/search/{addr}')
-        id = entity[0]['id']
-        logging.debug(f'address {addr} (id: {id}) found in PHPIPAM')
-        if update and len(entity) > 0:
-            # the IP address and the subnet cannot be changed
-            del my_addr['ip']
-            del my_addr['subnetId']
-            self._pi.update_entity(controller='addresses', controller_path=id, data=my_addr)
-            return True
+        try:
+            entity = self._pi.get_entity(controller='addresses', controller_path=f'/search/{addr}')
+            id = entity[0]['id']
+            logging.debug(f'address {addr} (id: {id}) found in PHPIPAM')
+            if update and len(entity) > 0:
+                # the IP address and the subnet cannot be changed
+                del my_addr['ip']
+                del my_addr['subnetId']
+                self._pi.update_entity(controller='addresses', controller_path=id, data=my_addr)
+                return True
+        except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+            logging.debug(f'address {addr} not found')
 
         # new address; add it to phpipam
         try:
             self._pi.create_entity(controller='addresses', data=my_addr)
+            description = address.get('description','')
             logging.info(f'addresss {addr}/{description} added to subnet {prefix}')
             return True
         except Exception as exc:
