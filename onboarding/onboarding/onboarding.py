@@ -99,6 +99,12 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # we have to "adjust" the device properties
         extend_device_properties(device_properties)
 
+        # The user can configure tags through the "Inventory". 
+        # In this case, we need to convert tags into a list.
+        tags = device_properties.get('tags')
+        if isinstance(tags, str):
+            device_properties['tags'] = tags.split(',')
+
         """
         at this point the new device was NOT added to our SOT yet
         we have either the primary interface or all interfaces and all vlans

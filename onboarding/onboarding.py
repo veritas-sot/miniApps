@@ -10,6 +10,7 @@ import json
 import logging
 import getpass
 import urllib3
+from ipaddress import IPv4Network
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
 from veritas.sot import sot as sot
@@ -369,7 +370,8 @@ if __name__ == "__main__":
         in_sot = False
         device_in_nb = None
         # device might be an IP ADDRESS and not the name
-        host_or_ip = device_dict.get('host').lower()
+        # it is possible to use 'host' or 'ip' to import a device
+        host_or_ip = device_dict.get('host', device_dict.get('ip')).lower()
         # the hostname is ALWAYS lower case
         hostname = device_dict.get('name', host_or_ip).lower()
         # there is no space in a hostname!!!
@@ -466,6 +468,23 @@ if __name__ == "__main__":
                                onboarding_config['onboarding']['offline_config'].get('manufacturer','cisco'))
                 platform = device_defaults.get('platform', 
                                onboarding_config['onboarding']['offline_config'].get('platform','ios'))
+                primary_interface = device_defaults.get('primary_interface', 
+                               onboarding_config['onboarding']['offline_config'].get('primary_interface','primary_interface'))
+                primary_description = device_defaults.get('primary_description', 
+                               onboarding_config['onboarding']['offline_config'].get('primary_description','Primary Interface'))
+                primary_mask = device_defaults.get('primary_mask', 
+                               onboarding_config['onboarding']['offline_config'].get('primary_mask','255.255.255.255'))
+                # we need cidr notation
+                primary_ipv4 = IPv4Network(f'{device_ip}/{primary_mask}', strict=False)
+                primary_cidr = f'{device_ip}/{primary_ipv4.prefixlen}'
+                # the format of device_properties['primary_interface'] is:
+                # {'ip': '192.168.0.2/32', 'mask': '255.255.255.255', 'name': 'primary_interface', 'description': 'primary interface'}
+                device_defaults['primary_interface'] = {
+                    'ip': primary_cidr,
+                    'mask': primary_mask,
+                    'name': primary_interface,
+                    'description': primary_description
+                }
                 device_facts = {
                     "manufacturer": manufacturer,
                     "model": model,
@@ -478,14 +497,19 @@ if __name__ == "__main__":
                 if 'config' in device_defaults:
                     # should we use a local device config?
                     if device_defaults.get('config').lower() == 'none':
-                        # no config at all
-                        device_config = ""
-                        offline_config = None
+                        # no config at all / use minimal default config
+                        logging.debug(f'no offline config found; use minimal config')
+                        device_config = f'hostname {hostname}\n'
+                        device_config += f'interface {primary_interface}\n'
+                        device_config += f' ip address {device_ip} {primary_mask}\n'
+                        offline_config = False
                     else:
-                        # yes, the config was configured in our inventory
+                        # yes, the config was configured by the inventory
+                        logging.debug(f'using offline config {device_defaults.get("config")}')
                         offline_config = BASEDIR + "/" + device_defaults.get('config')
                 else:
                     # use default offline config
+                    logging.debug(f'using default offline config')
                     offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
 
                 if offline_config:
@@ -496,6 +520,8 @@ if __name__ == "__main__":
                             device_config = f.read()
                             device_config = device_config.replace('__PRIMARY_IP__', device_ip)
                             device_config = device_config.replace('__HOSTNAME__', hostname)
+                            device_config = device_config.replace('__PRIMARY_INTERFACE__', primary_interface)
+                            device_config = device_config.replace('__PRIMARY_MASK__', primary_mask)
                     except Exception as exc:
                         logging.error(f'could not read offline config {exc}')
                         continue

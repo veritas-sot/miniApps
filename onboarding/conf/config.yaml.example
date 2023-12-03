@@ -59,4 +59,7 @@ onboarding:
     model: unknown
     serial: offline
     platform: ios
+    primary_interface: Loopback100
+    primary_mask: 255.255.255.255
+    primary_description: Primary
     filename: ./conf/offline.conf
