@@ -20,13 +20,34 @@ def read_and_convert_data(sot, config, name):
     filename = config['files'][name]['filename']
     logging.debug(f'getting {name} from repo {repo}/{filename}')
     repo = sot.repository(repo=repo, path=path)
-    items = repo.get(filename)
 
-    try:
-        return yaml.safe_load(items)
-    except Exception as exc:
-        logging.error(f'could no convert items to yaml; {exc}')
-        return None
+    if '.xlsx' in filename:
+        data = {name: []}
+        flnm = f'{path}/{filename}'
+        logging.debug(f'reading {flnm}')
+        table = tools.read_excel_file(flnm)
+        for row in table:
+            d = {}
+            for key,value in row.items():
+                if '__' in key:
+                    # split key and build dict
+                    splitted = key.split('__')
+                    if value is None:
+                        d.update({splitted[0]: None})
+                    else:
+                        d.update({splitted[0]: {splitted[1]: value}})
+                else:
+                    d.update({key: value})
+            data[name].append(d)
+        return data
+    else:
+        # read yaml file from repo
+        items = repo.get(filename)
+        try:
+            return yaml.safe_load(items)
+        except Exception as exc:
+            logging.error(f'could no convert items to yaml; {exc}')
+            return None
 
 def import_data(config, args):
     # we need the SOT object to talk to the SOT
@@ -43,8 +64,9 @@ def import_data(config, args):
     # the locations
     if args.locations or args.all:
         locations = read_and_convert_data(my_sot, config, 'locations')
-        logging.debug(f'import locations')
-        success = my_sot.importer.add(properties=locations['locations'], endpoint='locations')
+        if locations:
+            logging.debug(f'import locations')
+            success = my_sot.importer.add(properties=locations['locations'], endpoint='locations')
 
     # now the manufacturers
     if args.manufacturers or args.all:
