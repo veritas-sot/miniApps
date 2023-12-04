@@ -10,6 +10,7 @@ from slugify import slugify
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
 from veritas.sot import sot as sot
+from veritas.tools import tools
 from onboarding import interfaces as onboarding_interfaces
 from onboarding import devices as onboarding_devices
 from onboarding import config_context as onboarding_config_context
@@ -105,11 +106,29 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         if isinstance(tags, str):
             device_properties['tags'] = tags.split(',')
 
-        """
-        at this point the new device was NOT added to our SOT yet
-        we have either the primary interface or all interfaces and all vlans
-        now add device or update it
-        """
+        # we have all data we need to onboard the device
+        # last but not least we have to check if some keys must be splitted
+        # into a nested dict for example if the user sets a location using
+        # location__name and location__parent__name
+
+        nested_values = {}
+        for key,value in dict(device_properties).items():
+            if '__' in key:
+                splitted = key.split('__')
+                new_value = {}
+                tools.set_value(nested_values, key, value)
+                del device_properties[key]
+        
+        if len(nested_values) > 0 and isinstance(device_properties[splitted[0]], dict): 
+                device_properties.update(nested_values)
+        elif len(nested_values) > 0:
+            # print warning; we cannot update the device_properties without loosing
+            # the old value
+            logging.warning(f'found other value than dict in device_properties[{splitted[0]}]')
+
+        # at this point the new device was NOT added to our SOT yet
+        # we have either the primary interface or all interfaces and all vlans
+        # now add device or update it
 
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
@@ -171,7 +190,11 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                     for nb_interface in all_interfaces:
                         if interface_name == nb_interface.display:
                             primary_interface_found = True
-                            response = nb_interface.update(interface)
+                            # response = nb_interface.update(interface)
+                            response = sot.onboarding \
+                                          .add_prefix(False) \
+                                          .assign_ip(True) \
+                                          .update_interfaces(device=new_device, interfaces=interfaces)
                             logging.info(f'updating primary interface {interface_name}; response: {response}')
                     if not primary_interface_found:
                         logging.debug(f'no primary inteface found; seems to be a new one; adding it')
@@ -181,7 +204,15 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                        .add_interfaces(device=new_device, interfaces=interfaces)
 
             # maybe the primary IP has changed. Check it and update if necessary
-            sot.onboarding.set_primary_address(primary_address, new_device)
+            if new_device.primary_ip4:
+                current_primary_ip = new_device.primary_ip4.display.split('/')[0]
+            else:
+                # there is no primary IP
+                current_primary_ip = "unknown or none"
+                logging.debug(f'the device {new_device.display} has no primary IP configured; setting it now')
+            if current_primary_ip != primary_address:
+                logging.info(f'updating primary IP of device {new_device.display} {current_primary_ip} vs. {primary_address}')
+                sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
         logging.info("get tag properties")

@@ -39,6 +39,7 @@ files:
   locations:
     repo: sot_data
     path: __REPO_PATH__
+    # you can either use yaml or xlsx files
     filename: defaults/locations.yaml
   tags:
     repo: sot_data
