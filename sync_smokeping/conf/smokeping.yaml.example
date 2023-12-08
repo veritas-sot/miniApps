@@ -57,7 +57,6 @@ targets:
 
 templates:
   networks: |
-    *** Targets ***
     probe = FPing
     {% for net_name in values["net"] %}
     + {{ net_name }}
@@ -69,7 +68,7 @@ templates:
     title = {{ location_name }}
     {% for host in values["devices"] %}
     {%- if host["custom_field_data"]["net"] == net_name and host["location"]["name"] == location_name %}
-    +++ {{ host["hostname"] }}
+    +++ {{ host["hostname"]|replace(".","-") }}
     menu = {{ host["hostname"] }}
     title = {{ host["hostname"] }}
     {%- set ipaddress = host["primary_ip4"]["address"].split('/') %}
