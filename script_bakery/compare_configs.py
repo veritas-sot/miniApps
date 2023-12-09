@@ -40,7 +40,6 @@ if __name__ == "__main__":
 
     sot_devicelist = sot.select('hostname') \
                         .using('nb.devices') \
-                        .normalize(False) \
                         .where(args.devices)
     
     backup_dir = args.backup_dir if args.backup_dir else \
