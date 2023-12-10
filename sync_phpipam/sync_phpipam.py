@@ -28,7 +28,6 @@ def create_all_sections(sot, ipam, sync_config):
     # get all prefixes
     sot_prefixe = sot.select(select) \
                      .using('nb.prefixes') \
-                     .normalize(False) \
                      .where(within_include='0.0.0.0/0')
 
     for prefix in sot_prefixe:
@@ -46,7 +45,6 @@ def create_all_locations(sot, ipam):
 
     all_locations = sot.select('locations') \
                 .using('nb.general') \
-                .normalize(False) \
                 .where()
     for location in all_locations.get('locations'):
         name = location.get('name')
@@ -58,7 +56,6 @@ def create_all_customers(sot, ipam):
     customers_by_id, customers_by_name = ipam.get_customers()
     all_customers = sot.select('tenants') \
                 .using('nb.general') \
-                .normalize(False) \
                 .where()
     # for customer in all_customers.get('customers'):
     #     name = customer.get('name')

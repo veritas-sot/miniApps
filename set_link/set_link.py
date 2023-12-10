@@ -69,7 +69,6 @@ if __name__ == "__main__":
     sot = sot.Sot(token=set_link_config['sot']['token'], url=set_link_config['sot']['nautobot'])
     devices = sot.select('hostname', 'primary_ip4', 'cf_link') \
                 .using('nb.devices') \
-                .normalize(False) \
                 .where(args.devices)
 
     for device in devices:

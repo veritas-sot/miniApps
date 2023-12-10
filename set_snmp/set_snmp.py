@@ -207,7 +207,6 @@ if __name__ == "__main__":
         excluded = str(args.exclude).split(',')
         devices = sot.select('hostname', 'primary_ip4', 'platform', 'cf_snmp_credentials') \
                      .using('nb.devices') \
-                     .normalize(False) \
                      .where(args.devices)
         nn_hosts = 0
         skipped = 0
