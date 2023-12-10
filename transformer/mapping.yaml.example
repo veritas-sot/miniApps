@@ -1,0 +1,4 @@
+---
+mapping:
+  DEVICE1: new_device1
+  new_device1: DEVICE1

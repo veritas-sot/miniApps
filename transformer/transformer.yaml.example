@@ -1,0 +1,16 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: info
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+
+  

@@ -1,0 +1,3 @@
+{%- if values["name"] == "DEVICE1" -%}
+new_device_name
+{%- endif -%}

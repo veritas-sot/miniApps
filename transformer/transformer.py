@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+
+import asyncio
+import argparse
+import logging
+import json
+import yaml
+import urllib3
+import sys
+import jinja2
+from veritas.tools import tools
+from veritas.sot import sot as sot
+
+
+
+if __name__ == "__main__":
+
+    # to disable warning if TLS warning is written to console
+    urllib3.disable_warnings()
+
+    devicelist = []
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--config', type=str, default="./transformer.yaml", required=False, help="transformer config file")
+    # what devices
+    parser.add_argument('--devices', type=str, default="", required=True, help="query to get list of devices")
+    # what to transform
+    parser.add_argument('--parameter', type=str, default="", required=True, help="which parameter to transform")
+    # what to do
+    parser.add_argument('--template', type=str, default="", required=False, help="template to use to transform value")
+    parser.add_argument('--mapping', type=str, default="", required=False, help="mapping to use to transform value")
+    parser.add_argument('--to-upper', action='store_true', required=False, help='transform string to upper case')
+    parser.add_argument('--to-lower', action='store_true', required=False, help='transform string to lower case')
+    parser.add_argument('--replace', type=str, default="", required=False, help="replace value eg. src/dst")
+    # other paraneter
+    parser.add_argument('--dry-run', action='store_true', required=False, help='print output but do no modification')
+    # set the log level
+    parser.add_argument('--loglevel', type=str, required=False, help="transformer loglevel")
+    # parse arguments
+    args = parser.parse_args()
+
+    # read config file
+    with open(args.config) as f:
+        transformer_config = yaml.safe_load(f.read())
+
+    # set logging
+    if args.loglevel is None:
+        loglevel = tools.get_loglevel(tools.get_value_from_dict(transformer_config, ['general', 'logging', 'level']))
+    else:
+        loglevel = tools.get_loglevel(args.loglevel)
+
+    log_format = tools.get_value_from_dict(transformer_config, ['general', 'logging', 'format'])
+    if log_format is None:
+        log_format = '%(asctime)s %(levelname)s:%(message)s'
+    logfile = tools.get_value_from_dict(transformer_config, ['general', 'logging', 'filename'])
+    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+
+    # we need the SOT object to talk to the SOT
+    select = f'id,{args.parameter.split("__")[0]}'
+    sot = sot.Sot(token=transformer_config['sot']['token'], url=transformer_config['sot']['nautobot'])
+    devices = sot.select(select) \
+                .using('nb.devices') \
+                .where(args.devices)
+
+    for device in devices:
+        id = device.get('id')
+        old_value = tools.get_value_from_dict(device, args.parameter.split('__'))
+        new_value = None
+
+        # now transform value
+        if args.to_upper:
+            new_value = old_value.upper()
+        elif args.to_lower:
+            new_value = old_value.lower()
+        elif args.replace:
+            replacement = args.replace.split('/')
+            new_value = old_value.replace(replacement[0], replacement[1])
+        elif args.mapping:
+            # read file
+            with open(args.mapping) as f:
+                mapping = yaml.safe_load(f.read())
+            for key,value in mapping['mapping'].items():
+                if old_value == key:
+                    new_value = value
+        elif args.template:
+            # read template
+            with open(args.template) as f:
+                template = f.read()
+            j2 = jinja2.Environment(loader=jinja2.BaseLoader, trim_blocks=False).from_string(template)
+            try:
+                new_value = j2.render({'values': device})
+            except Exception as exc:
+                logging.error("could not render template; got exception: %s" % exc)
+                continue
+
+        # check if new_value is NOT none
+        if not new_value:
+            continue
+
+        # build dict to update device
+        update = {}
+        if '__' in args.parameter:
+            tools.set_value(update, args.parameter, new_value)
+        else:
+            update[args.parameter] = new_value
+
+        nb_device = sot.get.device(id, by_id=True)
+        if nb_device and len(update) > 0:
+            if args.dry_run:
+                print(f'[dry run] device: {nb_device.display} parameter: {args.parameter} ' \
+                      f'old: {old_value} new: {new_value}')
+            else:
+                success = nb_device.update(update)
+                if success:
+                    logging.info(f'updated {nb_device.display} parameter: {args.parameter} ' \
+                        f'old: {old_value} new: {new_value}')
+                else:
+                    logging.error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
+                        f'old: {old_value} new: {new_value}')
