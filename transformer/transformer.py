@@ -8,6 +8,7 @@ import yaml
 import urllib3
 import sys
 import jinja2
+import re
 from veritas.tools import tools
 from veritas.sot import sot as sot
 
@@ -35,6 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('--replace', type=str, default="", required=False, help="replace value eg. src/dst")
     # other paraneter
     parser.add_argument('--dry-run', action='store_true', required=False, help='print output but do no modification')
+    parser.add_argument('--use-parent', action='store_true', required=False, help='use parent value')
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="transformer loglevel")
     # parse arguments
@@ -63,6 +65,11 @@ if __name__ == "__main__":
                 .using('nb.devices') \
                 .where(args.devices)
 
+    if args.mapping:
+        # read file
+        with open(args.mapping) as f:
+            mapping = yaml.safe_load(f.read())
+
     for device in devices:
         id = device.get('id')
         old_value = tools.get_value_from_dict(device, args.parameter.split('__'))
@@ -77,12 +84,22 @@ if __name__ == "__main__":
             replacement = args.replace.split('/')
             new_value = old_value.replace(replacement[0], replacement[1])
         elif args.mapping:
-            # read file
-            with open(args.mapping) as f:
-                mapping = yaml.safe_load(f.read())
-            for key,value in mapping['mapping'].items():
-                if old_value == key:
-                    new_value = value
+            if 'static' in mapping['mapping']:
+                for key,value in mapping['mapping']['static'].items():
+                    logging.debug(f'key: {key} value: {value}')
+                    if old_value == key:
+                        new_value = value
+            elif 'regex' in mapping['mapping']:
+                for regex, value in mapping['mapping']['regex'].items():
+                    pattern = re.compile(regex)
+                    match = pattern.match(old_value)
+                    if match:
+                        new_value = dict(value)
+                        for k,v in value.items():
+                            for group, group_val in match.groupdict().items():
+                                if v == f'__{group}__':
+                                    logging.debug(f'replacing {group} by {group_val}')
+                                    new_value[k] = group_val
         elif args.template:
             # read template
             with open(args.template) as f:
@@ -101,7 +118,10 @@ if __name__ == "__main__":
         # build dict to update device
         update = {}
         if '__' in args.parameter:
-            tools.set_value(update, args.parameter, new_value)
+            if args.use_parent:
+                update[args.parameter.split('__')[0]] = new_value
+            else:
+                tools.set_value(update, args.parameter, new_value)
         else:
             update[args.parameter] = new_value
 
@@ -111,6 +131,7 @@ if __name__ == "__main__":
                 print(f'[dry run] device: {nb_device.display} parameter: {args.parameter} ' \
                       f'old: {old_value} new: {new_value}')
             else:
+                logging.debug(update)
                 success = nb_device.update(update)
                 if success:
                     logging.info(f'updated {nb_device.display} parameter: {args.parameter} ' \

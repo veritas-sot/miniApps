@@ -1,0 +1,12 @@
+---
+mapping:
+  # static:
+  #   # simple mapping
+  #   old_device_name: new_device_name
+  #   # or change location
+  #   site_1: {'name': 'site_1', 'parent': {'name': 'Berlin'}}
+  #   site_1: {'name': 'site_1', 'parent': {'name': null}}
+  #   site_1: {'name': 'site_1', 'location_type': {'name': 'ast'}}
+  regex:
+    # (?P<site>[a-zA-Z0-9_-]+): {'name': __site__, 'location_type': {'name': 'ast'}}
+    (?P<site>[a-zA-Z0-9_-]+): {'name': __site__, 'parent': {'name': null}}
