@@ -1,0 +1,14 @@
+---
+mapping:
+  static:
+    # simple mapping
+    old_device_name: new_device_name
+    # or change the location
+    site_1: {'name': 'site_1', 'parent': {'name': 'city'}}
+    site_1: {'name': 'site_1', 'parent': {'name': null}}
+    site_1: {'name': 'site_1', 'location_type': {'name': 'branch'}}
+  regex:
+    # use named groups to change more than one item
+    # __groupname__ is replaced by its value
+    (?P<site>[a-zA-Z0-9_-]+): {'name': __site__, 'location_type': {'name': 'branch'}}
+    (?P<site>[a-zA-Z0-9_-]+): {'name': __site__, 'parent': {'name': null}}
