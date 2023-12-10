@@ -178,3 +178,4 @@ sync_smokeping/conf/smokeping.yaml
 updater/conf/importer.yaml
 onboarding/inventory.xlsx
 *.xlsx
+transformer/transformer.yaml
