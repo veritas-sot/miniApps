@@ -36,13 +36,10 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
     try:
         # add tags if tags are not None
         device_tags = device_properties.get('tags', None)
-
         if device_tags is not None:
             device_properties.update({'tags': device_tags})
 
-        # get additional values
-        # additional values are values that MUST exists; otherwise the device 
-        # cannot be added to the sot. For example some custom fields may be required
+        # add user defined additional values
         additional_values = additional.additional(device_properties,
                                                   device_facts,
                                                   ciscoconf,

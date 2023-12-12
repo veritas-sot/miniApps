@@ -406,7 +406,14 @@ if __name__ == "__main__":
                 in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
                 logging.debug(f'polling set; device {hostname}; in_sot={in_sot}')
             else:
-                device_in_nb = sot.get.device(name=hostname)
+                # we have two cases; we have the name of the device (simple)
+                # or just the IP address (use graphql to get device)
+                if device_ip == hostname:
+                    # we have an IP; get device object
+                    device_in_nb = sot.get.device_by_ip(ip=device_ip)
+                    logging.info(f'address {device_ip} belongs to {device_in_nb}')
+                else:
+                    device_in_nb = sot.get.device(name=hostname)
                 in_sot = True if device_in_nb else False
                 logging.debug(f'polling not set; device {hostname}; in_sot={in_sot}')
 

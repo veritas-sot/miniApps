@@ -41,7 +41,11 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         device_fqdn = device_facts['fqdn'].lower()
     else:
         # get fqdn from config instead
-        device_fqdn = ciscoconf.get_fqdn().lower()
+        device_fqdn = configparser.get_fqdn()
+
+    # set the name of the device
+    if device_fqdn:
+        device_defaults['name'] = device_fqdn
 
     # get the "real" primary address of the device
     # the primary address is the ip address of the 'default' interface.
