@@ -1,0 +1,35 @@
+---
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
+general:
+  logging:
+    # set loglevel to your need (debug, info, error, critical)
+    level: info
+    format: "%(levelname)s - %(message)s"
+    # use filename to write logging to a file
+    # filename: out.log
+    # if you want to write the result to a file use result: "filename" instead
+    result: stdout
+scan:
+  privileged: False
+  timeout: 1
+  count: 1
+addresses:
+  namespace: Global
+  status: {'name': 'Active'}
+  description: __HOSTNAME__
+interface:
+  name: 'primary'
+  type: '1000base-t'
+  enabled: True
+  description: 'Primary Interface'
+  status: {'name': 'Active'}
+devices:
+  default:
+    status: {'name': 'Active'}
+    name: __HOSTNAME__
+    role: 'network'
+    device_type: {'model': 'iosv'}
+    location: {'name': 'default-site'}
