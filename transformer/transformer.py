@@ -34,6 +34,7 @@ if __name__ == "__main__":
     parser.add_argument('--to-upper', action='store_true', required=False, help='transform string to upper case')
     parser.add_argument('--to-lower', action='store_true', required=False, help='transform string to lower case')
     parser.add_argument('--replace', type=str, default="", required=False, help="replace value eg. src/dst")
+    parser.add_argument('--set', type=str, default="", required=False, help="set new value")
     # other paraneter
     parser.add_argument('--dry-run', action='store_true', required=False, help='print output but do no modification')
     parser.add_argument('--use-parent', action='store_true', required=False, help='use parent value')
@@ -83,6 +84,8 @@ if __name__ == "__main__":
         elif args.replace:
             replacement = args.replace.split('/')
             new_value = old_value.replace(replacement[0], replacement[1])
+        elif args.set:
+            new_value = args.set
         elif args.mapping:
             if 'static' in mapping['mapping']:
                 for key,value in mapping['mapping']['static'].items():
