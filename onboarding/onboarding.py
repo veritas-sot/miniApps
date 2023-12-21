@@ -2,7 +2,6 @@
 
 import argparse
 import sys
-#import pytricia
 import yaml
 import socket
 import os
@@ -34,7 +33,7 @@ def get_device_defaults(prefixe, ip):
     """
     if prefixe is None:
         return {}
-    logging.debug(f'get device defaults of {ip}')
+    logger.debug(f'get device defaults of {ip}')
     """
     the prefix path is used to get the default values of a device
     The path consists of the individual subpaths eg when the device 
@@ -45,7 +44,7 @@ def get_device_defaults(prefixe, ip):
     prefix_path = tools.get_prefix_path(prefixe, ip)
     defaults = {}
     for prefix in prefix_path:
-        # logging.debug(f'using prefix {prefix} for default_values')
+        # logger.debug(f'using prefix {prefix} for default_values')
         # because custom_fields is nested we have to save old values and
         # add the value if the custom_field is not present
         last_custom_fields = defaults.get('custom_fields',{})
@@ -54,7 +53,7 @@ def get_device_defaults(prefixe, ip):
             # do not overwrite values with None
             if value is not None and key not in defaults['custom_fields']:
                 defaults['custom_fields'][key] = value
-        # logging.debug(f'current defaults: {defaults}')
+        # logger.debug(f'current defaults: {defaults}')
     return defaults
 
 def write_hldm(hldm, directory="./hldm"):
@@ -63,7 +62,7 @@ def write_hldm(hldm, directory="./hldm"):
     """
     hostname = hldm.get('name')
     if hostname:
-        logging.info(f'writing HLDM of {hostname} to disk')
+        logger.info(f'writing HLDM of {hostname} to disk')
         filename = "%s/%s" % (directory, hostname)
         with open(filename, 'w') as f:
             f.write(json.dumps(hldm,indent=4))
@@ -73,7 +72,7 @@ def export_config_and_facts(device_config, device_facts, directory_name):
     config_filename = "%s/%s.conf" % (directory_name, device_facts.get('fqdn','__error__').lower())
     facts_filename = "%s/%s.facts" % (directory_name, device_facts.get('fqdn','__error__').lower())
     if '__error__' in config_filename or '__error__' in config_filename:
-        logging.error('could not export config and facts')
+        logger.error('could not export config and facts')
         return
 
     # create directory if it does not exsists
@@ -81,10 +80,10 @@ def export_config_and_facts(device_config, device_facts, directory_name):
     if not os.path.exists(directory):
         os.makedirs(directory)    
 
-    logging.info(f'export config to {config_filename}')
+    logger.info(f'export config to {config_filename}')
     with open(config_filename, 'w') as f:
         f.write(device_config)
-    logging.info(f'export facts to {facts_filename}')
+    logger.info(f'export facts to {facts_filename}')
     with open(facts_filename, 'w') as f:
         f.write(json.dumps(device_facts,indent=4))
 
@@ -96,7 +95,7 @@ def read_config_and_facts_from_file(hostname, onboarding_config):
 
     config_filename = "./%s/%s.conf" % (directory, hostname.lower())
     facts_filename = "./%s/%s.facts" % (directory, hostname.lower())
-    logging.debug(f'reading config from {config_filename} and facts from {facts_filename}')
+    logger.debug(f'reading config from {config_filename} and facts from {facts_filename}')
 
     try:
         with open(config_filename, 'r') as f:
@@ -104,7 +103,7 @@ def read_config_and_facts_from_file(hostname, onboarding_config):
         with open(facts_filename, 'r') as f:
             device_facts = json.load(f)
     except Exception as exc:
-        logging.error(f'could not import config or facts {exc}')
+        logger.error(f'failed to import config or facts {exc}', exc_info=True)
         return None, None
 
     return device_config, device_facts
@@ -123,25 +122,25 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
         return read_config_and_facts_from_file(hostname, onboarding_config)
 
     # retrieve facts like fqdn, model and serialnumber
-    logging.info(f'now gathering facts from {hostname}')
+    logger.info(f'now gathering facts from {hostname}')
     device_facts = conn.get_facts()
 
     if device_facts is None:
-        logging.error('got no facts; skipping device')
+        logger.error('got no facts; skipping device')
         if conn:
             conn.close()
         return None, None
     device_facts['args.device'] = device_ip
 
     # retrieve device config
-    logging.info("getting running-config")
+    logger.info("getting running-config")
     try:
         device_config = conn.get_config("running-config")
     except Exception as exc:
-        logging.error("could not receive device config from %s; got exception %s" % (device_ip, exc))
+        logger.error(f'failed to receive device config from {device_ip}; got exception {exc}', exc_info=True)
         return None, None
     if device_config is None:
-        logging.error(f'could not retrieve device config from {device_ip}')
+        logger.error(f'failed to retrieve device config from {device_ip}')
         conn.close()
         return None, None
     conn.close()
@@ -154,6 +153,7 @@ if __name__ == "__main__":
     urllib3.disable_warnings()
 
     # init vars
+    listener = None
     defaults = None
     device_facts = None
     device_names_in_sot = {}
@@ -224,15 +224,40 @@ if __name__ == "__main__":
     # read config from file
     with open(config_file) as f:
         onboarding_config = yaml.safe_load(f.read())
-    
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, onboarding_config)
+
+    logformat = onboarding_config.get('general',{}).get('logging',{}).get('format', "%(levelname)s - %(message)s")
+    if args.loglevel:
+        loglevel = tools.get_loglevel(args.loglevel)
+    else:
+        loglevel = tools.get_loglevel(onboarding_config.get('general',{}).get('logging',{}).get('loglevel', 'info'))
+    if onboarding_config.get('general',{}).get('logging',{}).get('config'):
+        logging_config_file = "%s/%s" % (BASEDIR, onboarding_config.get('general',{}).get('logging',{}).get('config'))
+    else:
+        logging_config_file = None
+    loghandler = onboarding_config.get('general',{}).get('logging',{}).get('handler', 'stdout')
+    use_color = onboarding_config.get('general',{}).get('logging',{}).get('color', False)
+    logger = tools.get_logger(
+        configfile=logging_config_file,
+        logger='veritas',
+        handler=loghandler,
+        color=use_color,
+        loglevel=loglevel,
+        format=logformat)
+
+    if onboarding_config.get('general',{}).get('logging',{}).get('logtodatabase', False):
+        database = onboarding_config.get('general',{}).get('logging',{}).get('database')
+        if database:
+            listener = tools.add_queue_listener(logger, database, logformat)
+            listener.start()
+        else:
+            logger.error(f'logging to database enabled but no database configured')
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=onboarding_config['sot']['token'],
                   ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
                   url=onboarding_config['sot']['nautobot'],
-                  git=onboarding_config['git'])
+                  git=onboarding_config['git'],
+                  logger=logger)
 
     # get username and password either from profile or by get username / getpass or args
     username, password = tools.get_username_and_password(args, sot, onboarding_config)
@@ -241,13 +266,14 @@ if __name__ == "__main__":
     name_of_repo = args.repo or onboarding_config['git']['defaults']['repo']
     path_to_repo = args.path or onboarding_config['git']['defaults']['path']
     filename = args.defaults or onboarding_config['git']['defaults']['filename']
-    logging.debug("reading %s from %s" % (filename, name_of_repo))
+    logger.debug("reading %s from %s" % (filename, name_of_repo))
+
     default_repo = sot.repository(repo=name_of_repo, path=path_to_repo)
     if default_repo.has_changes():
-        logging.warning(f'repo {name_of_repo} has changes')
+        logger.warning(f'repo {name_of_repo} has changes')
     defaults_str = default_repo.get(filename)
     if defaults_str is None:
-        logging.error("could not load defaults")
+        logger.error("could not load defaults")
         raise Exception('could not load defaults')
 
     # read the default values from our YAML file
@@ -261,15 +287,15 @@ if __name__ == "__main__":
         if defaults_yaml is not None and 'defaults' in defaults_yaml:
             defaults = defaults_yaml['defaults']
     except Exception as exc:
-        logging.critical("Cannot read default values; got exception: %s" % exc)
-        raise Exception("cannot read default values")
+        logger.critical(f'failed to read default values; got exception: {exc}', exc_info=True)
+        raise Exception("failed to read default values")
 
     # get the list of all devices in our SOT
     # If you have a large number of devices in the database, this process will take a long time.
     # But controlling each device individually also takes a long time and requires a large 
     # number of database connections.
     if args.polling:
-        logging.debug('getting all devices from SOT')
+        logger.debug('getting all devices from SOT')
         raw = sot.select('name', 'primary_ip4', 'platform', 'interfaces') \
                  .using('nb.devices') \
                  .where()
@@ -278,7 +304,7 @@ if __name__ == "__main__":
             device_names_in_sot[hostname.lower()] = True
             primary_ip = device.get('primary_ip4',{}).get('address','').split('/')[0] if device.get('primary_ip4') else None
             if not primary_ip:
-                logging.error(f'host {hostname} has not primary IPv4')
+                logger.error(f'host {hostname} has not primary IPv4')
                 continue
             for interface in device['interfaces']:
                 if len(interface['ip_addresses']) > 0:
@@ -312,7 +338,7 @@ if __name__ == "__main__":
             )
             if filename:
                 # read mapping from file
-                logging.debug(f'reading mapping_config from {filename}')
+                logger.debug(f'reading mapping_config from {filename}')
                 with open(filename) as f:
                     mapping_config = yaml.safe_load(f.read())
                 column_mapping = mapping_config.get('mappings',{}).get('columns',{})
@@ -348,7 +374,7 @@ if __name__ == "__main__":
                     devicelist.append(d)
                 f.close()
         else:
-            logging.error(f'cannot read {args.inventory}; unknown file or format')
+            logger.error(f'cannot read {args.inventory}; unknown file or format')
             sys.exit()
 
     # add inventory from cli
@@ -364,7 +390,7 @@ if __name__ == "__main__":
     #
     # This is the main LOOP of this script
     #
-    logging.info(f'processing {len(devicelist)} devices')
+    logger.info(f'processing {len(devicelist)} devices')
     for device_dict in devicelist:
         devices_processed += 1
         in_sot = False
@@ -379,22 +405,22 @@ if __name__ == "__main__":
         # write the hostname back
         device_dict['name'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
-        logging.info(f'processing host_or_ip: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
+        logger.info(f'processing host_or_ip: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
 
         # we first check if the file exists (and the user wants to export the config/facts)
         # this makes the export faster
         if args.export:
             export_file = "%s/%s.conf" % (export_directory, hostname)
             if os.path.exists(export_file) and not args.update:
-                logging.debug(f'config for host {hostname} already exists in export directory')
+                logger.debug(f'config for host {hostname} already exists in export directory')
                 continue
         try:
             # maybe the user has set a hostname instead of an address
             device_ip = socket.gethostbyname(host_or_ip)
-        except Exception as esc:
+        except Exception as exc:
             device_ip = host_or_ip
             if not args.use_import:
-                logging.error("could not resolve ip address; we are unable to retrieve the config (%s)" % esc)
+                logger.error(f'failed to resolve ip address; we are unable to retrieve the config ({exc})', exc_info=True)
                 continue
 
         if args.show_facts or args.export or args.show_config:
@@ -404,24 +430,24 @@ if __name__ == "__main__":
             # check if device is already in sot
             if args.polling:
                 in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
-                logging.debug(f'polling set; device {hostname}; in_sot={in_sot}')
+                logger.debug(f'polling set; device {hostname}; in_sot={in_sot}')
             else:
                 # we have two cases; we have the name of the device (simple)
                 # or just the IP address (use graphql to get device)
                 if device_ip == hostname:
                     # we have an IP; get device object
                     device_in_nb = sot.get.device_by_ip(ip=device_ip)
-                    logging.info(f'address {device_ip} belongs to {device_in_nb}')
+                    logger.info(f'address {device_ip} belongs to {device_in_nb}')
                 else:
                     device_in_nb = sot.get.device(name=hostname)
                 in_sot = True if device_in_nb else False
-                logging.debug(f'polling not set; device {hostname}; in_sot={in_sot}')
+                logger.debug(f'polling not set; device {hostname}; in_sot={in_sot}')
 
             if in_sot and not args.update:
-                logging.info(f'device {hostname} is already in sot and update is not active')
+                logger.info(f'device {hostname} is already in sot and update is not active')
                 continue
             else:
-                logging.debug(f'device {hostname} is new or will be updated')
+                logger.debug(f'device {hostname} is new or will be updated')
 
         # get default values from SOT / the lowest priority is the prefix default
         device_defaults = get_device_defaults(defaults, host_or_ip)
@@ -455,17 +481,17 @@ if __name__ == "__main__":
                 device_defaults['custom_fields'][key] = value
 
         # now we have all the device defaults
-        logging.debug(device_defaults)
+        logger.debug(device_defaults)
 
         # If 'ignore' is set, the device will not be processed.
         if device_defaults.get('ignore', False):
-            logging.info(f'ignore set to true on {hostname}; skipping device')
+            logger.info(f'ignore set to true on {hostname}; skipping device')
             continue
 
         # If 'offline' is set we add the device using some default values
         if device_defaults.get('offline', False):
             if args.onboarding:
-                logging.info(f'adding {hostname} offline to the sot')
+                logger.info(f'adding {hostname} offline to the sot')
                 # we do not have any facts
                 model = device_defaults.get('model', 
                         onboarding_config['onboarding']['offline_config'].get('model','unknown'))
@@ -505,23 +531,23 @@ if __name__ == "__main__":
                     # should we use a local device config?
                     if device_defaults.get('config').lower() == 'none':
                         # no config at all / use minimal default config
-                        logging.debug(f'no offline config found; use minimal config')
+                        logger.debug(f'no offline config found; use minimal config')
                         device_config = f'hostname {hostname}\n'
                         device_config += f'interface {primary_interface}\n'
                         device_config += f' ip address {device_ip} {primary_mask}\n'
                         offline_config = False
                     else:
                         # yes, the config was configured by the inventory
-                        logging.debug(f'using offline config {device_defaults.get("config")}')
+                        logger.debug(f'using offline config {device_defaults.get("config")}')
                         offline_config = BASEDIR + "/" + device_defaults.get('config')
                 else:
                     # use default offline config
-                    logging.debug(f'using default offline config')
+                    logger.debug(f'using default offline config')
                     offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
 
                 if offline_config:
                     # read default offline device config
-                    logging.debug(f'reading offline config {offline_config}')
+                    logger.debug(f'reading offline config {offline_config}')
                     try:
                         with open(offline_config, 'r') as f:
                             device_config = f.read()
@@ -530,10 +556,10 @@ if __name__ == "__main__":
                             device_config = device_config.replace('__PRIMARY_INTERFACE__', primary_interface)
                             device_config = device_config.replace('__PRIMARY_MASK__', primary_mask)
                     except Exception as exc:
-                        logging.error(f'could not read offline config {exc}')
+                        logger.error(f'failed to read offline config {exc}', exc_info=True)
                         continue
             elif args.export:
-                logging.info(f'device {hostname} is marked as "offline"')
+                logger.info(f'device {hostname} is marked as "offline"')
                 continue
         else:
             # this device is 'online'
@@ -548,7 +574,7 @@ if __name__ == "__main__":
                                                                       onboarding_config)
 
         if device_config is None or device_facts is None:
-            logging.error(f'got no device config or no facts')
+            logger.error(f'got no device config or no facts')
             continue
 
         # we keep in mind that this device is in our sot but 
@@ -588,7 +614,7 @@ if __name__ == "__main__":
         for device_dict in devicelist:
             device = device_dict.get('host')
             platform = device_dict.get('platform')
-            logging.debug("adding cables of %s to sot" % device)
+            logger.debug("adding cables of %s to sot" % device)
             conn = dm.Devicemanagement(ip=device,
                                        platform=platform,
                                        manufacturer="cisco",
@@ -600,7 +626,7 @@ if __name__ == "__main__":
                 # result[device]['error'] = 'got no facts'
                 device_facts = conn.get_facts()
                 if device_facts is None:
-                    logging.error('got no facts; skipping device')
+                    logger.error('got no facts; skipping device')
                     conn.close()
                     continue
                 device_facts['args.device'] = device
@@ -619,3 +645,6 @@ if __name__ == "__main__":
         backup_repo.add_all()
         backup_repo.commit('backups written')
         backup_repo.push()
+
+    if listener:
+        listener.stop()

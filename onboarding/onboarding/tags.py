@@ -1,6 +1,5 @@
 import re
 import yaml
-import logging
 import os
 import glob
 import json
@@ -22,7 +21,7 @@ def to_sot(sot, args, device_fqdn, device_defaults, device_facts, configparser, 
     return tags
 
 def from_default(sot, args, device_fqdn, device_defaults):
-    logging.debug(f'adding tags from default values')
+    logger.debug(f'adding tags from default values')
 
     response = []
 
@@ -34,7 +33,7 @@ def from_default(sot, args, device_fqdn, device_defaults):
 
 def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparser, onboarding_config):
 
-    logging.debug(f'adding tags from files')
+    logger.debug(f'adding tags from files')
 
     response = []
 
@@ -63,36 +62,36 @@ def from_file(sot, args, device_fqdn, device_defaults, device_facts, configparse
                                                 config['source']['device'],
                                                 config)
         else:
-            logging.error("unknown source %s" % config['source'])
+            logger.error("unknown source %s" % config['source'])
 
     return response
 
 def read_file(filename, device_defaults):
     with open(filename) as f:
         config = {}
-        logging.debug("opening file %s to read custom field config" % filename)
+        logger.debug("opening file %s to read custom field config" % filename)
         try:
             config = yaml.safe_load(f.read())
             if config is None:
-                logging.error("could not parse file %s" % filename)
+                logger.error("could not parse file %s" % filename)
                 return None
         except Exception as exc:
-            logging.error("could not read file %s; got exception %s" % (filename, exc))
+            logger.error("could not read file %s; got exception %s" % (filename, exc))
             return None
 
         name = config.get('name')
         platform = config.get('platform')
         if not config.get('active'):
-            logging.debug("tags %s in %s is not active" % (name, filename))
+            logger.debug("tags %s in %s is not active" % (name, filename))
             return None
         if platform is not None:
             if platform != 'all' and platform != device_defaults["platform"]:
-                logging.debug("skipping custom field %s wrong platform %s" % (name, platform))
+                logger.debug("skipping custom field %s wrong platform %s" % (name, platform))
                 return None
         return config
 
 def parse_device_properties(sot, args, device_fqdn, device_facts, host_or_ip, config):
-    logging.debug(f'looing for tags depending on hostname or ip')
+    logger.debug(f'looing for tags depending on hostname or ip')
 
     list_of_items = []
     list_of_ip = []
@@ -135,10 +134,10 @@ def parse_config(sot, args, device_config, device_fqdn, config):
         scope_of_tag = tags.get('scope', 'dcim.device')
         name_of_tag = tags.get('name')
         if pattern:
-            logging.debug(f'name: {name_of_tag} scope: {scope_of_tag} pattern: {pattern}')
+            logger.debug(f'name: {name_of_tag} scope: {scope_of_tag} pattern: {pattern}')
             compiled = re.compile(pattern)
         elif contains:
-            logging.debug(f'name: {name_of_tag} scope: {scope_of_tag} string: {contains}')
+            logger.debug(f'name: {name_of_tag} scope: {scope_of_tag} string: {contains}')
         interface = None
         for line in device_config:
             # check if we have an interface that is needed with scope dcim.interface
@@ -147,7 +146,7 @@ def parse_config(sot, args, device_config, device_fqdn, config):
             if pattern:
                 match = compiled.match(line)
                 if match:
-                    logging.debug(f'pattern found on interface {interface}')
+                    logger.debug(f'pattern found on interface {interface}')
                     if scope_of_tag == "dcim.interface" and interface is not None:
                        response.append({'name': name_of_tag,
                                         'interface': interface,
@@ -156,7 +155,7 @@ def parse_config(sot, args, device_config, device_fqdn, config):
                         response.append({'name': name_of_tag,
                                      'scope': scope_of_tag})
             elif contains and contains in line:
-                logging.debug(f'string found on interface {interface}')
+                logger.debug(f'string found on interface {interface}')
                 if scope_of_tag == "dcim.interface" and interface is not None:
                     response.append({'name': name_of_tag,
                                      'interface': interafce,

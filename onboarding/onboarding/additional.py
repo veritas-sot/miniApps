@@ -1,6 +1,5 @@
 import re
 import yaml
-import logging
 import os
 import glob
 import json
@@ -25,10 +24,10 @@ def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
     """
     response = {}
 
-    logging.debug(f'reading config from {directory} files for creating required values')
+    logger.debug(f'reading config from {directory} files for creating required values')
     # we read all *.yaml files in our required data config dir
     for filename in glob.glob(os.path.join(directory, "*.yaml")):
-        logging.debug(f'reading {filename}')
+        logger.debug(f'reading {filename}')
 
         config = read_file(filename, device_defaults)
         if config is None:
@@ -60,7 +59,7 @@ def get_additional_values(response, item_config, device_facts, device_defaults, 
     elif file_format == 'excel':
         return add_values_from_excel(response, item_config, device_facts, device_defaults, onboarding_config)
     else:
-        logging.error(f'unknown file format {file_format}')
+        logger.error(f'unknown file format {file_format}')
         return response
 
 def add_values_from_csv(response, item_config, device_facts, device_defaults, onboarding_config):
@@ -70,7 +69,7 @@ def add_values_from_csv(response, item_config, device_facts, device_defaults, on
     directory = os.path.join(basedir, './onboarding/required/')
     
     filename = "%s/%s" % (directory, item_config.get('file'))
-    logging.debug(f'reading additional values from {filename}')
+    logger.debug(f'reading additional values from {filename}')
 
     # set default values
     delimiter = item_config.get('delimiter',',')
@@ -85,7 +84,7 @@ def add_values_from_csv(response, item_config, device_facts, device_defaults, on
         quoting = csv.QUOTE_NONNUMERIC
     else:
         quoting = csv.QUOTE_MINIMAL
-    logging.info(f'reading mapping {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
+    logger.info(f'reading mapping {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
 
     # read CSV file
     with open(filename, newline=newline) as csvfile:
@@ -132,7 +131,7 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
 
     filename = "%s/%s" % (directory, item_config.get('file'))
     matching_key = item_config.get('matches_on')
-    logging.debug(f'reading additional values from {filename}')
+    logger.debug(f'reading additional values from {filename}')
 
     if filename in _global_cache:
         workbook = _global_cache.get(filename)
@@ -188,7 +187,7 @@ def process_matches(response, device_facts, device_defaults, item_config, ciscoc
         return
     # build dict using key and values configured in 'values'
     for key, value in item_config.get('values').items():
-        # logging.debug(f'key {key} value {value}')
+        # logger.debug(f'key {key} value {value}')
         if isinstance(value, str):
             if '__named__' in value:
                 group = value.split('__named__')[1]
@@ -198,7 +197,7 @@ def process_matches(response, device_facts, device_defaults, item_config, ciscoc
         elif isinstance(value, dict):
             response[key] = {}
             for k, v in value.items():
-                #logging.debug(f'k {k} v {v}')
+                #logger.debug(f'k {k} v {v}')
                 if '__named__' in v:
                     groups = v.split('__named__')
                     string = ""
@@ -230,7 +229,7 @@ def get_matches(device_facts, device_defaults, matches, ciscoconf):
             elif len(splits) == 2:
                 source = splits[0]
                 key = splits[1]
-            # logging.debug(f'source: {source} key: {key} lookup: {lookup}')
+            # logger.debug(f'source: {source} key: {key} lookup: {lookup}')
 
             if source == "facts":
                 obj = device_facts.get(key)
@@ -248,22 +247,22 @@ def get_matches(device_facts, device_defaults, matches, ciscoconf):
                 elif key == "interfaces" and ciscoconf:
                     return ciscoconf.find_in_interfaces(props)
                 else:
-                    logging.error(f'unknown key; must be global or interfaces')
+                    logger.error(f'unknown key; must be global or interfaces')
                     continue
             else:
-                logging.error(f'no source found or source {source} invalid')
+                logger.error(f'no source found or source {source} invalid')
                 continue
 
             if lookup == '':
                 if obj == value:
-                    # logging.debug(f'exact match on {key}')
+                    # logger.debug(f'exact match on {key}')
                     return obj
             elif 'ci' == lookup or 'ic' == lookup:
-                # logging.debug(f'ci lookup found on {key}')
+                # logger.debug(f'ci lookup found on {key}')
                 if value.lower() in obj.lower():
                     return obj
             elif 're' == lookup or 'rei' == lookup:
-                # logging.debug(f'regular expression {value} on {key} found')
+                # logger.debug(f'regular expression {value} on {key} found')
                 if obj is not None:
                     if 'rei' == lookup:
                         p = re.compile(value, re.IGNORECASE)
@@ -272,31 +271,31 @@ def get_matches(device_facts, device_defaults, matches, ciscoconf):
                         p = re.compile(value)
                         m = p.search(obj)
                     if m:
-                        #logging.debug(f'regular expression matches on {obj}')
+                        #logger.debug(f'regular expression matches on {obj}')
                         return m
     return False
 
 def read_file(filename, device_defaults):
     with open(filename) as f:
         config = {}
-        logging.debug("opening file %s to read required field config" % filename)
+        logger.debug("opening file %s to read required field config" % filename)
         try:
             config = yaml.safe_load(f.read())
             if config is None:
-                logging.error("could not parse file %s" % filename)
+                logger.error("could not parse file %s" % filename)
                 return None
         except Exception as exc:
-            logging.error("could not read file %s; got exception %s" % (filename, exc))
+            logger.error("could not read file %s; got exception %s" % (filename, exc))
             return None
         name = config.get('name')
         platform = config.get('platform')
 
         if not config.get('active'):
-            logging.debug(f'file {filename} is not active')
+            logger.debug(f'file {filename} is not active')
             return None
         if platform is not None:
             if platform != 'all' and platform != device_defaults.get("platform",''):
-                logging.debug("skipping custom field %s wrong platform %s" % (name, platform))
+                logger.debug("skipping custom field %s wrong platform %s" % (name, platform))
                 return None
 
         return config

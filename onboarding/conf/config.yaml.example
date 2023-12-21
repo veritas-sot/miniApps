@@ -36,13 +36,20 @@ profiles:
 
 general:
   logging:
-    # set loglevel to your need (debug, info, error, critical)
-    level: __LOGLEVEL__
-    format: "%(levelname)s - %(message)s"
-    # use filename to write logging to a file
-    # filename: out.log
-    # if you want to write the result to a file use result: "filename" instead
-    result: stdout
+    # config: ./conf/logging.ini
+    loglevel: info
+    color: false
+    # format: "%(levelname)s - %(message)s"
+    format: "%(asctime)s - %(filename)s:%(funcName)s:%(lineno)d %(levelname)-s - %(message)s"
+    # format: "%(asctime)s - %(filename)s:%(funcName)s:%(lineno)d %(log_color)s%(levelname)-s%(reset)s - %(message)s"
+    handler: stdout
+    logtodatabase: false
+    database:
+      host: __database_host__
+      database: __database_datbase__
+      user: __database_username__
+      password: __database_password__
+      port: __database_port__
 onboarding:
   defaults:
     # the default primary interface we use to get the primary address

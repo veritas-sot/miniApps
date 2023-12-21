@@ -1,4 +1,3 @@
-import logging
 import json
 from businesslogic import your_interfaces as user_int
 from veritas.sot import sot as sot
@@ -9,7 +8,7 @@ from ipaddress import IPv4Network
 def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf):
     list_of_interfaces = []
     for name in ciscoconf.get_interfaces():
-        #logging.debug("get property of interface: %s" % name)
+        #logger.debug("get property of interface: %s" % name)
         props = get_properties(sot,
                                device_fqdn,
                                device_facts,
@@ -60,7 +59,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
     # check if interface is lag
     if 'channel_group' in interface:
         pc = "%s%s" % (ciscoconf.get_name("port-channel"), interface.get('channel_group'))
-        # logging.debug(f'interface {name} is part of port-channel {pc}')
+        # logger.debug(f'interface {name} is part of port-channel {pc}')
         interface_properties.update({'lag': {'name': pc }})
 
     # setting switchport or trunk
@@ -69,7 +68,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
         data = {}
         # process access switch ports
         if mode == 'access':
-            logging.debug("interface is access switchport: %s" % name)
+            logger.debug("interface is access switchport: %s" % name)
             untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), location=location)
             data = {"mode": "access",
                     "untagged_vlan": {'vid': interface.get('vlan'),
@@ -78,7 +77,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
                    }
         # process trunks
         elif mode == 'trunk':
-            logging.debug("interface is a tagged switchport: %s" % name)
+            logger.debug("interface is a tagged switchport: %s" % name)
             # this port is either a trunk with allowed vlans (mode: tagged)
             # or a trunk with all vlans mode: tagged-all
             if 'vlans_allowed' in interface:
@@ -93,7 +92,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
                 data = {'mode': "tagged-all"}
 
         if len(data) > 0:
-            logging.debug("updating interface: %s" % name)
+            logger.debug("updating interface: %s" % name)
             interface_properties.update(data)
 
     return interface_properties
@@ -155,12 +154,12 @@ def get_primary_interface(primary_address, ciscoconf):
         # convert IP and MASK to cidr notation
         prefixlen = IPv4Network("0.0.0.0/%s" % interface.get('mask')).prefixlen
         primary_interface['ip'] = "%s/%s" % (interface.get('ip'), prefixlen)
-        logging.debug(f'found primary interface; setting primary_address interface to {primary_address}')
+        logger.debug(f'found primary interface; setting primary_address interface to {primary_address}')
         if 'description' not in interface:
-            logging.info("primary interface has no description configured; using 'primary interface'")
+            logger.info("primary interface has no description configured; using 'primary interface'")
             primary_interface['description'] = "primary interface"
     else:
-        logging.debug(f'found no interface, setting default values')
+        logger.debug(f'found no interface, setting default values')
         primary_interface['name'] = "primaryInterface"
         primary_interface['description'] = "primary interface"
         primary_interface['ip'] = f'{primary_address}/32'

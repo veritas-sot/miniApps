@@ -1,5 +1,4 @@
 import yaml
-import logging
 import json
 import os
 import glob
@@ -48,7 +47,7 @@ def to_sot(sot, args, device_fqdn, configparser, device_defaults, onboarding_con
         'pull': False,
     }
 
-    logging.info("writing config_context to sot")
+    logger.info("writing config_context to sot")
     sot.device(device_fqdn).set_config_context(config)
 
     return device_context
@@ -63,44 +62,44 @@ def standard_config_context(device_fqdn, device_context, configparser, device_de
     # we read all *.yaml files in our config_context config dir
     for filename in glob.glob(os.path.join(directory, "*.yaml")):
         with open(filename) as f:
-            logging.debug("opening file %s to read config_context config" % filename)
+            logger.debug("opening file %s to read config_context config" % filename)
             try:
                 config = yaml.safe_load(f.read())
                 if config is None:
-                    logging.error("could not parse file %s" % filename)
+                    logger.error("could not parse file %s" % filename)
                     continue
             except Exception as exc:
-                logging.error("could not read file %s; got exception %s" % (filename, exc))
+                logger.error("could not read file %s; got exception %s" % (filename, exc))
                 continue
 
             name = config.get('name','error_please_fix_it')
             platform = config.get('platform')
             if not config.get('active'):
-                logging.debug("config context %s in %s is not active" % (name, filename))
+                logger.debug("config context %s in %s is not active" % (name, filename))
                 continue
             if platform is not None:
                 if platform != 'all' and platform != device_defaults["platform"]:
-                    logging.debug("skipping config context %s wrong platform %s" % (name, platform))
+                    logger.debug("skipping config context %s wrong platform %s" % (name, platform))
                     continue
 
-            logging.info("processing context %s in %s" % (name, filename))
+            logger.info("processing context %s in %s" % (name, filename))
             # add filename to our list of files that were processed
             files.append(os.path.basename(filename))
 
             # get the source. It is either a section or a (named) regular expression
             if 'section' in config['source']:
-                logging.debug(f'found section in config')
+                logger.debug(f'found section in config')
                 device_config_as_list = configparser.get_section(config['source']['section'])
                 device_config = "\n".join(device_config_as_list)
             elif 'fullconfig' in config['source']:
-                logging.debug(f'found fullconfig in config')
+                logger.debug(f'found fullconfig in config')
                 device_config = configparser.get()
             else:
-                logging.error("unknown source %s" % config['source'])
+                logger.error("unknown source %s" % config['source'])
                 continue
 
             if len(device_config) == 0:
-                logging.error("no device config with configured pattern found")
+                logger.error("no device config with configured pattern found")
                 continue
 
             dc = parse_config(device_config, config)
@@ -122,7 +121,7 @@ def parse_config(device_config, config):
     # get template
     ttp_template = config.get('template')
     if ttp_template is None:
-        logging.error('no template found')
+        logger.error('no template found')
         return None
 
     # create parser object and parse data using template:

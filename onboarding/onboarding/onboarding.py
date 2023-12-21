@@ -5,7 +5,6 @@ import yaml
 import socket
 import os
 import json
-import logging
 from slugify import slugify
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
@@ -55,15 +54,15 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                           onboarding_config['onboarding']['defaults']['interface'],
                                           configparser)
     if primary_address is not None:
-        logging.info(f'primary address of {device_fqdn} is {primary_address}')
+        logger.info(f'primary address of {device_fqdn} is {primary_address}')
     else:
         # no primary interface found. Get IP of the device
         primary_address = socket.gethostbyname(device_facts['args.device'])
-        logging.info("no primary ip found using %s" % device_facts['args.device'])
+        logger.info("no primary ip found using %s" % device_facts['args.device'])
 
     # now onboard device
     if args.onboarding:
-        logging.info(f'get device properties of {device_fqdn}')
+        logger.info(f'get device properties of {device_fqdn}')
         device_properties = onboarding_devices.get_device_properties(sot,
                                                                      device_fqdn,
                                                                      device_facts,
@@ -72,7 +71,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                      onboarding_config)
         # get vlan properties
         if args.interfaces or args.primary_only:
-            logging.info(f'get VLAN properties of {device_fqdn}')
+            logger.info(f'get VLAN properties of {device_fqdn}')
             vlan_properties = onboarding_interfaces.get_vlan_properties(device_fqdn,
                                                                         configparser,
                                                                         device_defaults)
@@ -82,7 +81,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             if 'primary_interface' in device_properties \
             else onboarding_interfaces.get_primary_interface(primary_address, configparser)
         if args.primary_only:
-            logging.debug(f'adding primary interface to list of interfaces')
+            logger.debug(f'adding primary interface to list of interfaces')
             interfaces = [{'name': primary_interface.get('name'),
                            'ip_addresses': [{'address': primary_interface.get('ip'),
                                              'status': {'name': 'Active'}
@@ -91,14 +90,14 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                            'type': primary_interface.get('type', '1000base-t'),
                            'status': {'name': 'Active'}}]
         elif args.interfaces:
-            logging.info(f'getting interfaces properties of {device_fqdn}')
+            logger.info(f'getting interfaces properties of {device_fqdn}')
             interfaces = onboarding_interfaces.get_interface_properties(sot,
                                                                         device_fqdn,
                                                                         device_facts,
                                                                         device_defaults,
                                                                         configparser)
         else:
-            logging.info(f'no interfaces found')
+            logger.info(f'no interfaces found')
             interfaces = []
 
         # we have to "adjust" the device properties
@@ -128,7 +127,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         elif len(nested_values) > 0:
             # print warning; we cannot update the device_properties without loosing
             # the old value
-            logging.warning(f'found other value than dict in device_properties[{splitted[0]}]')
+            logger.warning(f'found other value than dict in device_properties[{splitted[0]}]')
 
         # at this point the new device was NOT added to our SOT yet
         # we have either the primary interface or all interfaces and all vlans
@@ -137,7 +136,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
         if not device_facts['is_in_sot']:
-            logging.debug(f'device {device_fqdn} not found in SOT; adding it')
+            logger.debug(f'device {device_fqdn} not found in SOT; adding it')
             # add new device to SOT
             new_device = sot.onboarding \
                 .interfaces(interfaces) \
@@ -154,10 +153,10 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 new_device = device_facts.get('device_in_nb')
 
             if not new_device:
-                logging.error(f'could not get device {device_fqdn} from SOT')
+                logger.error(f'could not get device {device_fqdn} from SOT')
                 return
             else:
-                logging.debug(f'updating device properties of {device_fqdn}')
+                logger.debug(f'updating device properties of {device_fqdn}')
                 new_device.update(device_properties)
 
             if args.interfaces or args.primary_only:
@@ -175,16 +174,16 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         if interface_name == nb_interface.display:
                             found = True
                             response = nb_interface.update(interface)
-                            logging.info(f'updating interface {interface_name}; updating response: {response}')
+                            logger.info(f'updating interface {interface_name}; updating response: {response}')
                     if not found:
-                        logging.debug(f'interface {interface_name} not found in SOT')
+                        logger.debug(f'interface {interface_name} not found in SOT')
                         new_interfaces.append(interface)
                 if len(new_interfaces) > 0:
                     response = sot.onboarding \
                         .add_prefix(False) \
                         .assign_ip(True) \
                         .add_interfaces(device=new_device, interfaces=new_interfaces)
-                    logging.info(f'adding {len(new_interfaces)} interface; response: {response}')
+                    logger.info(f'adding {len(new_interfaces)} interface; response: {response}')
 
             elif args.primary_only:
                 # update primary interface
@@ -199,9 +198,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                           .add_prefix(False) \
                                           .assign_ip(True) \
                                           .update_interfaces(device=new_device, interfaces=interfaces)
-                            logging.info(f'updating primary interface {interface_name}; response: {response}')
+                            logger.info(f'updating primary interface {interface_name}; response: {response}')
                     if not primary_interface_found:
-                        logging.debug(f'no primary inteface found; seems to be a new one; adding it')
+                        logger.debug(f'no primary inteface found; seems to be a new one; adding it')
                         response = sot.onboarding \
                                        .add_prefix(False) \
                                        .assign_ip(True) \
@@ -213,13 +212,13 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             else:
                 # there is no primary IP
                 current_primary_ip = "unknown or none"
-                logging.debug(f'the device {new_device.display} has no primary IP configured; setting it now')
+                logger.debug(f'the device {new_device.display} has no primary IP configured; setting it now')
             if current_primary_ip != primary_address:
-                logging.info(f'updating primary IP of device {new_device.display} {current_primary_ip} vs. {primary_address}')
+                logger.info(f'updating primary IP of device {new_device.display} {current_primary_ip} vs. {primary_address}')
                 sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
-        logging.info("get tag properties")
+        logger.info("get tag properties")
         tag_properties = onboarding_tags.to_sot(sot,
                                                 args,
                                                 device_fqdn,
@@ -244,9 +243,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # add device scope tags
         result = new_device.update({'tags': device_tags})
         if result:
-            logging.debug(f'adding device tags successfully')
+            logger.debug(f'adding device tags successfully')
         else:
-            logging.error(f'adding device tags failed')
+            logger.error(f'adding device tags failed')
 
         # add interface scope tags
         for interface_name in interface_tags:
@@ -254,14 +253,14 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                         name=interface_name)
             result = iface.update({'tags': interface_tags[interface_name]})
             if result:
-                logging.debug(f'adding interface tag successfully')
+                logger.debug(f'adding interface tag successfully')
             else:
-                logging.error(f'adding interface tag failed')
+                logger.error(f'adding interface tag failed')
 
     # # now the most import part: the config_context
     # # do your own business logic in the "businesslogic" subdir
     # if args.config_context or args.write_hldm or args.show_hldm:
-    #     logging.info("onboarding config context")
+    #     logger.info("onboarding config context")
     #     cc = onboarding_config_context.to_sot(sot,
     #                                           args,
     #                                           device_fqdn,
@@ -272,7 +271,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
 
     # # at last do a backup of the running config
     # if args.backup:
-    #     logging.info("onboarding backup")
+    #     logger.info("onboarding backup")
     #     onboarding_devices.backup_config(sot,
     #                                      device_fqdn,
     #                                      configparser.get_device_config(),
@@ -284,7 +283,7 @@ def get_primary_address(device_fqdn, interfaces, cisco_config):
         if cisco_config.get_ipaddress(iface) is not None:
             return cisco_config.get_ipaddress(iface)
         else:
-            logging.debug(f'no ip address on {iface} found')
+            logger.debug(f'no ip address on {iface} found')
 
     return None
 

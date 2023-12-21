@@ -1,6 +1,5 @@
 import re
 import yaml
-import logging
 import os
 import glob
 import json
@@ -28,7 +27,7 @@ def to_sot(sot, args, device_fqdn, device_defaults, device_facts, ciscoconf):
     return hldm
 
 def from_default_and_cli(sot, args, device_fqdn, device_defaults):
-    logging.debug(f'adding custom fields from default values and cli')
+    logger.debug(f'adding custom fields from default values and cli')
 
     response = []
 
@@ -49,7 +48,7 @@ def from_default_and_cli(sot, args, device_fqdn, device_defaults):
     return response
 
 def from_device_properties(device_fqdn, device_facts, host_or_ip, config):
-    logging.debug(f'adding device custom fields depending on hostname or ip')
+    logger.debug(f'adding device custom fields depending on hostname or ip')
     response = []
 
     if isinstance(host_or_ip, dict):
@@ -68,7 +67,7 @@ def from_device_properties(device_fqdn, device_facts, host_or_ip, config):
                 key = splits[0]
                 expression = splits[1]
                 if 're' == expression:
-                    logging.debug(f'regular expression {p_value} found')
+                    logger.debug(f'regular expression {p_value} found')
                     
 
     return response
@@ -76,28 +75,28 @@ def from_device_properties(device_fqdn, device_facts, host_or_ip, config):
 def read_file(filename, device_defaults, required):
     with open(filename) as f:
         config = {}
-        logging.debug("opening file %s to read custom field config" % filename)
+        logger.debug("opening file %s to read custom field config" % filename)
         try:
             config = yaml.safe_load(f.read())
             if config is None:
-                logging.error("could not parse file %s" % filename)
+                logger.error("could not parse file %s" % filename)
                 return None
         except Exception as exc:
-            logging.error("could not read file %s; got exception %s" % (filename, exc))
+            logger.error("could not read file %s; got exception %s" % (filename, exc))
             return None
         name = config.get('name')
         platform = config.get('platform')
 
         if not config.get('active'):
-            logging.debug("tags %s in %s is not active" % (name, filename))
+            logger.debug("tags %s in %s is not active" % (name, filename))
             return None
         if platform is not None:
             if platform != 'all' and platform != device_defaults.get("platform",''):
-                logging.debug("skipping custom field %s wrong platform %s" % (name, platform))
+                logger.debug("skipping custom field %s wrong platform %s" % (name, platform))
                 return None
         if required and not config.get('required', False):
             # this file contains required custom fields
-            logging.debug('this file is not required but required is set to True')
+            logger.debug('this file is not required but required is set to True')
             return None
 
         return config
@@ -129,7 +128,7 @@ def from_file(sot, args, device_fqdn, device_defaults, device_facts, ciscoconf, 
         elif 'device' in config['source']:
             cfields = from_device_properties(device_fqdn, device_facts, config['source']['device'], config)
         else:
-            logging.error("unknown source %s" % config['source'])
+            logger.error("unknown source %s" % config['source'])
             continue
 
         if required:
@@ -147,10 +146,10 @@ def parse_config(device_config, config):
         scope_of_cfield = cfield.get('scope', 'dcim.device')
         name_of_cfield = cfield.get('name')
         if pattern:
-            logging.debug(f'name: {name_of_cfield} scope: {scope_of_cfield} pattern: {pattern}')
+            logger.debug(f'name: {name_of_cfield} scope: {scope_of_cfield} pattern: {pattern}')
             compiled = re.compile(pattern)
         elif contains:
-            logging.debug(f'name: {name_of_cfield} scope: {scope_of_cfield} string: {contains}')
+            logger.debug(f'name: {name_of_cfield} scope: {scope_of_cfield} string: {contains}')
         interface = None
         for line in device_config:
             # check if we havew an interface that is needed with scope dcim.interface
@@ -159,7 +158,7 @@ def parse_config(device_config, config):
             if pattern:
                 match = compiled.match(line)
                 if match:
-                    logging.debug(f'pattern found on interface {interface}')
+                    logger.debug(f'pattern found on interface {interface}')
                     if scope_of_cfield == "dcim.interface" and interface is not None:
                         response.append({'name': name_of_cfield, 
                                          'scope': scope_of_cfield, 
@@ -169,7 +168,7 @@ def parse_config(device_config, config):
                                          'scope': scope_of_cfield, 
                                          'interface': interface})
             elif contains and contains in line:
-                logging.debug(f'string found on interface {interface}')
+                logger.debug(f'string found on interface {interface}')
                 if scope_of_cfield == "dcim.interface" and interface is not None:
                     response.append({'name': name_of_cfield, 
                                      'scope': scope_of_cfield, 
@@ -182,14 +181,14 @@ def parse_config(device_config, config):
     return response
 
 def add_custom_field_to_sot(sot, args, name_of_cfield, scope_of_cfield, device_fqdn, key):
-    logging.info(f'adding custom field {name_of_cfield} to {device_fqdn}')
+    logger.info(f'adding custom field {name_of_cfield} to {device_fqdn}')
     for scope in scope_of_cfield.split(","):
         if key is not None and scope == "dcim.interface":
             response = sot.device(device_fqdn).interface(key).add_custom_field(name_of_cfield)
             if response:
-                logging.info(f'custom fields added to interface')
+                logger.info(f'custom fields added to interface')
 
         if scope == "dcim.device":
             response = sot.device(device_fqdn).add_custom_field(name_of_cfield)
             if response:
-                logging.info(f'tags added to device')
+                logger.info(f'tags added to device')

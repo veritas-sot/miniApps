@@ -1,5 +1,4 @@
 import yaml
-import logging
 import os
 import glob
 from veritas.sot import sot as sot
@@ -13,25 +12,25 @@ def to_sot(sot, conn, device_facts, device_defaults, onboarding_config):
 
     for filename in glob.glob(os.path.join(directory, "*.yaml")):
         with open(filename) as f:
-            logging.debug("opening file %s to read facts config" % filename)
+            logger.debug("opening file %s to read facts config" % filename)
             try:
                 config = yaml.safe_load(f.read())
                 if config is None:
-                    logging.error("could not parse file %s" % filename)
+                    logger.error("could not parse file %s" % filename)
                     continue
             except Exception as exc:
-                logging.error("could not read file %s; got exception %s" % (filename, exc))
+                logger.error("could not read file %s; got exception %s" % (filename, exc))
                 continue
 
             active = config.get('active')
             name = config.get('name')
             if not active:
-                logging.debug("config context %s in %s is not active" % (name, filename))
+                logger.debug("config context %s in %s is not active" % (name, filename))
                 continue
 
             file_vendor = config.get("vendor")
             if file_vendor is None or file_vendor != device_defaults["manufacturer"]:
-                logging.debug("skipping file %s (%s)" % (filename, file_vendor))
+                logger.debug("skipping file %s (%s)" % (filename, file_vendor))
                 continue
 
             files.append(os.path.basename(filename))            
@@ -49,7 +48,7 @@ def to_sot(sot, conn, device_facts, device_defaults, onboarding_config):
                     "name": device_facts['fqdn'],
                     "config": connection
                 }
-                logging.info("sendnig request to add cable (%s - %s) to sot" % (value['LOCAL_PORT'], value['REMOTE_PORT']))
+                logger.info("sendnig request to add cable (%s - %s) to sot" % (value['LOCAL_PORT'], value['REMOTE_PORT']))
                 success = sot.device(device_facts['fqdn']) \
                             .interface(value['LOCAL_PORT']) \
                             .connection_to(device=value['DESTINATION_HOST'], interface=value['REMOTE_PORT'])
