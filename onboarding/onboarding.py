@@ -9,11 +9,13 @@ import json
 import logging
 import getpass
 import urllib3
+from loguru import logger
 from ipaddress import IPv4Network
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
 from veritas.sot import sot as sot
 from veritas.tools import tools
+from veritas.messagebus import messagebus
 from veritas.devicemanagement import devicemanagement as dm
 from onboarding import onboarding
 from onboarding import cables as cables
@@ -177,9 +179,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="onboarding config file")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # set the log level
     parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
-    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="onboarding log handler")
+    #parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
 
     # should we activate the polling of all devices from the sot to check if a device is present
     parser.add_argument('--polling', action='store_true', help="poll ALL devices from SOT to check if device is present")
@@ -225,39 +230,61 @@ if __name__ == "__main__":
     with open(config_file) as f:
         onboarding_config = yaml.safe_load(f.read())
 
-    logformat = onboarding_config.get('general',{}).get('logging',{}).get('format', "%(levelname)s - %(message)s")
-    if args.loglevel:
-        loglevel = tools.get_loglevel(args.loglevel)
+    loglevel = args.loglevel.upper() if args.loglevel \
+        else onboarding_config.get('general',{}).get('logging',{}).get('loglevel', 'info')
+    handler_txt = args.loghandler if args.loghandler \
+        else onboarding_config.get('general',{}).get('logging',{}).get('handler', 'sys.stdout')
+    
+    # evaluate handler
+    if handler_txt == 'sys.stdout' or handler_txt == 'stdout':
+        handler = sys.stdout
+    elif handler_txt == 'sys.stderr' or handler_txt == 'stderr':
+        handler = sys.stderr
     else:
-        loglevel = tools.get_loglevel(onboarding_config.get('general',{}).get('logging',{}).get('loglevel', 'info'))
-    if onboarding_config.get('general',{}).get('logging',{}).get('config'):
-        logging_config_file = "%s/%s" % (BASEDIR, onboarding_config.get('general',{}).get('logging',{}).get('config'))
-    else:
-        logging_config_file = None
-    loghandler = onboarding_config.get('general',{}).get('logging',{}).get('handler', 'stdout')
-    use_color = onboarding_config.get('general',{}).get('logging',{}).get('color', False)
-    logger = tools.get_logger(
-        configfile=logging_config_file,
-        logger='veritas',
-        handler=loghandler,
-        color=use_color,
-        loglevel=loglevel,
-        format=logformat)
+        handler = handler_txt
 
+    # enable logger
     if onboarding_config.get('general',{}).get('logging',{}).get('logtodatabase', False):
         database = onboarding_config.get('general',{}).get('logging',{}).get('database')
-        if database:
-            listener = tools.add_queue_listener(logger, database, logformat)
-            listener.start()
-        else:
-            logger.error(f'logging to database enabled but no database configured')
+    else:
+        database = None
+    if onboarding_config.get('general',{}).get('logging',{}).get('logtozeromq', False):
+        zeromq = onboarding_config.get('general',{}).get('logging',{}).get('zeromq')
+    else:
+        zeromq = None
+
+    # configure logger
+    if loglevel.upper() == "DEBUG":
+        host_dflt = "---"
+        logger_format = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+                "{extra[host]} | <level>{message}</level>"
+        )
+    else:
+        host_dflt = "host unset"
+        logger_format = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                "<level>{level: <8}</level> | "
+                "{extra[host]} | <level>{message}</level>"
+        )
+
+    logger.configure(extra={"host": host_dflt})
+    logger.remove()
+    logger.add(handler, level=loglevel, format=logger_format)
+    if database or zeromq:
+        logger.debug(f'enabling veritas messagebus db: {database != None} zeroMQ: {zeromq != None}')
+        logger.add(messagebus.Messagebus(database=database,
+                                        zeromq=zeromq,
+                                        app='onboarding'),
+                level=loglevel)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=onboarding_config['sot']['token'],
                   ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
                   url=onboarding_config['sot']['nautobot'],
-                  git=onboarding_config['git'],
-                  logger=logger)
+                  git=onboarding_config['git'])
 
     # get username and password either from profile or by get username / getpass or args
     username, password = tools.get_username_and_password(args, sot, onboarding_config)
@@ -402,6 +429,7 @@ if __name__ == "__main__":
         hostname = device_dict.get('name', host_or_ip).lower()
         # there is no space in a hostname!!!
         hostname = hostname.split(' ')[0]
+        logger = logger.bind(host=hostname)
         # write the hostname back
         device_dict['name'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
