@@ -1,9 +1,9 @@
-import logging
 import yaml
 import json
 import getpass
 import os
 import export
+from loguru import logger
 
 
 class Kobold(object):
@@ -21,7 +21,7 @@ class Kobold(object):
     
     def read_playbook_config(self, playbook):
         # load playbook
-        logging.debug(f'reading playbook {playbook}')
+        logger.debug(f'reading playbook {playbook}')
         with open(playbook) as f:
             try:
                 self._playbook = yaml.safe_load(f.read())
@@ -80,7 +80,7 @@ class Kobold(object):
         else:
             tags = configured_tags
         if scope is None or len(tags) == 0:
-            logging.error(f'scope and tags must be configured to set tags')
+            logger.error(f'scope and tags must be configured to set tags')
             return
         for device in device_list:
             hostname = device.get('hostname')
@@ -88,23 +88,23 @@ class Kobold(object):
                 for interface in device.get('interfaces', []):
                     interface_name = interface.get('name')
                     if 'add_tag' in task:
-                        logging.info(f'adding tag {tags} on {hostname}/{interface_name}')
+                        logger.info(f'adding tag {tags} on {hostname}/{interface_name}')
                         self._sot.device(hostname).interface(interface_name).add_tags(tags)
                     elif 'set_tag' in task:
-                        logging.info(f'setting tag {tags} on {hostname}/{interface_name}')
+                        logger.info(f'setting tag {tags} on {hostname}/{interface_name}')
                         self._sot.device(hostname).interface(interface_name).set_tags(tags)
                     elif 'delete_tag':
-                        logging.info(f'deleting tag {tags} on {hostname}/{interface_name}')
+                        logger.info(f'deleting tag {tags} on {hostname}/{interface_name}')
                         self._sot.device(hostname).interface(interface_name).delete_tags(tags)
             elif scope == "dcim.device":
                 if 'add_tag' in task:
-                    logging.info(f'add tag {tags} on {hostname}')
+                    logger.info(f'add tag {tags} on {hostname}')
                     self._sot.device(hostname).add_tags(tags)
                 elif 'set_tag' in task:
-                    logging.info(f'setting tag {tags} on {hostname}')
+                    logger.info(f'setting tag {tags} on {hostname}')
                     self._sot.device(hostname).set_tags(tags)
                 elif 'delete_tag' in task:
-                    logging.info(f'deleting tag {tags} on {hostname}')
+                    logger.info(f'deleting tag {tags} on {hostname}')
                     self._sot.device(hostname).delete_tags(tags)
 
     def custom_field(self, task, device_list):
@@ -119,42 +119,42 @@ class Kobold(object):
                 scope = prop.get('scope')
                 del prop['scope']
                 if scope == "dcim.device":
-                    logging.info(f'setting custom field {prop} on {hostname}')
+                    logger.info(f'setting custom field {prop} on {hostname}')
                     device_scope.update(prop)
                 elif scope == "dcim.interface":
                     for interface in device.get('interfaces', []):
                         interface_name = interface.get('name')
-                        logging.info(f'setting custom field {prop} on {hostname}/{interface_name}')
+                        logger.info(f'setting custom field {prop} on {hostname}/{interface_name}')
                         if interface_name not in interface_scope:
                             interface_scope[interface_name] = {}
                         interface_scope[interface_name].update(prop)
 
-            logging.debug(f'adding device scope custom fields to {hostname}')
+            logger.debug(f'adding device scope custom fields to {hostname}')
             if len(device_scope) > 0:
                 success = self._sot.device(hostname).set_customfield({'custom_fields': device_scope})
                 if success:
-                    logging.info(f'device custom field updated on {hostname}')
+                    logger.info(f'device custom field updated on {hostname}')
                 else:
-                    logging.error(f'could not set custom field on {hostname}')
+                    logger.error(f'could not set custom field on {hostname}')
 
             for interface in interface_scope:
-                logging.debug(f'adding interface scope custom fields to {hostname}/{interface}')
+                logger.debug(f'adding interface scope custom fields to {hostname}/{interface}')
                 success = self._sot.device(hostname) \
                               .interface(interface) \
                               .set_customfield({'custom_fields': interface_scope[interface]})
                 if not success:
-                    logging.error(f'could not set custom field on {hostname}/{interface}')
+                    logger.error(f'could not set custom field on {hostname}/{interface}')
 
     def update_device(self, task, device_list):
         for device in device_list:
             hostname = device.get('hostname', device.get('name'))
             properties = task.get('update_device')
-            logging.debug(f'updating {hostname}')
+            logger.debug(f'updating {hostname}')
             success = self._sot.device(hostname).update(properties)
             if success:
-                logging.info(f'updated {hostname} successfully')
+                logger.info(f'updated {hostname} successfully')
             else:
-                logging.info(f'could not update {hostname}')
+                logger.info(f'could not update {hostname}')
 
     def update_interface(self, task, device_list):
         for device in device_list:
@@ -162,36 +162,36 @@ class Kobold(object):
             properties = task.get('update_interface',{})
             for interface in device.get('interfaces', []):
                 interface_name = interface.get('name')
-                logging.debug(f'updating {hostname}/{interface_name}')
+                logger.debug(f'updating {hostname}/{interface_name}')
                 success = self._sot.device(hostname) \
                                    .interface(interface_name) \
                                    .update(properties)
                 if success:
-                    logging.info(f'updated {hostname}/{interface_name} successfully')
+                    logger.info(f'updated {hostname}/{interface_name} successfully')
                 else:
-                    logging.info(f'could not update {hostname}/{interface_name}')
+                    logger.info(f'could not update {hostname}/{interface_name}')
 
     # the main RUN command
 
     def run(self, job_id):
         job = self._jobs.get(job_id)
         if not job:
-            logging.error(f'unknown job {job_id}')
+            logger.error(f'unknown job {job_id}')
             return False
 
         name = job.get('job')
         description = job.get('description','no description')
-        logging.info(f'starting job {name} / {description}')
+        logger.info(f'starting job {name} / {description}')
 
         if 'sql' in job.get('devices',{}):
             sql = job.get('devices').get('sql')
             device_list = self._sot.select(sql.get('select')) \
                                    .using(sql.get('from'), sql.get('using')) \
                                    .where(sql.get('where'))
-            logging.debug(f'got {len(device_list)} devices')
+            logger.debug(f'got {len(device_list)} devices')
         tasks = job.get('tasks')
         if tasks is None:
-            logging.error(f'no task configured!!!')
+            logger.error(f'no task configured!!!')
             return False
 
         for task in tasks:

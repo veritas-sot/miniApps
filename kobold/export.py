@@ -1,10 +1,10 @@
-import logging
 import os
 import json
 import csv
 import xlsxwriter
 import re
 import os
+from loguru import logger
 from slugify import slugify
 from veritas.devicemanagement import devicemanagement as dm
 from veritas.tools import tools
@@ -36,7 +36,7 @@ def get_number_of_rows(raw_data):
                 # we have multiple lists and the number of rows
                 # differ. In this case we are not able to export the data
                 if rows != len(values):
-                    logging.error(f'the number of rows differ for the results')
+                    logger.error(f'the number of rows differ for the results')
                     return None
     return rows
 
@@ -58,7 +58,7 @@ def get_device_config_and_facts(kobold, sot, device_properties):
     # get username and password
     username, password = kobold.get_username_and_password()
 
-    logging.info(f'ssh to {username}@{device_ip}:{kobold.get_tcp_port()} on platform {platform}')
+    logger.info(f'ssh to {username}@{device_ip}:{kobold.get_tcp_port()} on platform {platform}')
     conn = dm.Devicemanagement(ip=device_ip,
                                platform=platform,
                                manufacturer=manufacturer.lower(),
@@ -68,24 +68,24 @@ def get_device_config_and_facts(kobold, sot, device_properties):
                                scrapli_loglevel=kobold.get_scrapli_loglevel())
 
     # retrieve facts like fqdn, model and serialnumber
-    logging.debug(f'now gathering facts from {device_ip}')
+    logger.debug(f'now gathering facts from {device_ip}')
     device_facts = conn.get_facts()
     if device_facts is None:
-        logging.error('got no facts; skipping device')
+        logger.error('got no facts; skipping device')
         if conn:
             conn.close()
         return None, None
     device_facts['args.device'] = device_ip
 
     # retrieve device config
-    logging.info("getting running-config")
+    logger.info("getting running-config")
     try:
         device_config = conn.get_config("running-config")
     except Exception as exc:
-        logging.error("could not receive device config from %s; got exception %s" % (device_ip, exc))
+        logger.error("could not receive device config from %s; got exception %s" % (device_ip, exc))
         return None, None
     if device_config is None:
-        logging.error(f'could not retrieve device config from {device_ip}')
+        logger.error(f'could not retrieve device config from {device_ip}')
         conn.close()
         return None, None
     conn.close()
@@ -109,7 +109,7 @@ def get_device_data_to_export(kobold, sot, task, devices):
     for device_properties in devices:
         device_id = device_properties.get('id')
         hostname = device_properties.get('hostname')
-        logging.debug(f'getting data of {hostname}')
+        logger.debug(f'getting data of {hostname}')
         device_data = {}
         cf_fields = ""
 
@@ -124,7 +124,7 @@ def get_device_data_to_export(kobold, sot, task, devices):
             else:
                 values.add(column)
         parameter = {'name': hostname}
-        logging.debug(f'values {list(values)} parameter {parameter}')
+        logger.debug(f'values {list(values)} parameter {parameter}')
         raw_data = sot.get.query(values=list(values),
                                  parameter=parameter)
 
@@ -153,7 +153,7 @@ def get_device_data_to_export(kobold, sot, task, devices):
             continue
         if number_of_rows == -1:
             number_of_rows = 1
-        logging.debug(f'the table has {number_of_rows} rows and {len(columns)} columns')
+        logger.debug(f'the table has {number_of_rows} rows and {len(columns)} columns')
         # add header first of user wants it
         if 'header' in task and not header_written:
             header_written = True
@@ -186,7 +186,7 @@ def get_device_data_to_export(kobold, sot, task, devices):
     return data_to_export
 
 def export_as_csv(task, data_to_export):
-    logging.info(f'exporting {len(data_to_export)} entries as CSV')
+    logger.info(f'exporting {len(data_to_export)} entries as CSV')
     delimiter = task.get('delimiter',',')
     quotechar = task.get('quotechar','|')
     quoting_cf = task.get('quoting', 'minimal')
@@ -206,7 +206,7 @@ def export_as_csv(task, data_to_export):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    logging.info(f'exporting data to {filename}')
+    logger.info(f'exporting data to {filename}')
 
     # now write our csv file
     with open(filename, 'w', newline='') as csvfile:
@@ -221,7 +221,7 @@ def export_as_excel(task, data_to_export):
     number_of_cols = 0
     filename = task.get('filename','export.xlsx')
     
-    logging.info(f'exporting data as EXCEL to {filename}')
+    logger.info(f'exporting data as EXCEL to {filename}')
 
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
@@ -255,7 +255,7 @@ def export_device_properties(kobold, sot, task, devices):
 def export_config_and_facts(kobold, sot, task, device_properties):
 
     hostname = device_properties.get('hostname')
-    logging.debug(f'getting config and facts from {hostname}')
+    logger.debug(f'getting config and facts from {hostname}')
     device_config, device_facts = get_device_config_and_facts(kobold, sot, device_properties)
     content = task.get('content')
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
@@ -267,15 +267,15 @@ def export_config_and_facts(kobold, sot, task, device_properties):
             hostname)
         subdir = os.path.dirname(filename)
         if not os.path.exists(subdir):
-                logging.info(f'creating missing directory {subdir}')
+                logger.info(f'creating missing directory {subdir}')
                 os.makedirs(subdir)
 
-        logging.info(f'writing config to {filename}')
+        logger.info(f'writing config to {filename}')
         try:
             with open(filename, 'w') as f:
                 f.write(device_config)
         except Exception as exc:
-            logging.error(f'could not write config; got exception {exc}')
+            logger.error(f'could not write config; got exception {exc}')
 
     if 'facts' in content:
         hostname = device_properties.get('hostname')
@@ -285,15 +285,15 @@ def export_config_and_facts(kobold, sot, task, device_properties):
             hostname)
         subdir = os.path.dirname(filename)
         if not os.path.exists(subdir):
-                logging.info(f'creating missing directory {subdir}')
+                logger.info(f'creating missing directory {subdir}')
                 os.makedirs(subdir)
 
-        logging.info(f'writing facts to {filename}')
+        logger.info(f'writing facts to {filename}')
         try:
             with open(filename, 'w') as f:
                 f.write(json.dumps(device_facts,indent=4))
         except Exception as exc:
-            logging.error(f'could not write facts; got exception {exc}')
+            logger.error(f'could not write facts; got exception {exc}')
 
 def get_val(p, data):
     key = p.replace('__','')
@@ -315,7 +315,7 @@ def pattern_to_filename(path, data):
     prefix = ""
     indexes = []
 
-    logging.debug(f'pattern_to_filename {path}')
+    logger.debug(f'pattern_to_filename {path}')
 
     # check if pattern has any dynamic values
     if '__' not in path:
@@ -351,27 +351,27 @@ def pattern_to_filename(path, data):
     for i in indexes:
         start = i.get('start')
         end = i.get('end')
-        # logging.debug(f'start {start} end {end}')
+        # logger.debug(f'start {start} end {end}')
         if last_index == 0 and start > last_index:
             value = path[last_index:start]
             prefix = "%s%s" % (prefix, value)
-            # logging.debug(f'static value detected at {last_index} / {start} value {value}')
+            # logger.debug(f'static value detected at {last_index} / {start} value {value}')
         elif start - last_index == 1:
             value = path[last_index:last_index+1]
             prefix = "%s%s" % (prefix, value)
-            # logging.debug(f'static value detected at {last_index} value {value}')
+            # logger.debug(f'static value detected at {last_index} value {value}')
 
         key = path[start:end]
         value = get_val(key, data)
         prefix = "%s%s" % (prefix, value)
-        # logging.debug(f'dynamic value detected at {start} / {end} value {value}')
+        # logger.debug(f'dynamic value detected at {start} / {end} value {value}')
 
         last_index = end
 
     if last_index != len(path):
         value = path[last_index:]
         prefix = "%s%s" % (prefix, value)
-        # logging.debug(f'static value at the end detected {last_index} value: {value}')
+        # logger.debug(f'static value at the end detected {last_index} value: {value}')
 
     return prefix
 
@@ -382,20 +382,20 @@ def export_hldm(kobold, sot, task, devices):
 
     for device in devices:
         hostname = device.get('hostname')
-        logging.debug(f'exporting HLDM of {hostname}')
+        logger.debug(f'exporting HLDM of {hostname}')
         hldm = sot.get.hldm(device=hostname)[0]
         subdir = pattern_to_filename(subdir_pattern, hldm)
         filename = pattern_to_filename(filename_pattern, hldm)
 
-        logging.debug(f'writing HLDM to subdir {subdir} filename {filename}')
+        logger.debug(f'writing HLDM to subdir {subdir} filename {filename}')
         if not os.path.exists(subdir):
-                logging.info(f'creating missing directory {subdir}')
+                logger.info(f'creating missing directory {subdir}')
                 os.makedirs(subdir)
         with open(f'{subdir}/{filename}', "w") as f:
             f.write(json.dumps(hldm, indent=4))
 
 def export(kobold, sot, tasks, devices):
-    logging.info(f'exporting {tasks}')
+    logger.info(f'exporting {tasks}')
     device_config = device_facts = None
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
     conn = None
