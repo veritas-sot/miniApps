@@ -180,3 +180,4 @@ onboarding/inventory.xlsx
 *.xlsx
 transformer/transformer.yaml
 scan_prefixes/scan_prefixes.yaml
+onboarding/conf/onboarding.yaml
