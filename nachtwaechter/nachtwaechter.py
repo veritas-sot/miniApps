@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import sys
 import getpass
@@ -9,6 +8,7 @@ import time
 import asyncio
 import netwalk
 import yaml
+from loguru import logger
 from dotenv import load_dotenv, dotenv_values
 from veritas.sot import sot
 from veritas.tools import tools
@@ -65,8 +65,12 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False)
     # dir to write collected data to
     parser.add_argument('--output', type=str, required=False)
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     args = parser.parse_args()
 
     # check parameter
@@ -99,8 +103,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         nachtwaechter_config = yaml.safe_load(f.read())
 
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, nachtwaechter_config)
+    # create logger environment
+    tools.create_logger_environment(nachtwaechter_config, args.loglevel, args.loghandler)
 
     # we just need the tools
     sot = sot.Sot(token="", url="", git="")

@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 
 import getpass
-import logging
 import argparse
 import os
+from loguru import logger
 from dotenv import load_dotenv, dotenv_values
 from veritas.sot import sot
-
-log_format = '%(asctime)s %(levelname)s:%(message)s'
-logging.basicConfig(level=logging.DEBUG, format=log_format)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--set-salt', action='store_true')

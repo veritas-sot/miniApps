@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import urllib3
 import yaml
+from loguru import logger
 from veritas.tools import tools
 from veritas.checkmk import checkmk
 from veritas.sot import sot as sot
@@ -44,7 +44,7 @@ def add_config_to_checkmk(checkmk_config, config, url, title):
 
     for item in config:
         title = item.get('value_raw', title)
-        logging.debug(f'adding {title}')
+        logger.debug(f'adding {title}')
         success = cmk.add_config(item, url)
         if success:
             print(f'added config {title} successfully')
@@ -105,7 +105,6 @@ def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
                           host_tag_groups, 
                           '/domain-types/host_tag_group/collections/all', 'host tag groups')   
 
-
 if __name__ == "__main__":
 
     # to disable warning if TLS warning is written to console
@@ -117,8 +116,11 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False, help="check_mk config file")
     # what devices
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="check_mk loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # what to do
     parser.add_argument('--add-host-tag-groups', action='store_true', help='Add host tag groups')
     parser.add_argument('--add-host-groups', action='store_true', help='Add host groups')
@@ -138,17 +140,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         check_mk_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(check_mk_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=check_mk_config['sot']['token'],

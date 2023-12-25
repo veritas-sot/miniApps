@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import yaml
 import os
 import json
 import urllib3
 import xlsxwriter
+from loguru import logger
 from veritas.sot import sot
 from veritas.tools import tools
 
@@ -28,6 +28,11 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="set_snmp config file")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     parser.add_argument('--filename', type=str, required=True, help="input file")
     parser.add_argument('--out', type=str, required=False, help="output file")
     parser.add_argument('--format', type=str, required=False, help="format (text, csv, excel)")
@@ -45,17 +50,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         check_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(check_config, ['set_snmp', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(check_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=check_config['sot']['token'], 
@@ -76,7 +72,7 @@ if __name__ == "__main__":
         hostname = hostname.split(' ')[0]
         id = sot.get.device(hostname)
         if not id:
-            logging.info(f'{hostname} not found')
+            logger.info(f'{hostname} not found')
             number_of_missing_devices += 1
             row = []
             for d in device:
@@ -107,7 +103,7 @@ if __name__ == "__main__":
                                                  table_start_row,
                                                  chr(table_start_col + len(header_data) - 1),
                                                  table_start_row + (len(missing) ))
-            logging.debug(f'table_coordinations={table_coordinations}')
+            logger.debug(f'table_coordinations={table_coordinations}')
             for c in header_data:
                 header.append({'header': c})
             worksheet.add_table(table_coordinations, {'data': missing, 

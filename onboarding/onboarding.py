@@ -6,14 +6,13 @@ import yaml
 import socket
 import os
 import json
-import logging
 import getpass
 import urllib3
 from loguru import logger
 from ipaddress import IPv4Network
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
-from veritas.sot import sot as sot
+from veritas.sot import sot
 from veritas.tools import tools
 from veritas.messagebus import messagebus
 from veritas.devicemanagement import devicemanagement as dm
@@ -179,11 +178,11 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="used config file")
-    # uuid is written to the database logger
-    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
-    # set the log level
+    # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     #parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
 
     # should we activate the polling of all devices from the sot to check if a device is present
@@ -230,21 +229,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         onboarding_config = yaml.safe_load(f.read())
 
-    # configure logger environment
-    database, zeromq, loglevel, loghandler, logger_format = tools.get_logger_environment(
-        onboarding_config,
-        args.loglevel,
-        args.loghandler)
-
-    logger.configure(extra={"extra": "unset"})
-    logger.remove()
-    logger.add(loghandler, level=loglevel, format=logger_format)
-    if database or zeromq:
-        logger.debug(f'enabling veritas messagebus db: {database != None} zeroMQ: {zeromq != None}')
-        logger.add(messagebus.Messagebus(database=database,
-                                         zeromq=zeromq,
-                                         app='onboarding'),
-                level=loglevel)
+    # create logger environment
+    tools.create_logger_environment(onboarding_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=onboarding_config['sot']['token'],
@@ -354,6 +340,10 @@ if __name__ == "__main__":
                     if isinstance(value, str) and value.lower() == 'false':
                         value = False
                     d[key] = value
+                # todo: check if ilter works
+                if args.filter:
+                    if args.filter.lower() not in d['name'].lower():
+                        continue
                 devicelist.append(d)
         elif '.csv' in args.inventory:
             with open(args.inventory) as f:
@@ -383,7 +373,7 @@ if __name__ == "__main__":
     #
     # This is the main LOOP of this script
     #
-    logger.info(f'processing {len(devicelist)} devices')
+    logger.info(f'processing {len(devicelist)} device(s)')
     for device_dict in devicelist:
         devices_processed += 1
         in_sot = False
@@ -399,7 +389,7 @@ if __name__ == "__main__":
         # write the hostname back
         device_dict['name'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
-        logger.info(f'processing host_or_ip: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
+        logger.info(f'processing host: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
 
         # we first check if the file exists (and the user wants to export the config/facts)
         # this makes the export faster
@@ -424,7 +414,7 @@ if __name__ == "__main__":
             # check if device is already in sot
             if args.polling:
                 in_sot = device_ip in device_ip_in_sot or hostname in device_names_in_sot
-                logger.debug(f'polling set; device {hostname}; in_sot={in_sot}')
+                logger.debug(f'polling set; in_sot={in_sot}')
             else:
                 # we have two cases; we have the name of the device (simple)
                 # or just the IP address (use graphql to get device)
@@ -435,7 +425,7 @@ if __name__ == "__main__":
                 else:
                     device_in_nb = sot.get.device(name=hostname)
                 in_sot = True if device_in_nb else False
-                logger.debug(f'polling not set; device {hostname}; in_sot={in_sot}')
+                logger.debug(f'polling not set; in_sot={in_sot}')
 
             if in_sot and not args.update:
                 logger.info(f'device {hostname} is already in sot and update is not active')

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import json
 import getpass
 import sys
+from loguru import logger
 from datetime import datetime
 from veritas.sot import sot as sot
 from veritas.sot import repository
@@ -72,8 +72,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="set_snmp config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="configure loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     # what devices
     parser.add_argument('--devices', type=str, required=True, help="query to get list of devices")
     parser.add_argument('--backup-dir', type=str, required=False, help="backup dir")
@@ -98,8 +102,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_config_file = yaml.safe_load(f.read())
 
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, local_config_file)
+    # create logger environment
+    tools.create_logger_environment(local_config_file, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
@@ -116,7 +120,7 @@ if __name__ == "__main__":
         subdir = local_config_file.get('git',{}).get('backups',{}).get('subdir','')
         backup_dir = f'{path_to_repo}/{subdir}'
     if not os.path.exists(backup_dir):
-        logging.error(f'backup directory {backup_dir} does not exsists')
+        logger.error(f'backup directory {backup_dir} does not exsists')
         sys.exit()
     
     # init nornir
@@ -138,19 +142,19 @@ if __name__ == "__main__":
 
     # check that the origin matches
     if repo.remotes.origin.url != remote:
-        logging.error(f'configured origin does not match')
-        logging.error(f'{repo.remotes.origin.url} (configured)')
-        logging.error(f'{remote} (should be)')
+        logger.error(f'configured origin does not match')
+        logger.error(f'{repo.remotes.origin.url} (configured)')
+        logger.error(f'{remote} (should be)')
         sys.exit()
 
-    logging.info(f'using origin url {remote}')
+    logger.info(f'using origin url {remote}')
     has_changes = repo.has_changes()
     if not has_changes:
-        logging.info(f'no changes in our git repo detected')
+        logger.info(f'no changes in our git repo detected')
         sys.exit()
     untracked = repo.get_untracked_files()
-    logging.info(f'list of untracked files')
-    logging.info(untracked)
+    logger.info(f'list of untracked files')
+    logger.info(untracked)
 
     repo.add_all()
     now = datetime.now()

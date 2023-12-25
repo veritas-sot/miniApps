@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import glob
 import difflib
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -16,8 +16,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="set_snmp config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="configure loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     # what devices
     parser.add_argument('--devices', type=str, required=True, help="query to get list of devices")
     parser.add_argument('--backup-dir', type=str, required=False, help="backup dir")
@@ -32,8 +36,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_config_file = yaml.safe_load(f.read())
 
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, local_config_file)
+    # create logger environment
+    tools.create_logger_environment(local_config_file, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
@@ -50,7 +54,7 @@ if __name__ == "__main__":
         directory = f'{backup_dir}/{hostname}'
         for running_filename in glob.glob(os.path.join(directory, "*running.cfg")):
             startup_filename = running_filename.replace('running', 'startup')
-            logging.debug(f'comparing {running_filename} with {startup_filename}')
+            logger.debug(f'comparing {running_filename} with {startup_filename}')
 
             #diff = difflib.HtmlDiff().make_table(startup_cfg, running_cfg)
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import json
 import yaml
 import tabulate
 import urllib3
 import ipaddress
+from loguru import logger
 from veritas.tools import tools
 from veritas.sot import sot as sot
 from veritas.checkmk import checkmk
@@ -44,9 +44,9 @@ def add_new_hosts(args, sot, checkmk_config):
                                                           checkmk_config)
             sot_dev_config.update({'hostname': sot_device_name})
             if not sot_dev_config.get('ip'):
-                logging.info(f'device {sot_device_name} has no primary IP configured; ignoring host')
+                logger.info(f'device {sot_device_name} has no primary IP configured; ignoring host')
             else:
-                logging.info(f'device {sot_device_name} not found in cmk')
+                logger.info(f'device {sot_device_name} not found in cmk')
                 nn_of_devices_to_be_added += 1
                 devices_to_be_added.append(sot_dev_config)
     
@@ -56,7 +56,7 @@ def add_new_hosts(args, sot, checkmk_config):
             print(d)
     else:
         result = []
-        logging.debug(f'updating folders...')
+        logger.debug(f'updating folders...')
         cmk.update_folders(devices_to_be_added, 
                           checkmk_config.get('folders',{}).get('config',[]))
         # prepare device list
@@ -94,7 +94,7 @@ def remove_hosts(args, sot, checkmk_config):
         # check if device is in cmk
         hostname = device_properties.get('host_name')
         if not any(d['hostname'] == hostname for d in all_sot_devices):
-            logging.debug(f'{hostname} found in cmk but not in sot; removing it')
+            logger.debug(f'{hostname} found in cmk but not in sot; removing it')
             nn_of_devices_to_be_removed += 1
             devices_to_be_renmoved.append(hostname)
     
@@ -128,7 +128,7 @@ def update_hosts(args, sot, checkmk_config):
         
         # check if device is in cmk
         if len(device_cmk_properties) == 0:
-            logging.info(f'device {sot_device_name} not found in cmk')
+            logger.info(f'device {sot_device_name} not found in cmk')
             nn_of_new_hosts += 1
             continue
 
@@ -253,12 +253,12 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
     elif len(sot_dev_config.get('snmp',{})) > 0 and len(cmk_dev_config.get('snmp',{})) > 0:
         # sot and cmk have snmp config => compare snmp keys
         for key, value in cmk_dev_config['snmp'].items():
-            #logging.debug(f'key: {key} value: {value}')
+            #logger.debug(f'key: {key} value: {value}')
             if key not in sot_dev_config['snmp']:
-                logging.debug(f'key {key} not found in cmk config')
+                logger.debug(f'key {key} not found in cmk config')
                 snmp_equals = False
             elif key in sot_dev_config['snmp'] and value != sot_dev_config['snmp'].get(key):
-                logging.debug(f'key {key} differs in cmk config {value} vs. {sot_dev_config["snmp"].get(key)}')
+                logger.debug(f'key {key} differs in cmk config {value} vs. {sot_dev_config["snmp"].get(key)}')
                 snmp_equals = False
     elif len(sot_dev_config.get('snmp',{})) == 0 and len(cmk_dev_config.get('snmp',{})) > 0:
         # remove snmp config
@@ -270,7 +270,7 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
     if not snmp_equals:
         if not attributes:
             attributes = {}
-        logging.debug(f'update snmp config')
+        logger.debug(f'update snmp config')
         attributes.update({'snmp_community' : sot_dev_config['snmp']})
         attributes.update({'tag_agent': 'no-agent'})
         attributes.update({'tag_snmp_ds': 'snmp-v2'})
@@ -279,7 +279,7 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
     # check if we have to add/update some host tag groups
     for key, value in sot_dev_config['htg'].items():
         if key in cmk_dev_config['htg'] and cmk_dev_config['htg'][key] == value:
-            logging.debug(f'tag {key} matches')
+            logger.debug(f'tag {key} matches')
         else:
             if not attributes:
                 attributes = {}
@@ -368,12 +368,12 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
         # open repo
         repo = sot.repository(repo=name_of_repo, path=path_to_repo)
         # get SNMP credentials from SOT
-        logging.debug(f'loading SNMP credentials from REPO {name_of_repo} FILE {subdir}/{filename}')
+        logger.debug(f'loading SNMP credentials from REPO {name_of_repo} FILE {subdir}/{filename}')
         snmp_credentials_text = repo.get(f'{subdir}/{filename}')
         snmp_credentials = yaml.safe_load(snmp_credentials_text).get('snmp',[])
 
     if snmp_id == 'unknown':
-        logging.debug(f'this host has "unknown" SNMP-credentials')
+        logger.debug(f'this host has "unknown" SNMP-credentials')
         return {}
 
     for cred in snmp_credentials:
@@ -383,7 +383,7 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
             # group is not needed by checkmk
             if 'security_group' in snmp:
                 del snmp['security_group']
-            logging.debug(f'found SNMP credentials id:{snmp_id}')
+            logger.debug(f'found SNMP credentials id:{snmp_id}')
             snmp_version = cred.get('version')
             if snmp_version == '1' or snmp_version == '2c':
                 snmp['type'] = "v1_v2_community"
@@ -394,7 +394,7 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
                 # rename value of auth_protocol
                 # HMAC-SHA1-96 => SHA-1-96
                 if 'privacy_protocol' in snmp and '256' in snmp['privacy_protocol']:
-                    #logging.debug(f'checkmk does not support AES-256')
+                    #logger.debug(f'checkmk does not support AES-256')
                     return {}
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('HMAC-','')
                 snmp['auth_protocol'] = snmp['auth_protocol'].replace('SHA1','SHA-1')
@@ -403,7 +403,7 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
                 del snmp['version']
 
     if len(snmp) == 0:
-        logging.debug(f'found no SNMP-Credentials for host')
+        logger.debug(f'found no SNMP-Credentials for host')
 
     return snmp
 
@@ -425,12 +425,12 @@ def get_folder_name(properties, folder_config):
     fldrs = folder_config.get('template')
     if 'checkmk_folder' in sot_cf_list and len(sot_cf_list['checkmk_folder']) > 0:
         # if the custom field checkmk_folder is set in our SOT we use this field
-        logging.debug(f'folder of {hostname}: {sot_cf_list["checkmk_folder"]}')
+        logger.debug(f'folder of {hostname}: {sot_cf_list["checkmk_folder"]}')
         return sot_cf_list["checkmk_folder"]
     elif '~' in fldrs:
         folders = fldrs.split('~')
     else:
-        logging.debug(f'folder of {hostname}: {fldrs}')
+        logger.debug(f'folder of {hostname}: {fldrs}')
         return fldrs
 
     folder = []
@@ -443,7 +443,7 @@ def get_folder_name(properties, folder_config):
             if key == 'custom_field':
                 fldr = sot_cf_list.get(value.replace('cf_',''))
                 if fldr is None:
-                    logging.error(f'custom field {value} not found in custom_field_data, using default')
+                    logger.error(f'custom field {value} not found in custom_field_data, using default')
                     fldr = default
             if key == 'property':
                 vls = value.split('__')
@@ -455,7 +455,7 @@ def get_folder_name(properties, folder_config):
                     p_ip = properties.get('primary_ip4',{})
                     ip = p_ip.get('address') if p_ip else None
                     if ip is None:
-                        logging.error(f'{hostname} has no primary IP!!!')
+                        logger.error(f'{hostname} has no primary IP!!!')
                         fldr = default
                     else:
                         if ipaddress.ip_address(ip.split('/')[0]) in ipaddress.ip_network(net):
@@ -468,7 +468,7 @@ def get_folder_name(properties, folder_config):
                             continue
                         ip = None if not properties['primary_ip4'] else properties.get('primary_ip4',{}).get('address')
                         if ip is None:
-                            logging.error(f'{hostname} has no primary IP!!!')
+                            logger.error(f'{hostname} has no primary IP!!!')
                             fldr = default
                         else:
                             if ipaddress.ip_address(ip.split('/')[0]) in ipaddress.ip_network(net):
@@ -510,7 +510,7 @@ def get_folder_name(properties, folder_config):
                 fldr = str(fldr)
             folder.append(fldr)
 
-    logging.debug(f'folder of {hostname}: {folder}')
+    logger.debug(f'folder of {hostname}: {folder}')
     return "~" + '~'.join(folder)
 
 def get_value(values, keys):
@@ -537,8 +537,11 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False, help="check_mk config file")
     # what devices
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="check_mk loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # sync
     parser.add_argument('--update-hosts', action='store_true', help='Update all hosts in checkmk')
     parser.add_argument('--add-hosts', action='store_true', help='Add missing devices to checkmk')
@@ -558,17 +561,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         check_mk_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(check_mk_config, ['check_mk', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(check_mk_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=check_mk_config['sot']['token'],

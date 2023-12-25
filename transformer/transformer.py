@@ -2,13 +2,13 @@
 
 import asyncio
 import argparse
-import logging
 import json
 import yaml
 import urllib3
 import sys
 import jinja2
 import re
+from loguru import logger
 from veritas.tools import tools
 from veritas.sot import sot as sot
 
@@ -38,8 +38,11 @@ if __name__ == "__main__":
     # other paraneter
     parser.add_argument('--dry-run', action='store_true', required=False, help='print output but do no modification')
     parser.add_argument('--use-parent', action='store_true', required=False, help='use parent value')
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="transformer loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # parse arguments
     args = parser.parse_args()
 
@@ -47,17 +50,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         transformer_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(transformer_config, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(transformer_config, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(transformer_config, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+    # create logger environment
+    tools.create_logger_environment(transformer_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     select = f'id,{args.parameter.split("__")[0]}'
@@ -89,7 +83,7 @@ if __name__ == "__main__":
         elif args.mapping:
             if 'static' in mapping['mapping']:
                 for key,value in mapping['mapping']['static'].items():
-                    logging.debug(f'key: {key} value: {value}')
+                    logger.debug(f'key: {key} value: {value}')
                     if old_value == key:
                         new_value = value
             elif 'regex' in mapping['mapping']:
@@ -101,7 +95,7 @@ if __name__ == "__main__":
                         for k,v in value.items():
                             for group, group_val in match.groupdict().items():
                                 if v == f'__{group}__':
-                                    logging.debug(f'replacing {group} by {group_val}')
+                                    logger.debug(f'replacing {group} by {group_val}')
                                     new_value[k] = group_val
         elif args.template:
             # read template
@@ -111,7 +105,7 @@ if __name__ == "__main__":
             try:
                 new_value = j2.render({'values': device})
             except Exception as exc:
-                logging.error("could not render template; got exception: %s" % exc)
+                logger.error("could not render template; got exception: %s" % exc)
                 continue
 
         # check if new_value is NOT none
@@ -134,11 +128,11 @@ if __name__ == "__main__":
                 print(f'[dry run] device: {nb_device.display} parameter: {args.parameter} ' \
                       f'old: {old_value} new: {new_value}')
             else:
-                logging.debug(update)
+                logger.debug(update)
                 success = nb_device.update(update)
                 if success:
-                    logging.info(f'updated {nb_device.display} parameter: {args.parameter} ' \
+                    logger.info(f'updated {nb_device.display} parameter: {args.parameter} ' \
                         f'old: {old_value} new: {new_value}')
                 else:
-                    logging.error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
+                    logger.error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
                         f'old: {old_value} new: {new_value}')

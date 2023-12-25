@@ -3,6 +3,21 @@ sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
   ssl_verify: false
+general:
+  logging:
+    loglevel: info
+    logtodatabase: false
+    logtozeromq: false
+    database:
+      host: __database_host__
+      database: __database_datbase__
+      user: __database_username__
+      password: __database_password__
+      port: __database_port__
+    zeromq:
+      protocol: __zeromq_protocol__
+      host: __zeromq_host__
+      port: __zeromq_port__
 credentials:
   snmp: 
     repo: __SNMP_REPO__

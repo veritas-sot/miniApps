@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import json
 import yaml
 import ipaddress
@@ -9,6 +8,7 @@ import re
 import threading
 import urllib3
 import sys
+from loguru import logger
 from queue import Queue, Full, Empty
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -71,17 +71,17 @@ class Worker(threading.Thread):
             return False
 
         if errorIndication:
-            logging.error(f'({self.thread_number}) {errorIndication}')
+            logger.error(f'({self.thread_number}) {errorIndication}')
             return False
         elif errorStatus:
-            logging.error('(%s) %s at %s' % (self.thread_number, 
+            logger.error('(%s) %s at %s' % (self.thread_number, 
                                              errorStatus.prettyPrint(), 
                                              errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
             return False
         else:
             for varBind in varBinds:
                 pass
-                # logging.debug(' = '.join([x.prettyPrint() for x in varBind]))
+                # logger.debug(' = '.join([x.prettyPrint() for x in varBind]))
             return True
 
     def check_device(self, set_snmp_config, credentials, device):
@@ -92,7 +92,7 @@ class Worker(threading.Thread):
         hostname = device.get('hostname')
         address = device.get('host')
 
-        logging.info(f'({self.thread_number}) checking {hostname} ({processed_devices}/{number_of_devices})')
+        logger.info(f'({self.thread_number}) checking {hostname} ({processed_devices}/{number_of_devices})')
         # iterate though SNMP credentials
         for credential in credentials.get('snmp'):
             connected = False
@@ -121,17 +121,17 @@ class Worker(threading.Thread):
                 connected = self.try_to_connect(auth, address, 161)
 
             if connected:
-                logging.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device {hostname} in SOT')
+                logger.info(f'({self.thread_number}) SNMP connected; snmp-id is {snmp_id}; updating device {hostname} in SOT')
                 self.sot.device(hostname).update({'custom_fields': {'snmp_credentials': snmp_id}})
                 break
             else:
-                logging.debug(f'({self.thread_number}) connection failed or {snmp_id}; trying next credentials')
+                logger.debug(f'({self.thread_number}) connection failed or {snmp_id}; trying next credentials')
 
     def run(self):
         while True:
             try:
                 device = self.queue.get(timeout=3)
-                logging.debug(f'processing {device["hostname"]}')
+                logger.debug(f'processing {device["hostname"]}')
             except Empty:
                 return
             # do whatever work you have to do on work
@@ -146,7 +146,7 @@ def read_snmp_credentials(sot, set_snmp_config):
     filename = set_snmp_config.get('credentials',{}).get('snmp',{}).get('filename')
 
     # get SNMP credentials from SOT
-    logging.debug(f'loading SNMP credentials from {name_of_repo}/{filename}')
+    logger.debug(f'loading SNMP credentials from {name_of_repo}/{filename}')
     repo = sot.repository(repo=name_of_repo, path=path_to_repo)
     snmp_credentials_text= repo.get(filename)
     return yaml.safe_load(snmp_credentials_text)
@@ -170,8 +170,11 @@ if __name__ == "__main__":
     parser.add_argument('--use', type=str, default='', help='Only use specific SNMP credentials')
     # number of threads
     parser.add_argument('--threads', type=int, default=10, help='Number of threads')
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
 
     # parse arguments
     args = parser.parse_args()
@@ -185,17 +188,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         set_snmp_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(set_snmp_config, ['set_snmp', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(set_snmp_config, ['set_snmp', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(set_snmp_config, ['set_snmp', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(set_snmp_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=set_snmp_config['sot']['token'], 
@@ -210,18 +204,18 @@ if __name__ == "__main__":
                      .where(args.devices)
         nn_hosts = 0
         skipped = 0
-        logging.debug(f'got {len(devices)} from nautobot')
+        logger.debug(f'got {len(devices)} from nautobot')
         for device in devices:
             host = {'hostname': device.get('hostname')}
             for e in excluded:
                 if e in host:
-                    logging.debug(f'host {device} excluded due to parameter')
+                    logger.debug(f'host {device} excluded due to parameter')
                     skipped += 1
                     continue
             if 'primary_ip4' in device and device['primary_ip4'] and 'address' in device['primary_ip4']:
                 host['host'] = device.get('primary_ip4').get('address').split('/')[0]
             else:
-                logging.error(f'device {device} has no primary_ip in SOT')
+                logger.error(f'device {device} has no primary_ip in SOT')
                 continue
             if 'platform' in device:
                 host['platform'] = device.get('platform').get('name')
@@ -230,13 +224,13 @@ if __name__ == "__main__":
             if not args.update:
                 dev_cred = device.get('custom_field_data',{}).get('snmp_credentials')
                 if dev_cred is not None and dev_cred.lower() != 'unknown':
-                    logging.debug(f'host {device} has active SNMP credentials')
+                    logger.debug(f'host {device} has active SNMP credentials')
                     skipped += 1
                     continue
             devicelist.append(host)
             nn_hosts += 1
-            logging.debug(f'adding {host["hostname"]} / {host["host"]} plattform: {host["platform"]}')
-        logging.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')
+            logger.debug(f'adding {host["hostname"]} / {host["host"]} plattform: {host["platform"]}')
+        logger.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')
 
     number_of_devices = len(devicelist)
     

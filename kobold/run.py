@@ -63,21 +63,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         kobold_config = yaml.safe_load(f.read())
     
-    # configure logger environment
-    database, zeromq, loglevel, loghandler, logger_format = tools.get_logger_environment(
-        kobold_config,
-        args.loglevel,
-        args.loghandler)
-
-    logger.configure(extra={"extra": "unset"})
-    logger.remove()
-    logger.add(loghandler, level=loglevel, format=logger_format)
-    if database or zeromq:
-        logger.debug(f'enabling veritas messagebus db: {database != None} zeroMQ: {zeromq != None}')
-        logger.add(messagebus.Messagebus(database=database,
-                                         zeromq=zeromq,
-                                         app='onboarding'),
-                level=loglevel)
+    # create logger environment
+    tools.create_logger_environment(kobold_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=kobold_config['sot']['token'],

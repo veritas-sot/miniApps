@@ -3,15 +3,21 @@ sot:
   nautobot: "__NAUTOBOT__"
   token: "__TOKEN__"
   ssl_verify: false
-updater:
+general:
   logging:
-    # set loglevel to your need (debug, info, error, critical)
-    level: __LOGLEVEL__
-    format: "%(levelname)s - %(message)s"
-    # use filename to write logging to a file
-    # filename: out.log
-    # if you want to write the result to a file use result: "filename" instead
-    result: stdout
+    loglevel: info
+    logtodatabase: false
+    logtozeromq: false
+    database:
+      host: __database_host__
+      database: __database_datbase__
+      user: __database_username__
+      password: __database_password__
+      port: __database_port__
+    zeromq:
+      protocol: __zeromq_protocol__
+      host: __zeromq_host__
+      port: __zeromq_port__
 # default logins to connect to the devices
 # these accounts are not stored in nautobot
 profiles:

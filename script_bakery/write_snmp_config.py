@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import sys
 import json
 import getpass
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 from dotenv import load_dotenv, dotenv_values
@@ -31,7 +31,7 @@ def get_snmp_credentials(sot, config):
         # open repo
         repo = sot.repository(repo=name_of_repo, path=path_to_repo)
         # get SNMP credentials from SOT
-        logging.debug(f'loading SNMP credentials from REPO {name_of_repo} FILE {subdir}/{filename}')
+        logger.debug(f'loading SNMP credentials from REPO {name_of_repo} FILE {subdir}/{filename}')
         snmp_credentials_text = repo.get(f'{subdir}/{filename}')
         _cache_snmp_credentials = yaml.safe_load(snmp_credentials_text).get('snmp',[])
 
@@ -43,7 +43,7 @@ def check_access_list(access_list, running_config):
     # check if access list is in standard
     found_access_list = False
     if running_access_list.get('standard',{}).get(access_list):
-        logging.debug(f'access list {found_access_list} found on device')
+        logger.debug(f'access list {found_access_list} found on device')
         found_access_list = True
     
     return found_access_list
@@ -74,10 +74,10 @@ def snmp_global_config(args, sot, host_properties, configparser, running_config,
     # check access list
     found_access_list = check_access_list(access_list, running_config)
     if not found_access_list and not args.force:
-        logging.error(f'no access list {access_list} found on device; skipping')
+        logger.error(f'no access list {access_list} found on device; skipping')
         return []
     elif not found_access_list and args.force:
-        logging.warning(f'no access list {access_list} found on device; check if config is correct')
+        logger.warning(f'no access list {access_list} found on device; check if config is correct')
 
     return configs
     
@@ -89,7 +89,7 @@ def snmp_user_config(args, sot, host_properties, running_config, local_snmp_conf
     snmp_type = new_snmp_credentials.get('type','v3_auth_privacy')
     new_snmp_user_config = local_snmp_config_file.get('snmp',{}).get('users').get(snmp_type)
     if new_snmp_user_config is None:
-        logging.error(f'unknown SNMP type {snmp_type}; please configure type')
+        logger.error(f'unknown SNMP type {snmp_type}; please configure type')
         return []
 
     # we have to adjust the protocols
@@ -98,7 +98,7 @@ def snmp_user_config(args, sot, host_properties, running_config, local_snmp_conf
     elif 'md5' in new_snmp_credentials.get('auth_protocol','').lower():
         auth_protocol = "md5"
     else:
-        logging.error(f'unknown auth protocol ' + new_snmp_credentials.get('privacy_protocol'))
+        logger.error(f'unknown auth protocol ' + new_snmp_credentials.get('privacy_protocol'))
         return []
 
     if 'v3' == new_snmp_credentials.get('version'):
@@ -109,7 +109,7 @@ def snmp_user_config(args, sot, host_properties, running_config, local_snmp_conf
         elif 'aes-256' in new_snmp_credentials.get('privacy_protocol','').lower():
             privacy_protocol = "aes 256"
         else:
-            logging.error(f'unknown privacy protocol %s' % new_snmp_credentials.get('privacy_protocol'))
+            logger.error(f'unknown privacy protocol %s' % new_snmp_credentials.get('privacy_protocol'))
             return []        
 
     new_snmp_user_config = new_snmp_user_config.replace('_security_name_',new_snmp_credentials.get('security_name'))
@@ -127,10 +127,10 @@ def snmp_user_config(args, sot, host_properties, running_config, local_snmp_conf
 
     found_access_list = check_access_list(access_list, running_config)
     if not found_access_list and not args.force:
-        logging.error(f'no access list {access_list} found on device; skipping')
+        logger.error(f'no access list {access_list} found on device; skipping')
         return []
     elif not found_access_list and args.force:
-        logging.warning(f'no access list {access_list} found on device; check if config is correct')
+        logger.warning(f'no access list {access_list} found on device; check if config is correct')
 
     return [new_snmp_user_config]
 
@@ -161,17 +161,17 @@ def write_snmp_config(task: Task) -> Result:
 
     sot_snmp_credentials = task.host.data.get('snmp_credentials')
     if not sot_snmp_credentials or sot_snmp_credentials == '':
-        logging.error(f'host {hostname} has no snmp credentials configured')
+        logger.error(f'host {hostname} has no snmp credentials configured')
         return
 
     for cred in _cache_snmp_credentials:
         if cred['id'] == sot_snmp_credentials:
             new_snmp_credentials = cred
 
-    logging.debug(f'found SNMP credentials {new_snmp_credentials}')
+    logger.debug(f'found SNMP credentials {new_snmp_credentials}')
 
     if new_snmp_credentials is None:
-        logging.error(f'unknown SNMP credentials. Please configure SOT or user --credentials')
+        logger.error(f'unknown SNMP credentials. Please configure SOT or user --credentials')
         return
 
     # first of all: get current running config
@@ -195,8 +195,8 @@ def write_snmp_config(task: Task) -> Result:
             if not args.dry_run:
                 remove.append('no ' + cmd)
         if len(remove) > 0 and not args.dry_run:
-            logging.info(f'removing old SNMP config of {hostname}')
-            logging.debug(f'sending {remove}')
+            logger.info(f'removing old SNMP config of {hostname}')
+            logger.debug(f'sending {remove}')
             new_config = remove
 
     host_properties = {'hostname': hostname,
@@ -232,7 +232,7 @@ def write_snmp_config(task: Task) -> Result:
         new_config = new_config + snmp_uc
 
     if (args.remove_old_config or args.snmp_global_config or args.snmp_user_config) and not args.dry_run:
-        logging.debug(f'saving config on device {hostname}')
+        logger.debug(f'saving config on device {hostname}')
 
     if args.dry_run:
         print(f'sending the following commands to {hostname}:')
@@ -243,13 +243,13 @@ def write_snmp_config(task: Task) -> Result:
             task=send_configs, 
             configs=new_config
         )
-        logging.info(f'got response (new_config): {response[0]}')
+        logger.info(f'got response (new_config): {response[0]}')
         # write config
         response = task.run(
             name="save_config",
             task=netmiko_save_config, 
         )
-        logging.info(f'got response (write): {response[0]}')
+        logger.info(f'got response (write): {response[0]}')
 
 if __name__ == "__main__":
 
@@ -261,8 +261,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="set_snmp config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="configure loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
     # which config and what to do
     parser.add_argument('--credentials', type=str, required=False, help="don't use SOT, overwrite credentials")
@@ -296,8 +300,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_snmp_config_file = yaml.safe_load(f.read())
 
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, local_snmp_config_file)
+    # create logger environment
+    tools.create_logger_environment(local_snmp_config_file, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_snmp_config_file['sot']['token'], url=local_snmp_config_file['sot']['nautobot'])

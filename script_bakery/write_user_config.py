@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import sys
@@ -9,6 +8,7 @@ import json
 import re
 import time
 import getpass
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 from dotenv import load_dotenv, dotenv_values
@@ -60,12 +60,12 @@ def write_user_config(task: Task) -> Result:
             if match:
                 existing_username = match.group(1)
             if any(d['username'] ==  existing_username for d in new_users):
-                logging.debug(f'user {existing_username} found in config')
+                logger.debug(f'user {existing_username} found in config')
             else:
                 if args.dry_run:
                     removed_users.append('no ' + cmd)
         if len(removed_users) > 0 and not args.dry_run:
-            logging.info(f'removing old User config of {hostname}')
+            logger.info(f'removing old User config of {hostname}')
         elif args.dry_run:
             print(f'removing old user config')
             print(f'sending {removed_users}')
@@ -79,7 +79,7 @@ def write_user_config(task: Task) -> Result:
         for line in new_config:
             print(line)
     elif len(new_config) > 0 and not args.dry_run:
-        logging.debug(f'sending {new_config}')
+        logger.debug(f'sending {new_config}')
         response = task.run(
             task=netmiko_remove_and_add_user, 
             new_users=new_config, 
@@ -87,7 +87,7 @@ def write_user_config(task: Task) -> Result:
         )
 
     if (args.remove_old_config) and not args.dry_run:
-        logging.debug(f'saving config on device {hostname}')
+        logger.debug(f'saving config on device {hostname}')
         # write config
         response = task.run(
             name="save_config",
@@ -104,8 +104,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="local config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="configure loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
     # which config and what to do
     parser.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
@@ -134,8 +138,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_config_file = yaml.safe_load(f.read())
 
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, onboarding_config)
+    # create logger environment
+    tools.create_logger_environment(local_config_file, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
@@ -146,7 +150,7 @@ if __name__ == "__main__":
     # read new user config
     new_users = local_config_file.get('users')
     if not new_users:
-        logging.error(f'found no users, giving up')
+        logger.error(f'found no users, giving up')
         sys.exit()
 
     # init nornir

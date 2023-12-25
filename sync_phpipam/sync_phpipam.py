@@ -2,12 +2,12 @@
 
 import argparse
 import os
-import logging
 import json
 import yaml
 import phpipam
 import sys
 import urllib3
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -37,7 +37,7 @@ def create_all_sections(sot, ipam, sync_config):
             # we have to skip the 0.0.0.0/0 container, otherwise phpipam raises
             # an error 
             continue
-        logging.debug(f'processing prefix {cidr}')
+        logger.debug(f'processing prefix {cidr}')
         create_section(ipam, prefix, cfg_select, cfg_section, sync_config)
 
 def create_all_locations(sot, ipam):
@@ -49,7 +49,7 @@ def create_all_locations(sot, ipam):
     for location in all_locations.get('locations'):
         name = location.get('name')
         if name not in locations_by_name:
-            logging.info(f'adding {location} to PHPIPAM')
+            logger.info(f'adding {location} to PHPIPAM')
             ipam.add_location({'name': name})
 
 def create_all_customers(sot, ipam):
@@ -60,7 +60,7 @@ def create_all_customers(sot, ipam):
     # for customer in all_customers.get('customers'):
     #     name = customer.get('name')
     #     if name not in customers_by_name:
-    #         logging.info(f'adding {customer} to PHPIPAM')
+    #         logger.info(f'adding {customer} to PHPIPAM')
     #         ipam.add_customer({'name': name})
 
 def create_section(ipam, prefix, cfg_select, cfg_section, sync_config):
@@ -73,7 +73,7 @@ def create_section(ipam, prefix, cfg_select, cfg_section, sync_config):
     for sct in list_of_sections:
         section = get_section_name(prefix, sct, sync_config)
         if section != parent:
-            logging.info(f'adding section: "{section}" parent: "{parent}"')
+            logger.info(f'adding section: "{section}" parent: "{parent}"')
             ipam.add_section(section, description, parent, permissions)
             parent = section
     
@@ -99,7 +99,7 @@ def get_section_name(prefix, cfg_section, sync_config):
         # section with this values
         section = cfg_section
         for slct in cfg_select:
-            # logging.debug(f'- prefix: {prefix.get("prefix")} slct: {slct} cfg_section: {cfg_section}')
+            # logger.debug(f'- prefix: {prefix.get("prefix")} slct: {slct} cfg_section: {cfg_section}')
             if slct.startswith('cf_'):
                 v = prefix.get('custom_field_data', 
                                prefix.get('_custom_field_data',{})).get(slct.replace('cf_',''),'')
@@ -110,13 +110,13 @@ def get_section_name(prefix, cfg_section, sync_config):
             if isinstance(v, dict):
                 if 'name' in v:
                     v = v.get('name')
-            # logging.debug(f'prefix: {prefix.get("prefix")} slct: {slct} v: {v}')
+            # logger.debug(f'prefix: {prefix.get("prefix")} slct: {slct} v: {v}')
             section = section.replace(slct, v)
 
     section = section.strip()
     if len(section) == 0:
         section = sync_config.get('sections').get('default_section','root')
-    logging.debug(f'prefix: {prefix.get("prefix")} section: "{section}"')
+    logger.debug(f'prefix: {prefix.get("prefix")} section: "{section}"')
     return section
 
 def get_folder_name(prefix, sync_config):
@@ -128,7 +128,7 @@ def get_folder_name(prefix, sync_config):
     if not folder or folder == False:
         return None
     for fldr in cfg_select:
-        # logging.debug(f'- prefix: {prefix.get("prefix")} fldr: {fldr} cfg_section: {cfg_section}')
+        # logger.debug(f'- prefix: {prefix.get("prefix")} fldr: {fldr} cfg_section: {cfg_section}')
         if fldr.startswith('cf_'):
             v = prefix.get('custom_field_data',
                        prefix.get('_custom_field_data',{})).get(fldr.replace('cf_',''),'')
@@ -139,7 +139,7 @@ def get_folder_name(prefix, sync_config):
         if isinstance(v, dict):
             if 'name' in v:
                 v = v.get('name')
-        # logging.debug(f'prefix: {prefix.get("prefix")} fldr: {fldr} v: {v}')
+        # logger.debug(f'prefix: {prefix.get("prefix")} fldr: {fldr} v: {v}')
         folder = folder.replace(fldr, v)
 
     folder = folder.strip()
@@ -160,7 +160,7 @@ def get_subnet_config(prefix, sync_config):
     return subnet_config
 
 def add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
-    logging.info("syncing %s from SOT to PHPIPAM" % where_cidr)
+    logger.info("syncing %s from SOT to PHPIPAM" % where_cidr)
 
     cfg_select = sync_config.get('sections').get('select','').split(',')
     cfg_section = sync_config.get('sections').get('section','root')
@@ -184,7 +184,7 @@ def add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
         if containers and cidr_type != "CONTAINER":
             continue
 
-        logging.debug(f'processing prefix {cidr} type: {cidr_type}')
+        logger.debug(f'processing prefix {cidr} type: {cidr_type}')
         description = prefix.get('description','')
 
         # get location from SOT
@@ -204,7 +204,7 @@ def add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
         section = get_section_name(prefix, name_of_section, sync_config)
         if len(section) == 0:
             section = default_section
-        logging.info(f'adding prefix {cidr} to section "{section}"')
+        logger.info(f'adding prefix {cidr} to section "{section}"')
         subnet_config = get_subnet_config(cidr, sync_config)
         # the user can set some phpipam specific settings
         # if 'phpipam' is in our custom_fields overwrite these values
@@ -236,12 +236,12 @@ def remove_prefixe_from_phpipam(sot, ipam, sync_config, where_cidr, containers):
     for prefix in phpipam_subnets:
         if not any(d['prefix'] == prefix for d in sot_prefixe):
             id = phpipam_subnets[prefix]["id"]
-            logging.info(f'found unknown prefix {prefix} ({id})')
+            logger.info(f'found unknown prefix {prefix} ({id})')
             success = ipam.remove_subnet(prefix, id)
             if success:
-                logging.info(f'subnet {prefix} ({id}) removed from phpipam')
+                logger.info(f'subnet {prefix} ({id}) removed from phpipam')
             else:
-                logging.info(f'could not remove subnet {prefix} ({id})')
+                logger.info(f'could not remove subnet {prefix} ({id})')
 
 def add_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
 
@@ -252,12 +252,12 @@ def add_addresses_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
     for address in sot_adresses:
         addr = address.get('address')
         prefix = address.get('parent',{}).get('prefix')
-        logging.debug(f'adding {addr} to prefix {prefix}')
+        logger.debug(f'adding {addr} to prefix {prefix}')
         success = ipam.add_address(address, update=True)
         if success:
-            logging.info(f'added {addr} / {prefix} successfully')
+            logger.info(f'added {addr} / {prefix} successfully')
         else:
-            logging.error(f'failed to add {addr} / {prefix}')
+            logger.error(f'failed to add {addr} / {prefix}')
 
 def sync_sot_to_phpipam(sot, ipam, sync_config, where_cidr, containers):
     add_prefixes_to_phpipam(sot, ipam, sync_config, where_cidr, containers)
@@ -271,7 +271,11 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, required=False, help="sync config file")
-    parser.add_argument('--loglevel', type=str, required=False, help="loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used logging handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
     parser.add_argument('--cidr', type=str, required=False, default="0.0.0.0/0", help="sync all or only specified cidr")
     parser.add_argument('--create-sections', action='store_true', help='create sections')
     parser.add_argument('--create-locations', action='store_true', help='create locations')
@@ -290,17 +294,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         sync_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(sync_config, ['check_mk', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(sync_config, ['check_mk', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(sync_config, ['check_mk', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(sync_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=sync_config['sot']['token'], url=sync_config['sot']['nautobot'])

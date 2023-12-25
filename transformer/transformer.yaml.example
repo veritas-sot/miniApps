@@ -5,12 +5,18 @@ sot:
   ssl_verify: false
 general:
   logging:
-    # set loglevel to your need (debug, info, error, critical)
-    level: info
-    format: "%(levelname)s - %(message)s"
-    # use filename to write logging to a file
-    # filename: out.log
-    # if you want to write the result to a file use result: "filename" instead
-    result: stdout
+    loglevel: info
+    logtodatabase: false
+    logtozeromq: false
+    database:
+      host: __database_host__
+      database: __database_datbase__
+      user: __database_username__
+      password: __database_password__
+      port: __database_port__
+    zeromq:
+      protocol: __zeromq_protocol__
+      host: __zeromq_host__
+      port: __zeromq_port__
 
   

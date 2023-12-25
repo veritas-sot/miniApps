@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import json
 import csv
 import yaml
 import urllib3
+from loguru import logger
 from pathlib import Path
 from openpyxl import load_workbook
 from veritas.sot import sot as sot
@@ -72,7 +72,7 @@ def read_csv(filename, updater_config, key_mapping={}, value_mapping={}):
         quoting = csv.QUOTE_NONNUMERIC
     else:
         quoting = csv.QUOTE_MINIMAL
-    logging.info(f'reading {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
+    logger.info(f'reading {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
 
     # read CSV file
     with open(filename, newline=newline) as csvfile:
@@ -91,7 +91,7 @@ def read_csv(filename, updater_config, key_mapping={}, value_mapping={}):
                 old_checksum = row['checksum']
                 del row['checksum']
                 new_checksum = tools.calculate_md5(list(row.values()))
-                logging.debug(f'old_checksum: {old_checksum} new_checksum: {new_checksum}')
+                logger.debug(f'old_checksum: {old_checksum} new_checksum: {new_checksum}')
 
             row['checksum'] = old_checksum == new_checksum
             data.append(parse_row(row, key_mapping, value_mapping))
@@ -127,11 +127,11 @@ def read_xlsx(filename, key_mapping={}, value_mapping={}):
             old_checksum = row['checksum']
             del row['checksum']
             new_checksum = tools.calculate_md5(list(row.values()))
-            logging.debug(f'old_checksum: {old_checksum} new_checksum: {new_checksum}')
+            logger.debug(f'old_checksum: {old_checksum} new_checksum: {new_checksum}')
 
         row['checksum'] = old_checksum == new_checksum
         data.append(parse_row(row, key_mapping, value_mapping))
-    logging.debug(f'contains_interface={contains_interface}')
+    logger.debug(f'contains_interface={contains_interface}')
     return contains_interface, data
 
 def bulk_update(sot, data, updater_config, endpoint):
@@ -139,9 +139,9 @@ def bulk_update(sot, data, updater_config, endpoint):
     nb.session()
     response = nb.patch(url=f"api/{endpoint}/", json=data)
     if response.status_code != 200:
-        logging.error(f'could not update data; got error {response.content}')
+        logger.error(f'could not update data; got error {response.content}')
     else:
-        logging.info(f'data updated')
+        logger.info(f'data updated')
 
 if __name__ == "__main__":
     # to disable warning if TLS warning is written to console
@@ -151,8 +151,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="updater config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="updater loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     parser.add_argument('--filename', type=str, required=False, help="data to update")
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
 
@@ -172,8 +176,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         updater_config = yaml.safe_load(f.read())
     
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, updater_config)
+    # create logger environment
+    tools.create_logger_environment(updater_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=updater_config['sot']['token'],
@@ -196,7 +200,7 @@ if __name__ == "__main__":
         if not row['checksum'] or args.force:
             updates.append(row)
 
-    logging.info(f'{len(updates)} to be updated force={args.force} interfaces: {contains_interface}')
+    logger.info(f'{len(updates)} to be updated force={args.force} interfaces: {contains_interface}')
     if len(updates) > 0:
         # are we able to make a bulk update by using the ID?
         if 'id' in updates[0]:

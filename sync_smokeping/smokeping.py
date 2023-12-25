@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import json
 import jinja2
 import urllib3
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -24,8 +24,11 @@ if __name__ == "__main__":
     parser.add_argument('--update', action='store_true', help='Update smpkeping config')
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="onboarding config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
 
     # parse arguments
     args = parser.parse_args()
@@ -42,17 +45,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         smokeping_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(smokeping_config, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(smokeping_config, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(smokeping_config, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+    # create logger environment
+    tools.create_logger_environment(smokeping_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=smokeping_config['sot']['token'], 
@@ -70,7 +64,7 @@ if __name__ == "__main__":
         query_cfg = target.get('query',{})
         select = query_cfg.get('select')
         where = query_cfg.get('where')
-        logging.debug(f'select {select} from nb.devices where {where}')
+        logger.debug(f'select {select} from nb.devices where {where}')
         unfiltered_values = sot.select(select) \
                                .using('nb.devices') \
                                .where(where)
@@ -81,7 +75,7 @@ if __name__ == "__main__":
             if not device.get('primary_ip4') or \
                 device.get('primary_ip4') == 'None' or \
                 not device.get('primary_ip4',{}).get('address'):
-                logging.error(f'host {device.get("hostname")} has no primary IP')
+                logger.error(f'host {device.get("hostname")} has no primary IP')
                 continue
             values['devices'].append(device)
 
@@ -98,7 +92,7 @@ if __name__ == "__main__":
                 if key not in values:
                     values[key] = set()
                 values[key].add(val)
-                # logging.debug(f'adding {key}={val}')
+                # logger.debug(f'adding {key}={val}')
 
             # and all the selected values
             for s in select.replace(' ','').split(','):
@@ -108,10 +102,10 @@ if __name__ == "__main__":
                         if s not in values:
                             values[s] = set()
                         values[s].add(vls.get('name'))     
-                        # logging.debug(f'adding {s}={vls.get("name")}')          
+                        # logger.debug(f'adding {s}={vls.get("name")}')          
                 else:
                     values[s] = vls
-                    # logging.debug(f'adding {s}={vls}')
+                    # logger.debug(f'adding {s}={vls}')
 
         tmpl_name = target.get('template')
         template = smokeping_config.get('templates',{}).get(tmpl_name)
@@ -122,9 +116,9 @@ if __name__ == "__main__":
             # now write file
             target = "%s/%s" % (smokeping_config.get('smokeping').get('configpath'),
                                 target.get('filename'))
-            logging.info(f'writing config to {target}')
+            logger.info(f'writing config to {target}')
             with open(target, "w") as f:
                 f.write(rendered)
         except Exception as exc:
-            logging.error("got exception: %s" % exc)
+            logger.error("got exception: %s" % exc)
         

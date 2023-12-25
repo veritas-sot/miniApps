@@ -2,13 +2,13 @@
 
 import asyncio
 import argparse
-import logging
 import json
 import yaml
 import urllib3
 import datetime
 import ipaddress
 import socket
+from loguru import logger
 from icmplib import async_ping, async_multiping
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -22,10 +22,10 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
                                   count=scan_config.get('scan').get('count', 1))
     for host in hosts:
         if not host.is_alive:
-            logging.debug(f'host {host.address} is not alive')
+            logger.debug(f'host {host.address} is not alive')
         else:
             hostname = get_hostname(host.address)
-            logging.info(f'avg. latency of {hostname}/{host.address}: {host.avg_rtt}')
+            logger.info(f'avg. latency of {hostname}/{host.address}: {host.avg_rtt}')
             if add_device:
                 # add 'dummy' device to SOT
                 interface = scan_config.get('interface')
@@ -34,12 +34,12 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
                 # check if we find the hostname in our config
                 for key, value in scan_config.get('devices',{}).items():
                     if key in hostname:
-                        logging.debug(f'found {key} in config. Updating device properties')
+                        logger.debug(f'found {key} in config. Updating device properties')
                         device.update(value)
 
                 for key, value in device.items():
                     if '__' in value:
-                        logging.debug(f'replacing {key}/{value}')
+                        logger.debug(f'replacing {key}/{value}')
                         device[key] = device[key].replace('__HOSTNAME__', hostname)
                         device[key] = device[key].replace('__ADDRESS__', host.address)
 
@@ -55,7 +55,7 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
                     .add_device(device)
             else:
                 # add address only to sot
-                logging.info(f'adding address {host.address} to SOT')
+                logger.info(f'adding address {host.address} to SOT')
                 addr = {'address': host.address,
                         'description': hostname,
                     }
@@ -96,8 +96,11 @@ if __name__ == "__main__":
     parser.add_argument('--prefix', type=str, default="", required=False, help="query to get prefixes")
     parser.add_argument('--update', action='store_true', help='Update address')
     parser.add_argument('--add-device', action='store_true', help='Add device to SOT')
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # parse arguments
     args = parser.parse_args()
 
@@ -105,17 +108,8 @@ if __name__ == "__main__":
     with open(args.config) as f:
         scan_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(scan_config, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(scan_config, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(scan_config, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+    # create logger environment
+    tools.create_logger_environment(scan_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=scan_config['sot']['token'], url=scan_config['sot']['nautobot'])
@@ -129,7 +123,7 @@ if __name__ == "__main__":
 
     address = []
     for subnet in subnets:
-        logging.info(f'pinging {subnet}')
+        logger.info(f'pinging {subnet}')
         prefix_length = subnet.split('/')[1]
         network = ipaddress.ip_network(subnet, strict=False)
         for ip in network.hosts():

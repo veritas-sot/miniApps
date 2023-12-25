@@ -1,25 +1,24 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import json
 import csv
 import yaml
 import urllib3
+from loguru import logger
 from pathlib import Path
 from openpyxl import load_workbook
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
+
 # set default config file to your needs
 default_config_file = "./conf/importer.yaml"
 
-
-
 def read_json(filename):
     data = []
-    logging.debug(f'reading HLDM from {filename}')
+    logger.debug(f'reading HLDM from {filename}')
     with open(filename, 'r') as f:
         data.append(json.load(f))
 
@@ -113,8 +112,12 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="importer config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="importer loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
+
     parser.add_argument('--filename', type=str, required=False, help="data to import")
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
 
@@ -134,8 +137,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         updater_config = yaml.safe_load(f.read())
     
-    # set loglevel before init our SOT!!!
-    tools.set_loglevel(args, updater_config)
+    # create logger environment
+    tools.create_logger_environment(updater_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=updater_config['sot']['token'],

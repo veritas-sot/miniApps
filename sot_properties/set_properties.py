@@ -4,10 +4,10 @@ import argparse
 import json
 import yaml
 import sys
-import logging
 import glob
 import os
 import urllib3
+from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
@@ -18,13 +18,13 @@ def read_and_convert_data(sot, config, name):
     repo = config['files'][name]['repo']
     path = config['files'][name]['path']
     filename = config['files'][name]['filename']
-    logging.debug(f'getting {name} from repo {repo}/{filename}')
+    logger.debug(f'getting {name} from repo {repo}/{filename}')
     repo = sot.repository(repo=repo, path=path)
 
     if '.xlsx' in filename:
         data = {name: []}
         flnm = f'{path}/{filename}'
-        logging.debug(f'reading {flnm}')
+        logger.debug(f'reading {flnm}')
         table = tools.read_excel_file(flnm)
         for row in table:
             d = {}
@@ -46,7 +46,7 @@ def read_and_convert_data(sot, config, name):
         try:
             return yaml.safe_load(items)
         except Exception as exc:
-            logging.error(f'could no convert items to yaml; {exc}')
+            logger.error(f'could no convert items to yaml; {exc}')
             return None
 
 def import_data(config, args):
@@ -58,57 +58,57 @@ def import_data(config, args):
     # the location types
     if args.location_types or args.all:
         location_types = read_and_convert_data(my_sot, config, 'location_types')
-        logging.debug(f'import location_types')
+        logger.debug(f'import location_types')
         success = my_sot.importer.add(properties=location_types['location_types'], endpoint='location_types')
 
     # the locations
     if args.locations or args.all:
         locations = read_and_convert_data(my_sot, config, 'locations')
         if locations:
-            logging.debug(f'import locations')
+            logger.debug(f'import locations')
             success = my_sot.importer.add(properties=locations['locations'], endpoint='locations')
 
     # now the manufacturers
     if args.manufacturers or args.all:
         manufacturers = read_and_convert_data(my_sot, config, 'manufacturers')
-        logging.debug(f'import manufacturers')
+        logger.debug(f'import manufacturers')
         success = my_sot.importer.add(properties=manufacturers['manufacturers'], endpoint='manufacturers')
 
     # the platforms
     if args.platforms or args.all:
         platforms = read_and_convert_data(my_sot, config, 'platforms')
-        logging.debug(f'import platforms')
+        logger.debug(f'import platforms')
         success = my_sot.importer.add(properties=platforms['platforms'], endpoint='platforms', bulk=True)
 
     # roles
     if args.roles or args.all:
         roles = read_and_convert_data(my_sot, config, 'roles')
-        logging.debug(f'import roles')
+        logger.debug(f'import roles')
         success = my_sot.importer.add(properties=roles['roles'], endpoint='roles')
 
     # the prefixe
     if args.prefixes or args.all:
         prefixes = read_and_convert_data(my_sot, config, 'prefixes')
-        logging.debug(f'import prefixes')
+        logger.debug(f'import prefixes')
         success = my_sot.importer.add(properties=prefixes['prefixes'], endpoint='prefixes', bulk=False)
 
     # the device types
     if args.device_types or args.all:
         device_types = read_and_convert_data(my_sot, config, 'device_types')
-        logging.debug(f'import device_types')
+        logger.debug(f'import device_types')
         success = my_sot.importer.add(properties=device_types['device_types'], endpoint='device_types')
 
     # the device library comes from netbox
     if args.device_library:
         directory = config['device_library'].get('directory')
-        logging.debug(f'reading device_type library from {directory}')
+        logger.debug(f'reading device_type library from {directory}')
         for filename in glob.glob(os.path.join(directory, "*.yaml")):
             with open(filename) as f:
-                logging.debug(f'reading {filename}')
+                logger.debug(f'reading {filename}')
                 try:
                     content = yaml.safe_load(f.read())
                 except Exception as exc:
-                    logging.error("could not read file %s; got exception %s" %
+                    logger.error("could not read file %s; got exception %s" %
                                 (filename, exc))
                     continue
                 device_types = [{
@@ -152,13 +152,13 @@ def import_data(config, args):
     # read country library
     if args.country_library:
         filename = config['country_library'].get('directory')
-        logging.debug(f'reading country library {filename}')
+        logger.debug(f'reading country library {filename}')
         raw_countries = []
         with open(filename) as f:
             try:
                 raw_countries = json.load(f)
             except:
-                logging.error(f'could not read country library {filename}')
+                logger.error(f'could not read country library {filename}')
         countries = []
         for country in raw_countries:
             country = {'name': country.get('country'),
@@ -166,13 +166,13 @@ def import_data(config, args):
                        'status': 'active',
                        'site': {'name': 'default-site'}}
             countries.append(country)
-        logging.debug('now adding countries')
+        logger.debug('now adding countries')
         success = my_sot.importer.locations(properties=countries, bulk=True)
 
     # the tags
     if args.tags or args.all:
         locations = read_and_convert_data(my_sot, config, 'tags')
-        logging.debug(f'import tags')
+        logger.debug(f'import tags')
         success = my_sot.importer.add(properties=locations['tags'], endpoint='tags')
 
     # the custom fields
@@ -181,15 +181,15 @@ def import_data(config, args):
         custom_fields = read_and_convert_data(my_sot, config, 'custom_fields')
         custom_field_choices = read_and_convert_data(my_sot, config, 'custom_field_choices')
         for cf in custom_fields['custom_fields']:
-            logging.debug(f'importing {cf}')
+            logger.debug(f'importing {cf}')
             if 'default' in cf:
-                logging.debug('found default value; setting default after creating cf')
+                logger.debug('found default value; setting default after creating cf')
                 properties = {'label': cf.get('label'), 'default': cf.get('default')}
                 set_defaults.append(properties)
                 del cf['default']
-        logging.debug(f'import custom fields')
+        logger.debug(f'import custom fields')
         success = my_sot.importer.add(properties=custom_fields['custom_fields'], endpoint='custom_fields')
-        logging.debug(f'import custom fields choices')
+        logger.debug(f'import custom fields choices')
         success = my_sot.importer.add(properties=custom_fields['custom_field_choices'], endpoint='custom_field_choices')
         # set default value
         for properties in set_defaults:
@@ -197,13 +197,13 @@ def import_data(config, args):
 
     if args.custom_links or args.all:
         locations = read_and_convert_data(my_sot, config, 'custom_links')
-        logging.debug(f'import custom links')
+        logger.debug(f'import custom links')
         success = my_sot.importer.add(properties=locations['custom_links'], endpoint='custom_links')
 
     # the webhooks
     if args.webhooks or args.all:
         locations = read_and_convert_data(my_sot, config, 'webhooks')
-        logging.debug(f'import webhooks')
+        logger.debug(f'import webhooks')
         success = my_sot.importer.add(properties=locations['webhooks'], endpoint='webhooks')
 
 if __name__ == "__main__":
@@ -229,8 +229,11 @@ if __name__ == "__main__":
     parser.add_argument('--device-library', help='import library', action='store_true')
     parser.add_argument('--country-library', help='import countries', action='store_true')
 
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="onboarding loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
 
     args = parser.parse_args()
 
@@ -243,16 +246,7 @@ if __name__ == "__main__":
     with open(config_file) as f:
         config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(config, ['logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(config, ['logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(config, ['logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)#, filename=logfile)
+    # create logger environment
+    tools.create_logger_environment(config, args.loglevel, args.loghandler)
 
     import_data(config, args)

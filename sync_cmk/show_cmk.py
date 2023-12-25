@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import urllib3
 import yaml
 import pprint
 import json
+from loguru import logger
 from veritas.tools import tools
 from veritas.checkmk import checkmk
 from veritas.sot import sot as sot
@@ -139,7 +139,7 @@ def show(sot, checkmk_config, args):
             }
             response = cmk.get(url=f"/objects/host/{hostname}/collections/services", params=params)
             if response.status_code == 200 and len(response.json()['value']) <= 2:
-                logging.info(f'host {hostname} has only {len(response.json()["value"])} services')
+                logger.info(f'host {hostname} has only {len(response.json()["value"])} services')
                 hosts_with_no_services.append(hostname)
     elif args.services:
         host = args.services
@@ -168,8 +168,11 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, required=False, help="cmk config file")
     # what devices
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="cmk loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     # status
     parser.add_argument('--discovery', action='store_true', required=False, help="show discovery")
     parser.add_argument('--missing-devices', action='store_true', required=False, help="show missing devices")
@@ -193,17 +196,8 @@ if __name__ == "__main__":
     with open(config_file) as f:
         cmk_config = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(cmk_config, ['cmk', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(cmk_config, ['cmk', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(cmk_config, ['cmk', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
+    # create logger environment
+    tools.create_logger_environment(cmk_config, args.loglevel, args.loghandler)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=cmk_config['sot']['token'],

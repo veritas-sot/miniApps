@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import jinja2
 import csv
 import sys
+from loguru import logger
+
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 DEFAULT_CONFIG_FILE = "./convert_csv.yaml"
@@ -32,7 +33,7 @@ if __name__ == "__main__":
     else:
         config_file = DEFAULT_CONFIG_FILE
 
-    logging.basicConfig(level=logging.DEBUG,
+    logger.basicConfig(level=logger.DEBUG,
                         format="%(levelname)s - %(message)s")
     # read config
     with open(config_file) as f:
@@ -52,7 +53,7 @@ if __name__ == "__main__":
         quoting = csv.QUOTE_NONNUMERIC
     else:
         quoting = csv.QUOTE_MINIMAL
-    logging.info(f'reading {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
+    logger.info(f'reading {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
 
     # read CSV file
     with open(filename, newline=newline) as csvfile:
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         try:
             rendered = j2.render({'values': overall_values})
         except Exception as exc:
-            logging.error("got exception: %s" % exc)
+            logger.error("got exception: %s" % exc)
             sys.exit()
         output += rendered
     with open(args.output, 'w') as f:

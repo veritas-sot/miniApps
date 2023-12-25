@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 import argparse
-import logging
 import os
 import yaml
 import sys
 import json
+from loguru import logger
 from dotenv import load_dotenv, dotenv_values
 from veritas.sot import sot as sot
 from veritas.tools import tools
@@ -47,8 +47,11 @@ if __name__ == "__main__":
 
     # the user can enter a different config file
     parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="local config file")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="configure loglevel")
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
     # which config and what to do
     parser.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
@@ -77,24 +80,11 @@ if __name__ == "__main__":
     with open(args.config) as f:
         local_config_file = yaml.safe_load(f.read())
 
-    # set logging
-    if args.loglevel is None:
-        loglevel = tools.get_loglevel(tools.get_value_from_dict(local_config_file, ['general', 'logging', 'level']))
-    else:
-        loglevel = tools.get_loglevel(args.loglevel)
-
-    log_format = tools.get_value_from_dict(local_config_file, ['general', 'logging', 'format'])
-    if log_format is None:
-        log_format = '%(asctime)s %(levelname)s:%(message)s'
-    logfile = tools.get_value_from_dict(local_config_file, ['general', 'logging', 'filename'])
-    logging.basicConfig(level=loglevel, format=log_format)
-
-    # set scrapli loglevel
-    logging.getLogger('scrapli').setLevel(tools.get_loglevel(args.scrapli_loglevel))
-    logging.getLogger('scrapli').propagate = True
+    # create logger environment
+    tools.create_logger_environment(local_config_file, args.loglevel, args.loghandler)
 
     # set ttp loglevel
-    logging.getLogger('ttp').setLevel(logging.CRITICAL)
+    logger.getLogger('ttp').setLevel(logger.CRITICAL)
 
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
@@ -118,7 +108,7 @@ if __name__ == "__main__":
     # read new user config
     new_users = local_config_file.get('users')
     if not new_users:
-        logging.error(f'found no users, giving up')
+        logger.error(f'found no users, giving up')
         sys.exit()
 
     # init nornir
