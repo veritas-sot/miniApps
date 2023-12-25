@@ -8,6 +8,8 @@ import urllib3
 import datetime
 import ipaddress
 import socket
+import sys
+import os
 from loguru import logger
 from icmplib import async_ping, async_multiping
 from veritas.tools import tools
@@ -104,9 +106,13 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
 
-    # read config file
-    with open(args.config) as f:
-        scan_config = yaml.safe_load(f.read())
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    # read config
+    scan_config = tools.get_miniapp_config('scan_prefixes', BASEDIR, args.config)
+    if not scan_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(scan_config, args.loglevel, args.loghandler)

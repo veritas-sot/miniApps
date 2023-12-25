@@ -11,10 +11,6 @@ from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
-default_config_file = "./config.yaml"
-# Get the path to the directory this file is in
-BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
 
 def create_all_sections(sot, ipam, sync_config):
     """create all sections iin PHPIPAM"""
@@ -285,14 +281,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # read sync config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
-    with open(config_file) as f:
-        sync_config = yaml.safe_load(f.read())
+    # read config
+    sync_config = tools.get_miniapp_config('sync_phpipam', BASEDIR, args.config)
+    if not sync_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(sync_config, args.loglevel, args.loghandler)

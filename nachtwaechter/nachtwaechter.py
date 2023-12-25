@@ -15,7 +15,6 @@ from veritas.tools import tools
 
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
-DEFAULT_CONFIG_FILE = "./conf/nachtwaechter.yaml"
 TEMPLATES_INDEX = "./conf/index.yaml"
 OUTPUT_DIR = "./facts"
 DEFAULT_THREADS = 2
@@ -98,10 +97,11 @@ if __name__ == "__main__":
     load_dotenv(os.path.join(BASEDIR, '.env'))
     # you can get the env variable by using var = os.getenv('varname')
 
-    # read nachtwaechter config
-    config_file = args.config if args.config is not None else DEFAULT_CONFIG_FILE
-    with open(config_file) as f:
-        nachtwaechter_config = yaml.safe_load(f.read())
+    # read config
+    nachtwaechter_config = tools.get_miniapp_config('nachtwaechter', BASEDIR, args.config)
+    if not nachtwaechter_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(nachtwaechter_config, args.loglevel, args.loghandler)

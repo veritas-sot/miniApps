@@ -157,7 +157,7 @@ if __name__ == "__main__":
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
 
-    parser.add_argument('--filename', type=str, required=False, help="data to update")
+    parser.add_argument('--filename', type=str, required=True, help="data to update")
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
 
     # parse arguments
@@ -166,16 +166,12 @@ if __name__ == "__main__":
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
     
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
+    # read config
+    updater_config = tools.get_miniapp_config('updater', BASEDIR, args.config)
+    if not updater_config:
+        print('unable to read config')
+        sys.exit()
 
-    # read config from file
-    with open(config_file) as f:
-        updater_config = yaml.safe_load(f.read())
-    
     # create logger environment
     tools.create_logger_environment(updater_config, args.loglevel, args.loghandler)
 

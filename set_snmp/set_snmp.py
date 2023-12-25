@@ -8,6 +8,7 @@ import re
 import threading
 import urllib3
 import sys
+import os
 from loguru import logger
 from queue import Queue, Full, Empty
 from veritas.tools import tools
@@ -179,14 +180,14 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
 
-    # read set_snmp config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
-    with open(config_file) as f:
-        set_snmp_config = yaml.safe_load(f.read())
+    # read config
+    set_snmp_config = tools.get_miniapp_config('set_snmp', BASEDIR, args.config)
+    if not set_snmp_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(set_snmp_config, args.loglevel, args.loghandler)

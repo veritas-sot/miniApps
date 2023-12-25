@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # the user can enter a different config file
-    parser.add_argument('--config', type=str, default="./config.yaml", required=False, help="set_snmp config file")
+    parser.add_argument('--config', type=str, default='script_bakery.yaml', required=False, help="used config file")
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
@@ -99,8 +99,10 @@ if __name__ == "__main__":
     load_dotenv(os.path.join(BASEDIR, '.env'))
 
     # read config
-    with open(args.config) as f:
-        local_config_file = yaml.safe_load(f.read())
+    local_config_file = tools.get_miniapp_config('script_bakery', BASEDIR, args.config)
+    if not local_config_file:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(local_config_file, args.loglevel, args.loghandler)

@@ -5,6 +5,8 @@ import urllib3
 import yaml
 import pprint
 import json
+import os
+import sys
 from loguru import logger
 from veritas.tools import tools
 from veritas.checkmk import checkmk
@@ -165,7 +167,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # the user can enter a different config file
-    parser.add_argument('--config', type=str, required=False, help="cmk config file")
+    parser.add_argument('--config', default='sync_cmk.yaml', type=str, required=False, help="used config file")
     # what devices
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
     # set the log level and handler
@@ -187,14 +189,14 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
 
-    # read cmk config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
-    with open(config_file) as f:
-        cmk_config = yaml.safe_load(f.read())
+    # read config
+    cmk_config = tools.get_miniapp_config('sync_cmk', BASEDIR, args.config)
+    if not cmk_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(cmk_config, args.loglevel, args.loghandler)

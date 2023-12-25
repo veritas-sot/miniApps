@@ -5,6 +5,8 @@ import argparse
 import json
 import yaml
 import urllib3
+import os
+import sys
 from loguru import logger
 from icmplib import async_ping, async_multiping
 from veritas.tools import tools
@@ -52,9 +54,14 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
 
-    # read config file
-    with open(args.config) as f:
-        set_link_config = yaml.safe_load(f.read())
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    # read config
+    set_link_config = tools.get_miniapp_config('set_link', BASEDIR, args.config)
+    if not set_link_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(set_link_config, args.loglevel, args.loghandler)

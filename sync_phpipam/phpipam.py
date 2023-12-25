@@ -5,6 +5,7 @@ from pynautobot import api
 from phpypam.core.exceptions import PHPyPAMEntityNotFoundException, PHPyPAMException
 from ipaddress import IPv4Network
 
+
 class Phpipam(object):
 
     def __init__(self, url, app_id, username, password, ssl_verify):

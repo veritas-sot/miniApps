@@ -6,6 +6,7 @@ import os
 import json
 import urllib3
 import xlsxwriter
+import sys
 from loguru import logger
 from veritas.sot import sot
 from veritas.tools import tools
@@ -36,19 +37,14 @@ if __name__ == "__main__":
     parser.add_argument('--filename', type=str, required=True, help="input file")
     parser.add_argument('--out', type=str, required=False, help="output file")
     parser.add_argument('--format', type=str, required=False, help="format (text, csv, excel)")
-    # set the log level
-    parser.add_argument('--loglevel', type=str, required=False, help="set_snmp loglevel")
 
     args = parser.parse_args()
 
-    # read set_snmp config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = DEFAULT_CONFIG_FILE
-
-    with open(config_file) as f:
-        check_config = yaml.safe_load(f.read())
+    # read config
+    check_config = tools.get_miniapp_config('check_inventory', BASEDIR, args.config)
+    if not check_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(check_config, args.loglevel, args.loghandler)

@@ -6,15 +6,13 @@ import json
 import csv
 import yaml
 import urllib3
+import sys
 from loguru import logger
 from pathlib import Path
 from openpyxl import load_workbook
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
-
-# set default config file to your needs
-default_config_file = "./conf/importer.yaml"
 
 def read_json(filename):
     data = []
@@ -111,14 +109,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     # the user can enter a different config file
-    parser.add_argument('--config', type=str, required=False, help="importer config file")
+    parser.add_argument('--config', default="importer.yaml", type=str, required=False, help="importer config file")
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
 
-    parser.add_argument('--filename', type=str, required=False, help="data to import")
+    parser.add_argument('--filename', type=str, required=True, help="data to import")
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
 
     # parse arguments
@@ -126,17 +124,13 @@ if __name__ == "__main__":
 
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
-    
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
 
-    # read config from file
-    with open(config_file) as f:
-        updater_config = yaml.safe_load(f.read())
-    
+    # read config
+    updater_config = tools.get_miniapp_config('updater', BASEDIR, args.config)
+    if not updater_config:
+        print('unable to read config')
+        sys.exit()
+
     # create logger environment
     tools.create_logger_environment(updater_config, args.loglevel, args.loghandler)
 

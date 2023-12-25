@@ -6,6 +6,7 @@ import yaml
 import sys
 import glob
 import os
+import sys
 import urllib3
 from loguru import logger
 from veritas.sot import sot as sot
@@ -237,14 +238,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file        
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
-    with open(config_file) as f:
-        config = yaml.safe_load(f.read())
+    # read config
+    config = tools.get_miniapp_config('sot_properties', BASEDIR, args.config)
+    if not config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(config, args.loglevel, args.loghandler)

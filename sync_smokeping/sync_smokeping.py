@@ -6,6 +6,7 @@ import yaml
 import json
 import jinja2
 import urllib3
+import sys
 from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
@@ -36,14 +37,11 @@ if __name__ == "__main__":
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
     
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
-
-    with open(config_file) as f:
-        smokeping_config = yaml.safe_load(f.read())
+    # read config
+    smokeping_config = tools.get_miniapp_config('sync_smokeping', BASEDIR, args.config)
+    if not smokeping_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(smokeping_config, args.loglevel, args.loghandler)

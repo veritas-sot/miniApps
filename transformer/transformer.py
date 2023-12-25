@@ -8,6 +8,7 @@ import urllib3
 import sys
 import jinja2
 import re
+import os
 from loguru import logger
 from veritas.tools import tools
 from veritas.sot import sot as sot
@@ -46,9 +47,14 @@ if __name__ == "__main__":
     # parse arguments
     args = parser.parse_args()
 
-    # read config file
-    with open(args.config) as f:
-        transformer_config = yaml.safe_load(f.read())
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    # read config
+    transformer_config = tools.get_miniapp_config('transformer', BASEDIR, args.config)
+    if not transformer_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(transformer_config, args.loglevel, args.loghandler)

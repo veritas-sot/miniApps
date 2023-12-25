@@ -219,20 +219,16 @@ if __name__ == "__main__":
     # Connect the path with the '.env' file name
     load_dotenv(os.path.join(BASEDIR, '.env'))
     
-    # read onboarding config
-    if args.config is not None:
-        config_file = args.config
-    else:
-        config_file = default_config_file
-
-    # read config from file
-    with open(config_file) as f:
-        onboarding_config = yaml.safe_load(f.read())
+    # read config
+    onboarding_config = tools.get_miniapp_config('onboarding', BASEDIR, args.config)
+    if not onboarding_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     tools.create_logger_environment(onboarding_config, args.loglevel, args.loghandler)
 
-    # we need the SOT object to talk to the SOT
+    # we need the SOT object to talk to it
     sot = sot.Sot(token=onboarding_config['sot']['token'],
                   ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
                   url=onboarding_config['sot']['nautobot'],

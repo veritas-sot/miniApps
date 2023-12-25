@@ -5,8 +5,9 @@ import yaml
 import os
 import urllib3
 import json
-from dotenv import load_dotenv, dotenv_values
+import sys
 import kobold
+from dotenv import load_dotenv, dotenv_values
 from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
@@ -59,10 +60,12 @@ if __name__ == "__main__":
     else:
         config_file = default_config_file
 
-    # read config from file
-    with open(config_file) as f:
-        kobold_config = yaml.safe_load(f.read())
-    
+    # read config
+    kobold_config = tools.get_miniapp_config('kobold', BASEDIR, args.config)
+    if not kobold_config:
+        print('unable to read config')
+        sys.exit()
+
     # create logger environment
     tools.create_logger_environment(kobold_config, args.loglevel, args.loghandler)
 
