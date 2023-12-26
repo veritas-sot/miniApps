@@ -1,6 +1,7 @@
 import yaml
 import os
 import glob
+from loguru import logger
 from veritas.sot import sot as sot
 
 

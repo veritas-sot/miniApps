@@ -4,6 +4,7 @@ import os
 import glob
 import json
 import csv
+from loguru import logger
 from slugify import slugify
 from openpyxl import load_workbook
 

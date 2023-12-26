@@ -3,6 +3,7 @@ import yaml
 import os
 import glob
 import json
+from loguru import logger
 from veritas.sot import sot as sot
 
 

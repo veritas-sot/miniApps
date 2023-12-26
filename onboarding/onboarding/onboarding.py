@@ -5,6 +5,7 @@ import yaml
 import socket
 import os
 import json
+from loguru import logger
 from slugify import slugify
 from dotenv import load_dotenv, dotenv_values
 from collections import defaultdict
@@ -15,6 +16,7 @@ from onboarding import devices as onboarding_devices
 from onboarding import config_context as onboarding_config_context
 from onboarding import cables as onboarding_cables
 from onboarding import tags as onboarding_tags
+
 
 def onboarding(sot, args, device_facts, configparser, onboarding_config, device_defaults):
     """onboard new devices to nautobot
@@ -42,6 +44,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # get fqdn from config instead
         device_fqdn = configparser.get_fqdn()
 
+    # set extra parameter to logger
+    logger.configure(extra={"extra": device_fqdn})
+
     # set the name of the device
     if device_fqdn:
         device_defaults['name'] = device_fqdn
@@ -54,15 +59,15 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                           onboarding_config['onboarding']['defaults']['interface'],
                                           configparser)
     if primary_address is not None:
-        logger.info(f'primary address of {device_fqdn} is {primary_address}')
+        logger.info(f'primary address is {primary_address}')
     else:
         # no primary interface found. Get IP of the device
         primary_address = socket.gethostbyname(device_facts['args.device'])
         logger.info("no primary ip found using %s" % device_facts['args.device'])
 
-    # now onboard device
+    # now onboard the device
     if args.onboarding:
-        logger.info(f'get device properties of {device_fqdn}')
+        logger.info(f'geting device properties')
         device_properties = onboarding_devices.get_device_properties(sot,
                                                                      device_fqdn,
                                                                      device_facts,
@@ -71,7 +76,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                                                      onboarding_config)
         # get vlan properties
         if args.interfaces or args.primary_only:
-            logger.info(f'get VLAN properties of {device_fqdn}')
+            logger.info(f'getting VLAN properties')
             vlan_properties = onboarding_interfaces.get_vlan_properties(device_fqdn,
                                                                         configparser,
                                                                         device_defaults)
@@ -90,7 +95,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                            'type': primary_interface.get('type', '1000base-t'),
                            'status': {'name': 'Active'}}]
         elif args.interfaces:
-            logger.info(f'getting interfaces properties of {device_fqdn}')
+            logger.info(f'getting interfaces properties')
             interfaces = onboarding_interfaces.get_interface_properties(sot,
                                                                         device_fqdn,
                                                                         device_facts,
@@ -136,7 +141,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
         if not device_facts['is_in_sot']:
-            logger.debug(f'device {device_fqdn} not found in SOT; adding it')
+            logger.debug(f'device not found in SOT; adding it')
             # add new device to SOT
             new_device = sot.onboarding \
                 .interfaces(interfaces) \
@@ -156,7 +161,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 logger.error(f'could not get device {device_fqdn} from SOT')
                 return
             else:
-                logger.debug(f'updating device properties of {device_fqdn}')
+                logger.debug(f'updating device properties')
                 new_device.update(device_properties)
 
             if args.interfaces or args.primary_only:
@@ -174,7 +179,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         if interface_name == nb_interface.display:
                             found = True
                             response = nb_interface.update(interface)
-                            logger.info(f'updating interface {interface_name}; updating response: {response}')
+                            logger.info(f'updating interface {interface_name}; response: {response}')
                     if not found:
                         logger.debug(f'interface {interface_name} not found in SOT')
                         new_interfaces.append(interface)
@@ -218,7 +223,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                 sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
-        logger.info("get tag properties")
+        logger.info("getting tag properties")
         tag_properties = onboarding_tags.to_sot(sot,
                                                 args,
                                                 device_fqdn,

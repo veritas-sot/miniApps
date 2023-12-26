@@ -1,5 +1,6 @@
 import json
 import sys
+from loguru import logger
 from datetime import datetime
 from slugify import slugify
 from veritas.sot import sot
@@ -92,13 +93,13 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
 
     # call the user defined business logic
     # the business logic can be used to modify the data that is onboarded
-    logger.debug("calling (pre processing) business logic of device %s to sot" % device_fqdn)
+    logger.debug(f'calling (pre processing) business logic of device to sot')
     user_bc_device.device_pre_processing(sot, device_properties, device_properties, ciscoconf, onboarding_config)
 
     return device_properties
 
 def backup_config(sot, device_fqdn, raw_device_config, onboarding_config):
-    logger.info("write backup config")
+    logger.info('writing backup config')
 
     subdir = ""
     name_of_repo = onboarding_config['git']['backup']['repo']

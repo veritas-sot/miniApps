@@ -148,6 +148,78 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
 
     return device_config, device_facts
 
+def offline_onboarding(device_ip, primary_mask, device_defaults, device_facts, onboarding_config):
+    """add 'offline' device to sot"""
+
+    # we do not have any facts
+    model = device_defaults.get('model', 
+            onboarding_config['onboarding']['offline_config'].get('model','unknown'))
+    serial = device_defaults.get('serial', 
+                onboarding_config['onboarding']['offline_config'].get('serial','offline'))
+    manufacturer = device_defaults.get('manufacturer', 
+                    onboarding_config['onboarding']['offline_config'].get('manufacturer','cisco'))
+    platform = device_defaults.get('platform', 
+                    onboarding_config['onboarding']['offline_config'].get('platform','ios'))
+    primary_interface = device_defaults.get('primary_interface', 
+                    onboarding_config['onboarding']['offline_config'].get('primary_interface','primary_interface'))
+    primary_description = device_defaults.get('primary_description', 
+                    onboarding_config['onboarding']['offline_config'].get('primary_description','Primary Interface'))
+    primary_mask = device_defaults.get('primary_mask', 
+                    onboarding_config['onboarding']['offline_config'].get('primary_mask','255.255.255.255'))
+    # we need cidr notation
+    primary_ipv4 = IPv4Network(f'{device_ip}/{primary_mask}', strict=False)
+    primary_cidr = f'{device_ip}/{primary_ipv4.prefixlen}'
+    # the format of device_properties['primary_interface'] is:
+    # {'ip': '192.168.0.2/32', 'mask': '255.255.255.255', 'name': 'primary_interface', 'description': 'primary interface'}
+    device_defaults['primary_interface'] = {
+        'ip': primary_cidr,
+        'mask': primary_mask,
+        'name': primary_interface,
+        'description': primary_description
+    }
+    device_facts = {
+        "manufacturer": manufacturer,
+        "model": model,
+        "serial_number": serial,
+        "hostname": hostname,
+        "fqdn": hostname,
+        "args.device": device_ip
+    }
+
+    if 'config' in device_defaults:
+        # should we use a local device config?
+        if device_defaults.get('config').lower() == 'none':
+            # no config at all / use minimal default config
+            logger.debug(f'no offline config found; use minimal config')
+            device_config = f'hostname {hostname}\n'
+            device_config += f'interface {primary_interface}\n'
+            device_config += f' ip address {device_ip} {primary_mask}\n'
+            offline_config = False
+        else:
+            # yes, the config was configured by the inventory
+            logger.debug(f'using offline config {device_defaults.get("config")}')
+            offline_config = BASEDIR + "/" + device_defaults.get('config')
+    else:
+        # use default offline config
+        logger.debug(f'using default offline config')
+        offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
+
+    if offline_config:
+        # read default offline device config
+        logger.debug(f'reading offline config {offline_config}')
+        try:
+            with open(offline_config, 'r') as f:
+                device_config = f.read()
+                device_config = device_config.replace('__PRIMARY_IP__', device_ip)
+                device_config = device_config.replace('__HOSTNAME__', hostname)
+                device_config = device_config.replace('__PRIMARY_INTERFACE__', primary_interface)
+                device_config = device_config.replace('__PRIMARY_MASK__', primary_mask)
+        except Exception as exc:
+            logger.error(f'failed to read offline config {exc}', exc_info=True)
+            return False
+
+    return True
+
 if __name__ == "__main__":
 
     # to disable warning if TLS warning is written to console
@@ -183,7 +255,7 @@ if __name__ == "__main__":
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
-    #parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
+    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
 
     # should we activate the polling of all devices from the sot to check if a device is present
     parser.add_argument('--polling', action='store_true', help="poll ALL devices from SOT to check if device is present")
@@ -381,7 +453,7 @@ if __name__ == "__main__":
         hostname = device_dict.get('name', host_or_ip).lower()
         # there is no space in a hostname!!!
         hostname = hostname.split(' ')[0]
-        logger = logger.bind(extra=hostname)
+        logger.configure(extra={"extra": hostname})
         # write the hostname back
         device_dict['name'] = hostname
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
@@ -472,72 +544,13 @@ if __name__ == "__main__":
         if device_defaults.get('offline', False):
             if args.onboarding:
                 logger.info(f'adding {hostname} offline to the sot')
-                # we do not have any facts
-                model = device_defaults.get('model', 
-                        onboarding_config['onboarding']['offline_config'].get('model','unknown'))
-                serial = device_defaults.get('serial', 
-                         onboarding_config['onboarding']['offline_config'].get('serial','offline'))
-                manufacturer = device_defaults.get('manufacturer', 
-                               onboarding_config['onboarding']['offline_config'].get('manufacturer','cisco'))
-                platform = device_defaults.get('platform', 
-                               onboarding_config['onboarding']['offline_config'].get('platform','ios'))
-                primary_interface = device_defaults.get('primary_interface', 
-                               onboarding_config['onboarding']['offline_config'].get('primary_interface','primary_interface'))
-                primary_description = device_defaults.get('primary_description', 
-                               onboarding_config['onboarding']['offline_config'].get('primary_description','Primary Interface'))
-                primary_mask = device_defaults.get('primary_mask', 
-                               onboarding_config['onboarding']['offline_config'].get('primary_mask','255.255.255.255'))
-                # we need cidr notation
-                primary_ipv4 = IPv4Network(f'{device_ip}/{primary_mask}', strict=False)
-                primary_cidr = f'{device_ip}/{primary_ipv4.prefixlen}'
-                # the format of device_properties['primary_interface'] is:
-                # {'ip': '192.168.0.2/32', 'mask': '255.255.255.255', 'name': 'primary_interface', 'description': 'primary interface'}
-                device_defaults['primary_interface'] = {
-                    'ip': primary_cidr,
-                    'mask': primary_mask,
-                    'name': primary_interface,
-                    'description': primary_description
-                }
-                device_facts = {
-                    "manufacturer": manufacturer,
-                    "model": model,
-                    "serial_number": serial,
-                    "hostname": hostname,
-                    "fqdn": hostname,
-                    "args.device": device_ip
-                }
-
-                if 'config' in device_defaults:
-                    # should we use a local device config?
-                    if device_defaults.get('config').lower() == 'none':
-                        # no config at all / use minimal default config
-                        logger.debug(f'no offline config found; use minimal config')
-                        device_config = f'hostname {hostname}\n'
-                        device_config += f'interface {primary_interface}\n'
-                        device_config += f' ip address {device_ip} {primary_mask}\n'
-                        offline_config = False
-                    else:
-                        # yes, the config was configured by the inventory
-                        logger.debug(f'using offline config {device_defaults.get("config")}')
-                        offline_config = BASEDIR + "/" + device_defaults.get('config')
-                else:
-                    # use default offline config
-                    logger.debug(f'using default offline config')
-                    offline_config = BASEDIR + "/" + onboarding_config['onboarding']['offline_config']['filename']
-
-                if offline_config:
-                    # read default offline device config
-                    logger.debug(f'reading offline config {offline_config}')
-                    try:
-                        with open(offline_config, 'r') as f:
-                            device_config = f.read()
-                            device_config = device_config.replace('__PRIMARY_IP__', device_ip)
-                            device_config = device_config.replace('__HOSTNAME__', hostname)
-                            device_config = device_config.replace('__PRIMARY_INTERFACE__', primary_interface)
-                            device_config = device_config.replace('__PRIMARY_MASK__', primary_mask)
-                    except Exception as exc:
-                        logger.error(f'failed to read offline config {exc}', exc_info=True)
-                        continue
+                response = offline_onboarding(device_ip, 
+                                              primary_mask, 
+                                              device_defaults, 
+                                              device_facts, 
+                                              onboarding_config)
+                if not response:
+                    continue
             elif args.export:
                 logger.info(f'device {hostname} is marked as "offline"')
                 continue

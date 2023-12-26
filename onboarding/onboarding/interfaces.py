@@ -3,12 +3,14 @@ from businesslogic import your_interfaces as user_int
 from veritas.sot import sot as sot
 from slugify import slugify
 from ipaddress import IPv4Network
+from loguru import logger
 
 
 def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf):
+    """return interface properties of ALL interfaces"""
     list_of_interfaces = []
     for name in ciscoconf.get_interfaces():
-        #logger.debug("get property of interface: %s" % name)
+        logger.debug(f'geting property of interface {name}')
         props = get_properties(sot,
                                device_fqdn,
                                device_facts,
@@ -22,7 +24,7 @@ def get_interface_properties(sot, device_fqdn, device_facts, device_defaults, ci
     return list_of_interfaces
 
 def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, name):
-    """returns all properties of the interface"""
+    """return all properties of a single interface"""
 
     # get interface
     interface = ciscoconf.get_interfaces().get(name)
@@ -47,7 +49,6 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
         else:
             ipv4 = IPv4Network(f'{interface.get("ip")}/{interface.get("mask")}', strict=False)
             cidr = f'{interface.get("ip")}/{ipv4.prefixlen}'
-        #interface_properties.update({'ipv4': cidr})
         interface_properties.update({"ip_addresses": [
                                         {"address": cidr,
                                          "status": {
@@ -68,7 +69,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
         data = {}
         # process access switch ports
         if mode == 'access':
-            logger.debug("interface is access switchport: %s" % name)
+            logger.debug(f'interface is access switchport {name}')
             untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), location=location)
             data = {"mode": "access",
                     "untagged_vlan": {'vid': interface.get('vlan'),
@@ -77,7 +78,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
                    }
         # process trunks
         elif mode == 'trunk':
-            logger.debug("interface is a tagged switchport: %s" % name)
+            logger.debug(f'interface is a tagged switchport {name}')
             # this port is either a trunk with allowed vlans (mode: tagged)
             # or a trunk with all vlans mode: tagged-all
             if 'vlans_allowed' in interface:
@@ -92,7 +93,7 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
                 data = {'mode': "tagged-all"}
 
         if len(data) > 0:
-            logger.debug("updating interface: %s" % name)
+            logger.debug(f'updating interface {name}')
             interface_properties.update(data)
 
     return interface_properties
