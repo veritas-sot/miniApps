@@ -85,7 +85,8 @@ def add_values_from_csv(response, item_config, device_facts, device_defaults, on
         quoting = csv.QUOTE_NONNUMERIC
     else:
         quoting = csv.QUOTE_MINIMAL
-    logger.info(f'reading mapping {filename} delimiter={delimiter} quotechar={quotechar} newline={newline} quoting={quoting_cf}')
+    logger.info(f'reading mapping {filename} delimiter={delimiter} ' \
+                 'quotechar={quotechar} newline={newline} quoting={quoting_cf}')
 
     # read CSV file
     with open(filename, newline=newline) as csvfile:
@@ -218,6 +219,22 @@ def process_matches(response, device_facts, device_defaults, item_config, ciscoc
             response[key] = value
 
 def get_matches(device_facts, device_defaults, matches, ciscoconf):
+    """
+    loop through ALL matches and check if it matches
+    
+    get_matches looks either at the (global/interface) config, the facts,
+    or the default values of the device. lookups like ic (case insenitive) 
+    or re (use regular expression) can be used. 
+
+    examples:
+
+    facts__fqdn__re: k(?P<digits>\d+)rt
+    facts__hostname__ic: myhostname
+    config__global__ic: username my_user
+    config__interfaces__ic: ip address
+
+    get_matches returns the value that matches
+    """
     for name, value in matches.items():
         if '__' in name:
             splits = name.split('__')
@@ -277,6 +294,7 @@ def get_matches(device_facts, device_defaults, matches, ciscoconf):
     return False
 
 def read_file(filename, device_defaults):
+    """read yaml file and check if file must be processed (is active and platform matches)"""
     with open(filename) as f:
         config = {}
         logger.debug("opening file %s to read required field config" % filename)

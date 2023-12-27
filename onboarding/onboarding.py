@@ -57,18 +57,6 @@ def get_device_defaults(prefixe, ip):
         # logger.debug(f'current defaults: {defaults}')
     return defaults
 
-def write_hldm(hldm, directory="./hldm"):
-    """
-    write the high level data model to disk
-    """
-    hostname = hldm.get('name')
-    if hostname:
-        logger.info(f'writing HLDM of {hostname} to disk')
-        filename = "%s/%s" % (directory, hostname)
-        with open(filename, 'w') as f:
-            f.write(json.dumps(hldm,indent=4))
-            f.close()
-
 def export_config_and_facts(device_config, device_facts, directory_name):
     config_filename = "%s/%s.conf" % (directory_name, device_facts.get('fqdn','__error__').lower())
     facts_filename = "%s/%s.facts" % (directory_name, device_facts.get('fqdn','__error__').lower())
@@ -606,7 +594,7 @@ if __name__ == "__main__":
                                          device_defaults)
 
     # after adding all devices to our sot we add the cables
-    if args.cables and not args.write_hldm:
+    if args.cables:
         for device_dict in devicelist:
             device = device_dict.get('host')
             platform = device_dict.get('platform')
