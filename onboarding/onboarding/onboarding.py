@@ -179,7 +179,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         if interface_name == nb_interface.display:
                             found = True
                             response = nb_interface.update(interface)
-                            logger.info(f'updating interface {interface_name}; response: {response}')
+                            logger.info(f'updated interface {interface_name}')
                     if not found:
                         logger.debug(f'interface {interface_name} not found in SOT')
                         new_interfaces.append(interface)
@@ -188,7 +188,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                         .add_prefix(False) \
                         .assign_ip(True) \
                         .add_interfaces(device=new_device, interfaces=new_interfaces)
-                    logger.info(f'adding {len(new_interfaces)} interface; response: {response}')
+                    logger.info(f'added {len(new_interfaces)} interface(s)')
 
             elif args.primary_only:
                 # update primary interface
@@ -203,9 +203,9 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
                                           .add_prefix(False) \
                                           .assign_ip(True) \
                                           .update_interfaces(device=new_device, interfaces=interfaces)
-                            logger.info(f'updating primary interface {interface_name}; response: {response}')
+                            logger.info(f'updated primary interface {interface_name}')
                     if not primary_interface_found:
-                        logger.debug(f'no primary inteface found; seems to be a new one; adding it')
+                        logger.info(f'no primary inteface found; seems to be a new one; adding it')
                         response = sot.onboarding \
                                        .add_prefix(False) \
                                        .assign_ip(True) \
@@ -217,7 +217,7 @@ def onboarding(sot, args, device_facts, configparser, onboarding_config, device_
             else:
                 # there is no primary IP
                 current_primary_ip = "unknown or none"
-                logger.debug(f'the device {new_device.display} has no primary IP configured; setting it now')
+                logger.info(f'the device {new_device.display} has no primary IP configured; setting it now')
             if current_primary_ip != primary_address:
                 logger.info(f'updating primary IP of device {new_device.display} {current_primary_ip} vs. {primary_address}')
                 sot.onboarding.set_primary_address(primary_address, new_device)

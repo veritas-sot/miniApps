@@ -16,18 +16,19 @@ from veritas.tools import tools
 from veritas.sot import sot as sot
 
 
-async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
+async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update_device):
 
     hosts = await async_multiping(addresses, 
                                   privileged=scan_config.get('scan').get('privileged', False), 
                                   timeout=scan_config.get('scan').get('timeout', 1), 
                                   count=scan_config.get('scan').get('count', 1))
+    dflts_addresses = scan_config.get('addresses',{})
     for host in hosts:
         if not host.is_alive:
-            logger.debug(f'host {host.address} is not alive')
+            logger.bind(extra=host.address).debug(f'host {host.address} is not alive')
         else:
             hostname = get_hostname(host.address)
-            logger.info(f'avg. latency of {hostname}/{host.address}: {host.avg_rtt}')
+            logger.bind(extra=f'{host.address}/{prefix_length}').info(f'avg. latency of {hostname}/{host.address}: {host.avg_rtt}')
             if add_device:
                 # add 'dummy' device to SOT
                 interface = scan_config.get('interface')
@@ -36,12 +37,12 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
                 # check if we find the hostname in our config
                 for key, value in scan_config.get('devices',{}).items():
                     if key in hostname:
-                        logger.debug(f'found {key} in config. Updating device properties')
+                        logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'found {key} in config. Updating device properties')
                         device.update(value)
 
                 for key, value in device.items():
                     if '__' in value:
-                        logger.debug(f'replacing {key}/{value}')
+                        logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'replacing {key}/{value}')
                         device[key] = device[key].replace('__HOSTNAME__', hostname)
                         device[key] = device[key].replace('__ADDRESS__', host.address)
 
@@ -57,17 +58,30 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device):
                     .add_device(device)
             else:
                 # add address only to sot
-                logger.info(f'adding address {host.address} to SOT')
-                addr = {'address': host.address,
+                addr = {'address': f'{host.address}/{prefix_length}',
                         'description': hostname,
+                        'dns_name': hostname
                     }
-                dflts = scan_config.get('addresses',{})
+
+                # make a copy of our default values
+                dflts = dict(dflts_addresses)
                 for key, value in dflts.items():
                     if '__' in value:
                         dflts[key] = dflts[key].replace('__HOSTNAME__', hostname)
                         dflts[key] = dflts[key].replace('__ADDRESS__', host.address)
-                addr.update(scan_config.get('addresses',{}))
-                response = sot.ipam.add_ip(addr)
+                addr.update(dflts)
+
+                ipam_addr = sot.ipam.get_ip(address=host.address)
+                if ipam_addr:
+                    if update_device:
+                        logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updating address IN SOT')
+                        ipam_addr.update(data=addr)
+                    else:
+                        logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'ip is alive but we have nothing to do')
+                else:
+                    # try to add IP to SOT
+                    logger.bind(extra=f'{host.address}/{prefix_length}').info(f'adding address to SOT')
+                    # response = sot.ipam.add_ip(addr)
 
 def get_hostname(ip_address):
     try:
@@ -87,7 +101,7 @@ if __name__ == "__main__":
     """
 
     # to disable warning if TLS warning is written to console
-    # urllib3.disable_warnings()
+    urllib3.disable_warnings()
 
     devicelist = []
 
@@ -139,4 +153,5 @@ if __name__ == "__main__":
                                    address, 
                                    prefix_length, 
                                    scan_config, 
-                                   args.add_device))
+                                   args.add_device,
+                                   args.update))
