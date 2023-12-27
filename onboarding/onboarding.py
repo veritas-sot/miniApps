@@ -297,6 +297,9 @@ if __name__ == "__main__":
         print('unable to read config')
         sys.exit()
 
+    # load profiles
+    profile_config = tools.get_miniapp_config('onboarding', BASEDIR, 'profiles.yaml')
+
     # create logger environment
     tools.create_logger_environment(onboarding_config, args.loglevel, args.loghandler)
 
@@ -307,7 +310,7 @@ if __name__ == "__main__":
                   git=onboarding_config['git'])
 
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, onboarding_config)
+    username, password = tools.get_username_and_password(args, sot, profile_config)
 
     # get default values of prefixes. This is needed only once
     name_of_repo = args.repo or onboarding_config['git']['defaults']['repo']
