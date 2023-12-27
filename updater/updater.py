@@ -12,9 +12,6 @@ from openpyxl import load_workbook
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
-# set default config file to your needs
-default_config_file = "./conf/updater.yaml"
-
 
 def build_dict(value, my_dict, keys):
     if isinstance(keys, list):

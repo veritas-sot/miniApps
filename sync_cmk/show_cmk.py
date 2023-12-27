@@ -13,8 +13,6 @@ from veritas.checkmk import checkmk
 from veritas.sot import sot as sot
 
 
-default_config_file = "cmk.yaml"
-
 def show(sot, checkmk_config, args):
     cmk = checkmk.Checkmk(sot=sot, 
                           url=checkmk_config.get('check_mk',{}).get('url'),

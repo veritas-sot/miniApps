@@ -12,8 +12,6 @@ from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
-# set default config file to your needs
-default_config_file = "./config.yaml"
 
 def read_and_convert_data(sot, config, name):
     repo = config['files'][name]['repo']

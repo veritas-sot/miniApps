@@ -71,17 +71,19 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update
                         dflts[key] = dflts[key].replace('__ADDRESS__', host.address)
                 addr.update(dflts)
 
+                # get IP address from sot
                 ipam_addr = sot.ipam.get_ip(address=host.address)
                 if ipam_addr:
+                    # got IP; we need to update
                     if update_device:
                         logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updating address IN SOT')
                         ipam_addr.update(data=addr)
                     else:
                         logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'ip is alive but we have nothing to do')
                 else:
-                    # try to add IP to SOT
+                    # new address; add it to our sot
                     logger.bind(extra=f'{host.address}/{prefix_length}').info(f'adding address to SOT')
-                    # response = sot.ipam.add_ip(addr)
+                    response = sot.ipam.add_ip(addr)
 
 def get_hostname(ip_address):
     try:

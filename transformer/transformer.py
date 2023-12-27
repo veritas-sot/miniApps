@@ -14,7 +14,6 @@ from veritas.tools import tools
 from veritas.sot import sot as sot
 
 
-
 if __name__ == "__main__":
 
     # to disable warning if TLS warning is written to console

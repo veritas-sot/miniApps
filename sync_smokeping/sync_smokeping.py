@@ -11,8 +11,6 @@ from loguru import logger
 from veritas.sot import sot as sot
 from veritas.tools import tools
 
-# set default config file to your needs
-default_config_file = "./conf/smokeping.yaml"
 
 if __name__ == "__main__":
 

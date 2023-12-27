@@ -16,7 +16,6 @@ from veritas.checkmk import checkmk
 
 snmp_credentials = None
 
-
 def add_new_hosts(args, sot, checkmk_config):
     """add new hosts to cmk"""
     nn_of_devices_to_be_added = 0
