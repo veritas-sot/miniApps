@@ -72,6 +72,7 @@ if __name__ == "__main__":
             mapping = yaml.safe_load(f.read())
 
     for device in devices:
+        logger.bind(extra=device.get('hostname','unset')).info('transforming device')
         id = device.get('id')
         old_value = tools.get_value_from_dict(device, args.parameter.split('__'))
         new_value = None
@@ -89,7 +90,7 @@ if __name__ == "__main__":
         elif args.mapping:
             if 'static' in mapping['mapping']:
                 for key,value in mapping['mapping']['static'].items():
-                    logger.debug(f'key: {key} value: {value}')
+                    logger.bind(extra=device.get('hostname','unset')).debug(f'key: {key} value: {value}')
                     if old_value == key:
                         new_value = value
             elif 'regex' in mapping['mapping']:
@@ -101,7 +102,7 @@ if __name__ == "__main__":
                         for k,v in value.items():
                             for group, group_val in match.groupdict().items():
                                 if v == f'__{group}__':
-                                    logger.debug(f'replacing {group} by {group_val}')
+                                    logger.bind(extra=device.get('hostname','unset')).debug(f'replacing {group} by {group_val}')
                                     new_value[k] = group_val
         elif args.template:
             # read template
@@ -111,7 +112,7 @@ if __name__ == "__main__":
             try:
                 new_value = j2.render({'values': device})
             except Exception as exc:
-                logger.error("could not render template; got exception: %s" % exc)
+                logger.bind(extra=device.get('hostname','unset'))-error("could not render template; got exception: %s" % exc)
                 continue
 
         # check if new_value is NOT none
@@ -134,11 +135,11 @@ if __name__ == "__main__":
                 print(f'[dry run] device: {nb_device.display} parameter: {args.parameter} ' \
                       f'old: {old_value} new: {new_value}')
             else:
-                logger.debug(update)
+                logger.bind(extra=device.get('hostname','unset')).debug(update)
                 success = nb_device.update(update)
                 if success:
-                    logger.info(f'updated {nb_device.display} parameter: {args.parameter} ' \
+                    logger.bind(extra=device.get('hostname','unset')).info(f'updated {nb_device.display} parameter: {args.parameter} ' \
                         f'old: {old_value} new: {new_value}')
                 else:
-                    logger.error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
+                    logger.bind(extra=device.get('hostname','unset')).error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
                         f'old: {old_value} new: {new_value}')
