@@ -26,6 +26,7 @@ addresses:
   namespace: Global
   status: {'name': 'Active'}
   description: __HOSTNAME__
+  cf_last_scan: __DATE__
 interface:
   name: 'primary'
   type: '1000base-t'

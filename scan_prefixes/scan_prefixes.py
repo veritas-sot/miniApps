@@ -10,19 +10,25 @@ import ipaddress
 import socket
 import sys
 import os
+from datetime import datetime
 from loguru import logger
 from icmplib import async_ping, async_multiping
 from veritas.tools import tools
 from veritas.sot import sot as sot
 
 
-async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update_device):
+async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update_addr):
 
     hosts = await async_multiping(addresses, 
                                   privileged=scan_config.get('scan').get('privileged', False), 
                                   timeout=scan_config.get('scan').get('timeout', 1), 
                                   count=scan_config.get('scan').get('count', 1))
+
     dflts_addresses = scan_config.get('addresses',{})
+    # set current time
+    now = datetime.now()
+    current_date = now.strftime('%Y-%m-%d')
+
     for host in hosts:
         if not host.is_alive:
             logger.bind(extra=host.address).debug(f'host {host.address} is not alive')
@@ -69,15 +75,25 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update
                     if '__' in value:
                         dflts[key] = dflts[key].replace('__HOSTNAME__', hostname)
                         dflts[key] = dflts[key].replace('__ADDRESS__', host.address)
+                        dflts[key] = dflts[key].replace('__DATE__', current_date)
+
+                # move custom fields to its down dict
+                cf_fields = {}
+                for key, value in dict(dflts).items():
+                    if key.startswith('cf_'):
+                        cf_fields[key.replace('cf_','')] = value
+                        del dflts[key]
+
+                dflts.update({'custom_fields': cf_fields})
                 addr.update(dflts)
 
                 # get IP address from sot
                 ipam_addr = sot.ipam.get_ip(address=host.address)
                 if ipam_addr:
                     # got IP; we need to update
-                    if update_device:
-                        logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updating address IN SOT')
-                        ipam_addr.update(data=addr)
+                    if update_addr:
+                        response = ipam_addr.update(data=addr)
+                        logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updated address IN SOT ({response})')
                     else:
                         logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'ip is alive but we have nothing to do')
                 else:

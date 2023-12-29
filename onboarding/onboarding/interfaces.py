@@ -114,7 +114,7 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
             list_of_vlans.append({'name': name,
                                   'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'location': {'name': location}})
+                                  'location': location})
 
     for vlan in svi:
         vid = vlan.get('vid')
@@ -126,7 +126,7 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
             list_of_vlans.append({'name': name,
                                   'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'location': {'name': device_defaults['location']}})
+                                  'location': device_defaults['location']})
 
     for vlan in trunk_vlans:
         vid = vlan.get('vid')
@@ -138,7 +138,7 @@ def get_vlan_properties(device_fqdn, ciscoconf, device_defaults):
             list_of_vlans.append({'name': name,
                                   'vid': vid,
                                   'status': {'name': 'Active'},
-                                  'location': {'name': device_defaults['location']}})
+                                  'location': device_defaults['location']})
 
     return list_of_vlans
 

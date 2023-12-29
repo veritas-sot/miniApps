@@ -28,16 +28,11 @@ def read_and_convert_data(sot, config, name):
         for row in table:
             d = {}
             for key,value in row.items():
-                if '__' in key:
-                    # split key and build dict
-                    splitted = key.split('__')
-                    if value is None:
-                        d.update({splitted[0]: None})
-                    else:
-                        d.update({splitted[0]: {splitted[1]: value}})
-                else:
-                    d.update({key: value})
+                if value:
+                    logger.debug(f'key: {key} value: {value}')
+                    tools.set_value(d, key, value)
             data[name].append(d)
+        logger.debug(f'data: {data}')
         return data
     else:
         # read yaml file from repo

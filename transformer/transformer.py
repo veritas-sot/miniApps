@@ -135,10 +135,13 @@ if __name__ == "__main__":
                       f'old: {old_value} new: {new_value}')
             else:
                 logger.bind(extra=device.get('hostname','unset')).debug(update)
-                success = nb_device.update(update)
-                if success:
-                    logger.bind(extra=device.get('hostname','unset')).info(f'updated {nb_device.display} parameter: {args.parameter} ' \
-                        f'old: {old_value} new: {new_value}')
-                else:
-                    logger.bind(extra=device.get('hostname','unset')).error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
-                        f'old: {old_value} new: {new_value}')
+                try:
+                    success = nb_device.update(update)
+                    if success:
+                        logger.bind(extra=device.get('hostname','unset')).info(f'updated {nb_device.display} parameter: {args.parameter} ' \
+                            f'old: {old_value} new: {new_value}')
+                    else:
+                        logger.bind(extra=device.get('hostname','unset')).error(f'device not update {nb_device.display} parameter: {args.parameter} ' \
+                            f'old: {old_value} new: {new_value}')
+                except Exception as exc:
+                    logger.error(f'got exception; updated failed on {nb_device.display}')
