@@ -4,7 +4,6 @@ import os
 import glob
 import json
 from loguru import logger
-from veritas.sot import sot as sot
 
 
 def to_sot(sot, args, device_fqdn, device_defaults, device_facts, configparser, onboarding_config):

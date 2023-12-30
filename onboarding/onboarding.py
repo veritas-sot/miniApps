@@ -19,9 +19,6 @@ from veritas.devicemanagement import devicemanagement as dm
 from onboarding import onboarding
 from onboarding import cables as cables
 
-# set default config file to your needs
-default_config_file = "./conf/config.yaml"
-
 
 def get_device_defaults(prefixe, ip):
     """
@@ -136,8 +133,8 @@ def get_device_config_and_facts(args, device_ip, device_defaults, username, pass
 
     return device_config, device_facts
 
-def offline_onboarding(device_ip, primary_mask, device_defaults, device_facts, onboarding_config):
-    """add 'offline' device to sot"""
+def offline_onboarding(device_ip, device_defaults, onboarding_config):
+    """set device_facts and device_defaults, build device config and return config and platform"""
 
     # we do not have any facts
     model = device_defaults.get('model', 
@@ -204,9 +201,9 @@ def offline_onboarding(device_ip, primary_mask, device_defaults, device_facts, o
                 device_config = device_config.replace('__PRIMARY_MASK__', primary_mask)
         except Exception as exc:
             logger.error(f'failed to read offline config {exc}', exc_info=True)
-            return False
+            return {},{}, ""
 
-    return True
+    return device_config, device_facts, platform
 
 if __name__ == "__main__":
 
@@ -216,7 +213,8 @@ if __name__ == "__main__":
     # init vars
     listener = None
     defaults = None
-    device_facts = None
+    device_config = {}
+    device_facts = {}
     device_names_in_sot = {}
     device_ip_in_sot = {}
     # devicelist is the list of devices we are processing
@@ -535,12 +533,12 @@ if __name__ == "__main__":
         if device_defaults.get('offline', False):
             if args.onboarding:
                 logger.info(f'adding {hostname} offline to the sot')
-                response = offline_onboarding(device_ip, 
-                                              primary_mask, 
-                                              device_defaults, 
-                                              device_facts, 
-                                              onboarding_config)
-                if not response:
+                device_config, device_facts, platform = offline_onboarding(
+                    device_ip, 
+                    device_defaults, 
+                    onboarding_config)
+                if not device_config:
+                    logger.error(f'got no device config')
                     continue
             elif args.export:
                 logger.info(f'device {hostname} is marked as "offline"')
@@ -586,12 +584,13 @@ if __name__ == "__main__":
         if configparser.could_not_parse():
             continue
 
-        response = onboarding.onboarding(sot,
-                                         args,
-                                         device_facts,
-                                         configparser,
-                                         onboarding_config,
-                                         device_defaults)
+        # call onboarding
+        onboarding.onboarding(sot,
+                              args,
+                              device_facts,
+                              configparser,
+                              onboarding_config,
+                              device_defaults)
 
     # after adding all devices to our sot we add the cables
     if args.cables:

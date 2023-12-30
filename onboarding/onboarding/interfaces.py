@@ -70,7 +70,6 @@ def get_properties(sot, device_fqdn, device_facts, device_defaults, ciscoconf, n
         # process access switch ports
         if mode == 'access':
             logger.debug(f'interface is access switchport {name}')
-            untagged_vlan = sot.get.id(item='vlan', vid=interface.get('vlan'), location=location)
             data = {"mode": "access",
                     "untagged_vlan": {'vid': interface.get('vlan'),
                                       'location': {'name': location}

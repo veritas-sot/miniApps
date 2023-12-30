@@ -14,19 +14,20 @@ _global_cache = {}
 
 
 def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
+    """return additional values
 
+    Add the beginning our response is empty. At the end this dict contains the additional values that are added to nautobot
+    """
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))
-    directory = os.path.join(basedir, './onboarding/required/')
+    directory = os.path.join(basedir, './onboarding/additional_values/')
     files = []
 
-    """
-    Add the beginning response is empty. At the end this dict contains the additional values that are added to nautobot
-    """
+    # init response
     response = {}
 
-    logger.debug(f'reading config from {directory} files for creating required values')
-    # we read all *.yaml files in our required data config dir
+    logger.debug(f'reading config from {directory} files for creating additional values')
+    # we read all *.yaml files in our additional_values data config dir
     for filename in glob.glob(os.path.join(directory, "*.yaml")):
         logger.debug(f'reading {filename}')
 
@@ -37,13 +38,14 @@ def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
         # add filename to our list of files that were processed
         files.append(os.path.basename(filename))
 
-        for item_config in config.get('required'):
+        for item_config in config.get('additional'):
             if 'file' in item_config:
-                get_additional_values(response, 
-                                      item_config,
-                                      device_facts,
-                                      device_defaults,
-                                      onboarding_config)
+                # it is either a csv or an xlsx file
+                get_additional_values_from_file(response, 
+                                                item_config,
+                                                device_facts,
+                                                device_defaults,
+                                                onboarding_config)
             else:
                 process_matches(response,
                                 device_facts, 
@@ -52,12 +54,13 @@ def additional(device_defaults, device_facts, ciscoconf, onboarding_config):
                                 ciscoconf)
     return response
 
-def get_additional_values(response, item_config, device_facts, device_defaults, onboarding_config):
+def get_additional_values_from_file(response, item_config, device_facts, device_defaults, onboarding_config):
+    """return additional values values read from a file"""
     file_format = item_config.get('format','csv')
 
     if file_format == 'csv':
         return add_values_from_csv(response, item_config, device_facts, device_defaults, onboarding_config)
-    elif file_format == 'excel':
+    elif file_format == 'excel' or file_format == 'xlsx':
         return add_values_from_excel(response, item_config, device_facts, device_defaults, onboarding_config)
     else:
         logger.error(f'unknown file format {file_format}')
@@ -67,7 +70,7 @@ def add_values_from_csv(response, item_config, device_facts, device_defaults, on
 
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))
-    directory = os.path.join(basedir, './onboarding/required/')
+    directory = os.path.join(basedir, './onboarding/additional_values/')
     
     filename = "%s/%s" % (directory, item_config.get('file'))
     logger.debug(f'reading additional values from {filename}')
@@ -129,11 +132,11 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
 
     basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
                          onboarding_config.get('git').get('app_configs').get('subdir'))
-    directory = os.path.join(basedir, './onboarding/required/')
+    directory = os.path.join(basedir, './onboarding/additional_values/')
 
     filename = "%s/%s" % (directory, item_config.get('file'))
     matching_key = item_config.get('matches_on')
-    logger.debug(f'reading additional values from {filename}')
+    logger.debug(f'reading additional values from {filename} matching_key: {matching_key}')
 
     if filename in _global_cache:
         workbook = _global_cache.get(filename)
@@ -158,12 +161,13 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
     
     for row in table:
         # maybe there are multiple items
-        for matches_on in item_config.get('matches_on'):
+        for matches_on in matching_key:
             # sot key => name of key in our sot
             # excel_key => name of column in our csv file
             for sot_key, excel_key in matches_on.items():
                 df = device_facts.get(sot_key,'')
                 if len(df) > 0 and df.lower() == row.get(excel_key,'').lower():
+                    logger.debug(f'sot_key: {sot_key} excel_key: {excel_key} found in device_facts')
                     # remove value (and only the value that matches)
                     # from our row / otherwise the key will be added to our response dict 
                     del row[excel_key]
@@ -174,11 +178,15 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
                             set_value(response, k, v)
                 dd = device_defaults.get(sot_key,'')
                 if len(dd) > 0 and dd.lower() == row.get(excel_key,'').lower():
+                    logger.debug(f'sot_key: {sot_key} excel_key: {excel_key} found in device_defaults')
                     del row[excel_key]
-                    for k,v in row.items():
+                    for key,value in row.items():
                         # do not add None or empty values
-                        if v and len(v) > 0:
-                            set_value(response, k, v)
+                        if isinstance(value, str):
+                            if value and len(value) > 0:
+                                set_value(response, key, value)
+                        elif value:
+                            set_value(response, key, value)
 
 def process_matches(response, device_facts, device_defaults, item_config, ciscoconf):
     matches = get_matches(device_facts, 
@@ -297,7 +305,7 @@ def read_file(filename, device_defaults):
     """read yaml file and check if file must be processed (is active and platform matches)"""
     with open(filename) as f:
         config = {}
-        logger.debug("opening file %s to read required field config" % filename)
+        logger.debug("opening file %s to read additional field config" % filename)
         try:
             config = yaml.safe_load(f.read())
             if config is None:

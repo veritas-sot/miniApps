@@ -13,10 +13,10 @@ def get_device_properties(sot, device_fqdn, device_facts, ciscoconf, device_prop
     device_properties['device_type'] = device_facts.get('device_type', device_facts.get('model'))
 
     # check if serial_number is list or string. We need {'12345','12345'}
-    if isinstance(device_facts["serial_number"], list):
+    if isinstance(device_facts.get("serial_number"), list):
         sn = ', '.join(map(str, device_facts["serial_number"]))
     else:
-        sn = device_facts["serial_number"]
+        sn = device_facts.get("serial_number")
 
     # set custom fields; slugify value
     cf_fields = {}
