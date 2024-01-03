@@ -1,0 +1,8 @@
+---
+update:
+  source:
+    named_groups:
+      hostname: ^(?P<alpha>(a|d|k|v|g))(?P<digits>\d+)\w.*
+      serial: ^(?P<serial>\d+)
+  destination:
+    location__name: __alpha____digits__

@@ -82,9 +82,10 @@ if __name__ == "__main__":
         if args.scrapli_loglevel:
             kobold.set_scrapli_loglevel(args.scrapli_loglevel)
         if args.profile:
-            username = kobold_config.get('profiles',{}).get(args.profile,{}).get('username')
-            token = kobold_config.get('profiles',{}).get(args.profile,{}).get('password')
-            kobold.set_profile(username=username, token=token, profile=True)
+            # load profiles
+            profile_config = tools.get_miniapp_config('kobold', BASEDIR, 'profiles.yaml')
+            username, password = tools.get_username_and_password(args, sot, profile_config)
+            kobold.set_profile(username=username, password=password)
         
         if args.job:
             for job in args.job.split(','):

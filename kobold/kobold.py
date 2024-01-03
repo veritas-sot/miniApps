@@ -14,7 +14,6 @@ class Kobold(object):
         self._jobs = {}
         self._username = None
         self._password = None
-        self._profile = False
         self._tcp_port = 22
         self._scrapli_loglevel = "error"
         self.read_playbook_config(playbook)
@@ -31,10 +30,9 @@ class Kobold(object):
         for job in self._playbook.get('jobs',{}):
             self._jobs[job['job']] = job
 
-    def set_profile(self, username=None, token=None, profile=False):
+    def set_profile(self, username=None, password=None):
         self._username = username
-        self._token = token
-        self._profile = profile
+        self._password = password
 
     def set_tcp_port(self, port):
         self._tcp_port = port
@@ -44,19 +42,7 @@ class Kobold(object):
 
     def get_username_and_password(self):
         """return username and password"""
-        if self._username and self._password:
-            return self._username, self._password
-        elif self._profile:
-            # get username and password from profile if user configured args.profile
-            auth = self._sot.auth(encryption_key=os.getenv('ENCRYPTIONKEY'), 
-                            salt=os.getenv('SALT'), 
-                            iterations=int(os.getenv('ITERATIONS')))
-            self._password = auth.decrypt(self._token)
-            return self._username, self._password
-        else:
-            self._username = input("Username (%s): " % getpass.getuser()) if not self._username else self._username
-            self._password = getpass.getpass(prompt="Enter password for %s: " % self._username) if not self._password else self._password
-            return self._username, self._password
+        return self._username, self._password
 
     def get_tcp_port(self):
         return self._tcp_port
