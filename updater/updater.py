@@ -176,7 +176,7 @@ def bulk_update(sot, filename, updater_config):
                 for device in updates:
                     sot.device(device['hostname']).update(device)
 
-def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
+def update_from_file(sot, filename, where, updater_config, using='nb.devices', dry_run=False):
 
     # init vars
     named_groups = {}
@@ -203,14 +203,22 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
     # get items to update
     select = set()
     select.add('id')
-    if using == "nb.ipaddresses":
+    if using == 'nb.devices':
+        for ng in named_groups:
+            select.add(ng.split('__')[0])
+    elif using == "nb.ipaddresses":
         select.add('address')
         select.add('interface_assignments')
+
     for key in named_groups.keys():
         select.add(key)
     itemlist = sot.select(list(select)) \
                   .using(using) \
                   .where(where)
+
+    if len(itemlist) == 0 and dry_run:
+        print('nothing to do')
+        return
 
     # loop through items and check if it must be updated
     for entity in itemlist:
@@ -231,12 +239,17 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
         for ng_key, pattern in named_groups.items():
             if '__' in ng_key:
                 key_list = ng_key.split('__')
-                l = tools.get_value_from_dict_and_list(entity, key_list)
-                if len(l) > 1:
-                    logger.error(f'got multiple values {l} using only the first one!')
-                    item = l[0]
+                val = tools.get_value_from_dict_and_list(entity, key_list)
+                if isinstance(val, list):
+                    if val and len(val) > 1:
+                        logger.error(f'got multiple values {val} using only the first one!')
+                        item = val[0]
+                    elif val:
+                        item = val[0]
+                    else:
+                        item = None
                 else:
-                    item = l[0]
+                    item = val
             else:
                 item = entity.get(ng_key)
             if not item:
@@ -247,26 +260,44 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
                 for group, group_val in match.groupdict().items():
                     matched_values[group] = group_val
 
-        # # now the matched_values is complete
+        # now the matched_values is complete
         for parameter, new_value_regex in destinations.items():
             new_value = new_value_regex
             for group, group_val in matched_values.items():
-                logger.bind(extra=extra).debug(f'group {group} group_val: {group_val}')
+                logger.bind(extra=extra).debug(f'parameter: {parameter} group {group} group_val: {group_val}')
                 new_value = new_value.replace(f'__{group}__', group_val)
-                tools.set_value(updates, parameter, new_value)
+                if parameter.startswith('cf_'):
+                    parameter = parameter.replace('cf_','')
+                    if 'custom_fields' in updates:
+                        updates['custom_fields'].update({parameter: new_value})
+                    else:
+                        updates['custom_fields'] = {parameter: new_value}
+                else:
+                    tools.set_value(updates, parameter, new_value)
 
         # update item in nautobot
         if len(updates) > 0:
-            logger.bind(extra=extra).info(f'updating {parameter} to {new_value}')
             if using == 'nb.devices':
-                nb_obj = sot.get.device(name=hostname_id, by_id=True)
-                response = nb_obj.update(data=updates)
-                logger.bind(extra=extra).debug(f'item updated; response={response}')
+                if dry_run:
+                    print(f'update {extra}; new values: {updates}')
+                else:
+                    try:
+                        nb_obj = sot.get.device(name=hostname_id, by_id=True)
+                        response = nb_obj.update(data=updates)
+                        logger.bind(extra=extra).info(f'item updated; data={updates}; response={response}')
+                    except Exception as exc:
+                        logger.bind(extra=extra).error(f'could not update item')
             elif using == 'nb.ipaddresses':
-                nb_obj = sot.get.address(address=address_id, by_id=True)
-                response = nb_obj.update(data=updates)
-                logger.bind(extra=extra).debug(f'item updated; response={response}')
-                        
+                if dry_run:
+                    print(f'update {extra}; new values: {updates}')
+                else:
+                    try:
+                        nb_obj = sot.get.address(address=address_id, by_id=True)
+                        response = nb_obj.update(data=updates)
+                        logger.bind(extra=extra).info(f'item updated; data={updates}; response={response}')
+                    except Exception as exc:
+                        logger.bind(extra=extra).error(f'could not update item')
+
 
 if __name__ == "__main__":
     # to disable warning if TLS warning is written to console
@@ -289,7 +320,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--bulk-update', type=str, required=False, help="use file to update data")
     parser.add_argument('--update', type=str, required=False, help="use yaml config to update data")
+    # force is only used with bulk-update
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
+    parser.add_argument('--dry-run', action='store_true', help='print updates only')
 
     # parse arguments
     args = parser.parse_args()
@@ -315,6 +348,6 @@ if __name__ == "__main__":
     if args.bulk_update:
         bulk_update(sot, args.bulk_update, updater_config)
     if args.update and args.devices:
-        update_from_file(sot, args.update, args.devices, updater_config, 'nb.devices')
+        update_from_file(sot, args.update, args.devices, updater_config, 'nb.devices', args.dry_run)
     if args.update and args.addresses:
-        update_from_file(sot, args.update, args.addresses, updater_config, 'nb.ipaddresses')
+        update_from_file(sot, args.update, args.addresses, updater_config, 'nb.ipaddresses', args.dry_run)
