@@ -84,6 +84,8 @@ if __name__ == "__main__":
     # what devices
     parser.add_argument('--devices', type=str, required=True, help="query to get list of devices")
     parser.add_argument('--backup-dir', type=str, required=False, help="backup dir")
+    parser.add_argument('--no-git', action='store_true', help='deactivate git')
+    
     # we need username and password if the config is retrieved by the device
     # credentials can be configured using a profile
     # have a look at the config file
@@ -142,6 +144,10 @@ if __name__ == "__main__":
             path=backup_dir,
             host_dirs=local_config_file.get('backup',{}).get('individual_hostdir',True)
     )
+
+    if args.no_git or not local_config_file.get('git',{}).get('backups',{}).get('active', True):
+        logger.bind(extra="git").info(f'git is deactivated....')
+        sys.exit()
 
     # now add all files to git staging
     name_of_repo = local_config_file.get('git',{}).get('backups',{}).get('repo',{})

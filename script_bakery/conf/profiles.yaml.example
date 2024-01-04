@@ -1,0 +1,9 @@
+---
+# default logins to connect to the devices
+# these accounts are not stored in nautobot
+profiles:
+  default:
+      # username to login to devices
+      username: "__USERNAME__"
+      # encrypted and base64 encoded password
+      password: "__PASSWORD__"
