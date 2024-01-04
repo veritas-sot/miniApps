@@ -308,8 +308,11 @@ if __name__ == "__main__":
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_snmp_config_file['sot']['token'], url=local_snmp_config_file['sot']['nautobot'])
 
+    # load profiles
+    profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
+
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, local_snmp_config_file)
+    username, password = tools.get_username_and_password(args, sot, profile_config)
 
     # read SNMP credentials
     get_snmp_credentials(sot, local_snmp_config_file)
