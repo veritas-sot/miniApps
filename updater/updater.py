@@ -203,6 +203,9 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
     # get items to update
     select = set()
     select.add('id')
+    if using == "nb.ipaddresses":
+        select.add('address')
+        select.add('interface_assignments')
     for key in named_groups.keys():
         select.add(key)
     itemlist = sot.select(list(select)) \
@@ -215,23 +218,36 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
         if using == 'nb.devices':
             extra = entity['hostname']
             hostname_id = entity['id']
+        elif using == "nb.ipaddresses":
+            extra = entity['address']
+            address_id = entity['id']
         else:
             logger.error(f'unknown or unsupported type {using}')
             return None
+
         # loop through named patterns and get new values
         # 'updates' is later used to update the item
         matched_values = {}
-        for key, pattern in named_groups.items():
-            item = entity.get(key)
+        for ng_key, pattern in named_groups.items():
+            if '__' in ng_key:
+                key_list = ng_key.split('__')
+                l = tools.get_value_from_dict_and_list(entity, key_list)
+                if len(l) > 1:
+                    logger.error(f'got multiple values {l} using only the first one!')
+                    item = l[0]
+                else:
+                    item = l[0]
+            else:
+                item = entity.get(ng_key)
             if not item:
                 continue
-            logger.bind(extra=extra).debug(f'key: {key} item: {item}')
+            logger.bind(extra=extra).debug(f'key: {ng_key} item: {item}')
             match = pattern.match(item)
             if match:
                 for group, group_val in match.groupdict().items():
                     matched_values[group] = group_val
 
-        # now the matched_values is complete
+        # # now the matched_values is complete
         for parameter, new_value_regex in destinations.items():
             new_value = new_value_regex
             for group, group_val in matched_values.items():
@@ -244,6 +260,10 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices'):
             logger.bind(extra=extra).info(f'updating {parameter} to {new_value}')
             if using == 'nb.devices':
                 nb_obj = sot.get.device(name=hostname_id, by_id=True)
+                response = nb_obj.update(data=updates)
+                logger.bind(extra=extra).debug(f'item updated; response={response}')
+            elif using == 'nb.ipaddresses':
+                nb_obj = sot.get.address(address=address_id, by_id=True)
                 response = nb_obj.update(data=updates)
                 logger.bind(extra=extra).debug(f'item updated; response={response}')
                         
@@ -259,6 +279,8 @@ if __name__ == "__main__":
     # what devices to update
     # this parameter is only used in if --update was set
     parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
+    # use address to update IP addresses
+    parser.add_argument('--addresses', type=str, required=False, help="query to get list of IP addresses")
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
@@ -294,4 +316,5 @@ if __name__ == "__main__":
         bulk_update(sot, args.bulk_update, updater_config)
     if args.update and args.devices:
         update_from_file(sot, args.update, args.devices, updater_config, 'nb.devices')
-
+    if args.update and args.addresses:
+        update_from_file(sot, args.update, args.addresses, updater_config, 'nb.ipaddresses')
