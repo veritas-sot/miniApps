@@ -24,6 +24,7 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
     dt = ""
 
     # Task 1. get configs
+    logger.bind(extra=task.host).info('getting config')
     response = task.run(
         name="config",
         task=napalm_get, getters=['config'], retrieve="all"
@@ -50,6 +51,7 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
         startup_config = startup_config.split('\n',1)[1]
 
     # Task 2. Write startup config
+    logger.bind(extra=task.host).info(f'writing startup_config to {path}')
     task.run(
         task=write_file,
         content=startup_config,
@@ -57,6 +59,7 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
     )
 
     # Task 3. Write running config
+    logger.bind(extra=task.host).info(f'writing running_config to {path}')
     task.run(
         task=write_file,
         content=running_config,
@@ -110,8 +113,11 @@ if __name__ == "__main__":
     # we need the SOT object to talk to the SOT
     sot = sot.Sot(token=local_config_file['sot']['token'], url=local_config_file['sot']['nautobot'])
 
+    # load profiles
+    profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
+
     # get username and password either from profile or by get username / getpass or args
-    username, password = tools.get_username_and_password(args, sot, local_config_file)
+    username, password = tools.get_username_and_password(args, sot, profile_config)
 
     # check if backup directory exists
     if args.backup_dir:
@@ -138,8 +144,10 @@ if __name__ == "__main__":
     )
 
     # now add all files to git staging
-    name_of_repo = local_config_file.get('git',{}).get('backups',{}).get('name',{})
+    name_of_repo = local_config_file.get('git',{}).get('backups',{}).get('repo',{})
     remote = local_config_file.get('git',{}).get('backups',{}).get('remote',{})
+    logger.bind(extra="git").debug(f'add files to repo {name_of_repo} / {path_to_repo}')
+    logger.bind(extra="git").debug(f'remote is set to {remote}')
     repo = sot.repository(repo=name_of_repo, path=path_to_repo)
 
     # check that the origin matches
@@ -149,17 +157,21 @@ if __name__ == "__main__":
         logger.error(f'{remote} (should be)')
         sys.exit()
 
-    logger.info(f'using origin url {remote}')
+    logger.debug(f'using origin url {remote}')
     has_changes = repo.has_changes()
     if not has_changes:
-        logger.info(f'no changes in our git repo detected')
+        logger.bind(extra="git").info(f'no changes in our git repo detected')
         sys.exit()
+
+    # get list of untracked files
     untracked = repo.get_untracked_files()
-    logger.info(f'list of untracked files')
-    logger.info(untracked)
+    logger.bind(extra="git").debug(f'list of untracked files')
+    logger.bind(extra="git").debug(untracked)
 
     repo.add_all()
     now = datetime.now()
     dt = now.strftime("%Y_%m_%d_%H%M%S")
-    repo.commit(comment=f'updating config {dt}')
+    logger.bind(extra="git").debug(f'commiting changes')
+    repo.commit(comment=f'config backup {dt}')
+    logger.bind(extra="git").info(f'pushing changes')
     repo.push()
