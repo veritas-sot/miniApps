@@ -93,9 +93,16 @@ if __name__ == "__main__":
     if args.reachability:
         job = "reachability"
 
-    # Connect the path with the '.env' file name
-    load_dotenv(os.path.join(BASEDIR, '.env'))
-    # you can get the env variable by using var = os.getenv('varname')
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug(f'reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug(f'no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # read config
     nachtwaechter_config = tools.get_miniapp_config('nachtwaechter', BASEDIR, args.config)

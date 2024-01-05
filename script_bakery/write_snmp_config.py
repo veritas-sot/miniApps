@@ -293,8 +293,17 @@ if __name__ == "__main__":
 
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
-    # Connect the path with the '.env' file name
-    load_dotenv(os.path.join(BASEDIR, '.env'))
+
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug(f'reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug(f'no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # read config
     local_snmp_config_file = tools.get_miniapp_config('script_bakery', BASEDIR, args.config)
