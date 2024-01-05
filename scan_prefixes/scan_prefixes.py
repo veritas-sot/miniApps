@@ -175,14 +175,16 @@ if __name__ == "__main__":
     for prefix in prefixes:
         subnets.append(prefix.get('prefix'))
 
-    address = []
     for subnet in subnets:
         logger.info(f'pinging {subnet}')
         prefix_length = subnet.split('/')[1]
         network = ipaddress.ip_network(subnet, strict=False)
+        # ew need an empty address list
+        address = []
         for ip in network.hosts():
             # our call needs a LIST of addresses!!!
             address.append(str(ip))
+        # now ping all addresses
         host = asyncio.run(do_icmp(sot, 
                                    address, 
                                    prefix_length, 
