@@ -17,7 +17,7 @@ from veritas.tools import tools
 from veritas.sot import sot as sot
 
 
-async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update_addr):
+async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, add_address, remove_address, update_addr):
 
     hosts = await async_multiping(addresses, 
                                   privileged=scan_config.get('scan').get('privileged', False), 
@@ -32,10 +32,16 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update
     for host in hosts:
         if not host.is_alive:
             logger.bind(extra=host.address).debug(f'host {host.address} is not alive')
+            if remove_address:
+                ipam_addr = sot.ipam.get_ip(address=host.address)
+                if ipam_addr:
+                    logger.bind(extra=host.address).info(f'removing {host.address} in sot')
+                    ipam_addr.delete()
+            continue
         else:
             hostname = get_hostname(host.address)
             logger.bind(extra=f'{host.address}/{prefix_length}').info(f'avg. latency of {hostname}/{host.address}: {host.avg_rtt}')
-            if add_device:
+            if not hostname and add_device:
                 # add 'dummy' device to SOT
                 interface = scan_config.get('interface')
                 device = scan_config.get('devices',{}).get('default',{})
@@ -62,44 +68,47 @@ async def do_icmp(sot, addresses, prefix_length, scan_config, add_device, update
                     .add_prefix(False) \
                     .assign_ip(True) \
                     .add_device(device)
+
+        # prepare data to update or adding address to sot
+        addr = {'address': f'{host.address}/{prefix_length}',
+                'description': hostname,
+                'dns_name': hostname
+            }
+
+        # make a copy of our default values
+        dflts = dict(dflts_addresses)
+        for key, value in dflts.items():
+            if '__' in value:
+                dflts[key] = dflts[key].replace('__HOSTNAME__', hostname)
+                dflts[key] = dflts[key].replace('__ADDRESS__', host.address)
+                dflts[key] = dflts[key].replace('__DATE__', current_date)
+
+        # move custom fields to its down dict
+        cf_fields = {}
+        for key, value in dict(dflts).items():
+            if key.startswith('cf_'):
+                cf_fields[key.replace('cf_','')] = value
+                del dflts[key]
+
+        dflts.update({'custom_fields': cf_fields})
+        addr.update(dflts)
+
+        # get IP address from sot
+        ipam_addr = sot.ipam.get_ip(address=host.address)
+
+        if not ipam_addr and add_address:
+            # new address; add it to our sot
+            logger.bind(extra=f'{host.address}/{prefix_length}').info(f'adding address to SOT')
+            response = sot.ipam.add_ip(addr)
+        elif ipam_addr and update_addr:
+            # got IP; we need to update
+            if update_addr:
+                response = ipam_addr.update(data=addr)
+                logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updated address IN SOT ({response})')
             else:
-                # add address only to sot
-                addr = {'address': f'{host.address}/{prefix_length}',
-                        'description': hostname,
-                        'dns_name': hostname
-                    }
-
-                # make a copy of our default values
-                dflts = dict(dflts_addresses)
-                for key, value in dflts.items():
-                    if '__' in value:
-                        dflts[key] = dflts[key].replace('__HOSTNAME__', hostname)
-                        dflts[key] = dflts[key].replace('__ADDRESS__', host.address)
-                        dflts[key] = dflts[key].replace('__DATE__', current_date)
-
-                # move custom fields to its down dict
-                cf_fields = {}
-                for key, value in dict(dflts).items():
-                    if key.startswith('cf_'):
-                        cf_fields[key.replace('cf_','')] = value
-                        del dflts[key]
-
-                dflts.update({'custom_fields': cf_fields})
-                addr.update(dflts)
-
-                # get IP address from sot
-                ipam_addr = sot.ipam.get_ip(address=host.address)
-                if ipam_addr:
-                    # got IP; we need to update
-                    if update_addr:
-                        response = ipam_addr.update(data=addr)
-                        logger.bind(extra=f'{host.address}/{prefix_length}').info(f'updated address IN SOT ({response})')
-                    else:
-                        logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'ip is alive but we have nothing to do')
-                else:
-                    # new address; add it to our sot
-                    logger.bind(extra=f'{host.address}/{prefix_length}').info(f'adding address to SOT')
-                    response = sot.ipam.add_ip(addr)
+                logger.bind(extra=f'{host.address}/{prefix_length}').debug(f'ip is alive but we have nothing to do')
+        else:
+            logger.bind(extra=f'{host.address}/{prefix_length}').info(f'new address but add_address not activated')
 
 def get_hostname(ip_address):
     try:
@@ -115,7 +124,11 @@ if __name__ == "__main__":
     
     if you want to select another namespace
 
-    --prefix 'within_include="192.168.0.0/24" and namespace=namespace' 
+    --prefix 'within_include="192.168.0.0/24" and namespace=namespace'
+
+    if you want to scan ALL prefixes with cf_scan_prefix: true
+
+    --prefix 'within_include="0.0.0.0/0" and cf_scan_prefix=true' [--update --add-address]
     """
 
     # to disable warning if TLS warning is written to console
@@ -130,6 +143,9 @@ if __name__ == "__main__":
     parser.add_argument('--prefix', type=str, default="", required=False, help="query to get prefixes")
     parser.add_argument('--update', action='store_true', help='Update address')
     parser.add_argument('--add-device', action='store_true', help='Add device to SOT')
+    parser.add_argument('--add-address', action='store_true', help='Add address to SOT')
+    parser.add_argument('--remove-address', action='store_true', help='Remove unreachable addresses in SOT')
+
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
@@ -172,4 +188,6 @@ if __name__ == "__main__":
                                    prefix_length, 
                                    scan_config, 
                                    args.add_device,
+                                   args.add_address,
+                                   args.remove_address,
                                    args.update))

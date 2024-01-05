@@ -132,7 +132,12 @@ def read_xlsx(filename, key_mapping={}, value_mapping={}):
     logger.debug(f'contains_interface={contains_interface}')
     return contains_interface, data
 
-def do_update(sot, data, updater_config, endpoint):
+def do_update(sot, data, updater_config, endpoint, dry_run):
+    if dry_run:
+        for d in data:
+            print(d)
+        return
+
     nb = sot.rest(url=updater_config['sot']['nautobot'], 
                   token=updater_config['sot']['token'],
                   verify_ssl=updater_config['sot']['ssl_verify'])
@@ -143,7 +148,7 @@ def do_update(sot, data, updater_config, endpoint):
     else:
         logger.info(f'data updated')
 
-def bulk_update(sot, filename, updater_config):
+def bulk_update(sot, filename, updater_config, dry_run=False):
     # get mapping from config
     key_mapping = updater_config.get('mappings',{}).get('keys',{})
     value_mapping = updater_config.get('mappings',{}).get('valaues',{})
@@ -164,17 +169,25 @@ def bulk_update(sot, filename, updater_config):
         # are we able to make a bulk update by using the ID?
         if 'id' in updates[0]:
             if contains_interface:
-                do_update(sot, updates, updater_config, "dcim/interfaces")
+                do_update(sot, updates, updater_config, "dcim/interfaces", dry_run)
             else:
-                do_update(sot, updates, updater_config, "dcim/devices")
+                do_update(sot, updates, updater_config, "dcim/devices", dry_run)
         else:
             # we do not have an ID; use hostname/interface name instead
             if contains_interface:
                 for interface in updates:
-                    sot.device(interface['hostname']).interface(interface['name']).update(interface)
+                    if dry_run:
+                        host_name = interface['hostname']
+                        interface_name = interface['name']
+                        print(f'host {host_name} interface {interface_name} update: {interface}')
+                    else:
+                        sot.device(interface['hostname']).interface(interface['name']).update(interface)
             else:
                 for device in updates:
-                    sot.device(device['hostname']).update(device)
+                    if dry_run:
+                        print(f'host {device["hostname"]} update: {device}')
+                    else:
+                        sot.device(device['hostname']).update(device)
 
 def update_from_file(sot, filename, where, updater_config, using='nb.devices', dry_run=False):
 
@@ -259,6 +272,9 @@ def update_from_file(sot, filename, where, updater_config, using='nb.devices', d
             if match:
                 for group, group_val in match.groupdict().items():
                     matched_values[group] = group_val
+
+        if len(matched_values) == 0:
+            logger.bind(extra=extra).debug(f'entity without matching group')
 
         # now the matched_values is complete
         for parameter, new_value_regex in destinations.items():
@@ -346,7 +362,7 @@ if __name__ == "__main__":
                   git=None)
 
     if args.bulk_update:
-        bulk_update(sot, args.bulk_update, updater_config)
+        bulk_update(sot, args.bulk_update, updater_config, args.dry_run)
     if args.update and args.devices:
         update_from_file(sot, args.update, args.devices, updater_config, 'nb.devices', args.dry_run)
     if args.update and args.addresses:

@@ -221,7 +221,7 @@ def export_as_excel(task, data_to_export):
     number_of_cols = 0
     filename = task.get('filename','export.xlsx')
     
-    logger.info(f'exporting data as EXCEL to {filename}')
+    logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
@@ -247,9 +247,12 @@ def export_as_excel(task, data_to_export):
 
 def export_device_properties(kobold, sot, task, devices):
     data_to_export = get_device_data_to_export(kobold, sot, task, devices)
+    if len(data_to_export) == 0:
+        logger.bind(extra='export').info(f'got no data to export')
+        return
     if task.get('format') == 'csv':
         return export_as_csv(task, data_to_export)
-    if task.get('format') == 'excel':
+    if task.get('format') == 'excel' or task.get('format') == 'xlsx':
         return export_as_excel(task, data_to_export)
 
 def export_config_and_facts(kobold, sot, task, device_properties):
