@@ -115,7 +115,15 @@ In der salt.yaml Datei werden die Parameter dagegen kleingeschrieben.
 
 # Onboarding <a name="Onboarding"></a>
 
-Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden:
+Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden. Dabei gint es verschiedene Möglichkeiten, das "Inventory" zu definieren. Möchte man mehrere Geräte hinzufügen, zum Beispiel wenn man von einer kommerziellen Version umsteigen möchte, so kann eine Excel-Datei genutzt werden. Möchte man lediglich ein Gerät hinzufügen, kann mit dem Parameter --device IP auch das Onboarding für ein Gerät gestartet werden.
+
+## Onboarding mit Hilfe einer Excel-Datei
+
+Im Unterverzeichnis ./conf ist eine Beispiel Datei inventory.xlsx.example hinterlegt. 
+
+![Inventory Beispiel](https://github.com/veritas-sot/miniApps/blob/main/documentation/inventory.png)
+
+## Onboarding eines einzigen Gerätes
 
 Um die Konfigurationen aller Geräte einer Excel-Datei zu exportieren:
 
