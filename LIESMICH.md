@@ -6,19 +6,23 @@
     1. [Python Environment](#install_python_env)
     2. [Installation der Library](#install_python_lib)
 3. [Grundkonfiguration](#miniapps_configs)
-4. [Profile](#profiles)
-5. [onboarding](#onboarding)
-6. [kobold](#kobold)
-7. [nachtwaechter](#nachtwaechter)
-8. [scan_prefixes](#scan_prefixes)
-9. [set_latency](#set_latency)
-10. [set_link](#set_link)
-11. [set_snmp](#set_snmp)
-12. [sync_cmk](#sync_cmk)
-13. [sync_smokeping](#sync_smokeping)
-14. [sync_phpipam](#sync_phpipam)
-15. [updater](#updater)
-16. [authentication](#authentication)
+    1. [Profile](#profiles)
+    2. [Zugriff auf nautobot](#sot_config)
+    3. [Restliche Konfiguration](#miniapp_config)
+4. [onboarding](#onboarding)
+    1. [Konfiguration](#onboarding_config)
+    2. [Typischer Ablauf einer Migration](#migration)
+5. [kobold](#kobold)
+6. [nachtwaechter](#nachtwaechter)
+7. [scan_prefixes](#scan_prefixes)
+8. [set_latency](#set_latency)
+9. [set_link](#set_link)
+10. [set_snmp](#set_snmp)
+11. [sync_cmk](#sync_cmk)
+12. [sync_smokeping](#sync_smokeping)
+13. [sync_phpipam](#sync_phpipam)
+14. [updater](#updater)
+15. [authentication](#authentication)
 
 
 # Übersicht <a name="introduction"></a>
@@ -68,7 +72,7 @@ Jede MiniApp wird durch eine YAML-Konfiguration konfiguriert. veritas nutzt dabe
 
 Einige MiniApps benötigen ein Profil (Benutzername und Passwort) um sich bei einem Netzwerkgerät einzuloggen. Dieses Profile wird in der Datei profile.yaml gespeichert. Dabei gilt die gleiche Prioriätenliste wie für die Apps. 
 
-# Profile <a name="profiles"></a>
+## Profile <a name="profiles"></a>
 
 Die MiniApps onboarding, kobold, der nachtwaechter sowie die ./script_bakery benötigen ein Profil. Eine profiles.yaml hat folgenden Aufbau:
 
@@ -113,23 +117,72 @@ crypto:
 
 In der salt.yaml Datei werden die Parameter dagegen kleingeschrieben.
 
+## Zugriff auf nautobot <a name="sot_config"></a>
+
+Der Zugriff auf nautobot muss in der jeweiligen MiniApp Konfiguration konfiguriert werden Der Syntax lautet:
+
+```
+sot:
+  nautobot: "__NAUTOBOT__"
+  token: "__TOKEN__"
+  ssl_verify: false
+```
+
+Durch den Parameter **nautobot** wird die URL festgelegt, also beispielsweise https://my-nautobot.meine-firma.de/. Token ist der in nautobot konfigurierte Token zur authentifizierung. Wird ein privates TLS-Zertifikat genutzt und kann dies nicht verifiziert werden, so kann die Warnung durch den Parameter ssl_verify: false ausgeschaltetet werden. 
+
+## Restliche konfiguration <a name="miniapp_config"></a>
+
+Es gibt zahlreiche andere Parameter, die im Vorfeld noch konfiguriert werden müssen. Diese sind aber abhängig von der MiniApp. Alle Konfigurationen können in der dazugehörigen YAML-Konfiguration angepasst werden. 
+
+Das Logging einschließlich des Loglevels kann in jeder der MiniApp-Konfiguration festgelegt werden. 
+
+```
+general:
+  logging:
+    loglevel: info
+    logtodatabase: false
+    logtozeromq: false
+    database:
+      host: __database_host__
+      database: __database_datbase__
+      user: __database_username__
+      password: __database_password__
+      port: __database_port__
+    zeromq:
+      protocol: __zeromq_protocol__
+      host: __zeromq_host__
+      port: __zeromq_port__
+```
+
+Wird der Parameter logtodatabase auf true gesetzt, werden die Logdaten in die postgres-Datenbank geschrieben. Diese muss zuvor aber noch konfiguriert werden. Durch den Parameter logtozeromq kann erreicht werden, dass die Logs mit Hilfe von ZeroMQ zum Messagebus geschickt werden. Eigene MiniApps können diese Logs empfangen und weiter verarbeiten.
+
 # Onboarding <a name="Onboarding"></a>
 
-Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden. Dabei gint es verschiedene Möglichkeiten, das "Inventory" zu definieren. Möchte man mehrere Geräte hinzufügen, zum Beispiel wenn man von einer kommerziellen Version umsteigen möchte, so kann eine Excel-Datei genutzt werden. Möchte man lediglich ein Gerät hinzufügen, kann mit dem Parameter --device IP auch das Onboarding für ein Gerät gestartet werden.
+Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden. Dabei gibt es verschiedene Möglichkeiten, das "Inventory" zu definieren. Möchte man mehrere Geräte hinzufügen, zum Beispiel wenn man von einer kommerziellen Lösung umsteigen möchte, so kann eine Excel-Datei genutzt werden. Möchte man lediglich ein Gerät hinzufügen, kann mit dem Parameter --device IP auch das Onboarding für ein Gerät gestartet werden.
 
-## Onboarding mit Hilfe einer Excel-Datei
+## Die Konfiguration der Onboarding-App <a name="onboarding_config"></a>
 
-Im Unterverzeichnis ./conf ist eine Beispiel Datei inventory.xlsx.example hinterlegt. 
+## Typischer Ablauf einer Migration <a name="migration"></a>
 
-![Inventory Beispiel](https://github.com/veritas-sot/miniApps/blob/main/documentation/inventory.png)
+1. Erstellen des Inventories bei der alten Lösung
+2. Anpassen des Inventories
+3. Festlegen der Defaultwerte
+4. Anpassen der zusätzlichen Werte - additional values (optional)
+5. Anpassen der Business Logic (Optional)
+6. Export und speichern der Konfigurationen (optional)
+7. Import der neuen Daten
 
-## Onboarding eines einzigen Gerätes
+## Erstellen des Inventories bei der alten Lösung
 
-Um die Konfigurationen aller Geräte einer Excel-Datei zu exportieren:
+## Anpassen des Inventories
 
-```
-./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --export
-```
+## Festlegen der Defaultwerte
+
+## Anpassen der zusätzlichen Werte - additional values (optional)
+
+## Anpassen der Business Logic (Optional)
+
+## Export und speichern der Konfigurationen (optional)
 
 Alle Konfigurationen und Facts werden im Verzeichnis ./export gespeichert. Dies erleichtert den Import, falls dieser mehrfach angepasst werden soll.
 
@@ -137,6 +190,30 @@ Möchte man alle Geräte, deren Konfiguration vorher exportiert wurdn, importier
 
 ```
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --primary-only
+```
+
+## Import der neuen Daten
+
+### Onboarding mit Hilfe einer Excel-Datei
+
+Im Unterverzeichnis ./conf ist eine Beispiel Datei inventory.xlsx.example hinterlegt. Diese kann als Ausgang für die Erstellung eines Inventories genutzt werden. Der Aufbau ist wie folgt:
+
+![Inventory Beispiel](https://github.com/veritas-sot/miniApps/blob/main/documentation/inventory.png)
+
+Jede Zeile repräsentiert ein Gerät, jede Spalte eine Eigenschaft des Geräts. Parameter die ein 'Subparameter' benötigen, wie beispielsweise
+
+```
+{'location': {'name': 'meine Lokation'}}
+```
+
+werden durch den Syntax location__name konfiguriert. **Dabei werden zwei _ benötigt!**
+
+### Onboarding eines einzigen Gerätes
+
+Um die Konfigurationen aller Geräte einer Excel-Datei zu exportieren:
+
+```
+./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --export
 ```
 
 Möchte man alle Interface hinzufügen, wird statt --primary-only -- interfaces genutzt. 
