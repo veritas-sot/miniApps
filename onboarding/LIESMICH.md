@@ -9,7 +9,8 @@
     3. [Konfigurieren der Defaultwerte](#default_werte)
     4. [Additional Values](#additional_values)
     5. [Anpassen Business Logic](#business_logic)
-4. [Beispiele](#examples)
+4. [Importieren des Inventories](#import)
+5. [Offline Geräte](#offline)
 
 # Onboarding <a name="onboarding"></a>
 
@@ -258,6 +259,8 @@ befinden sich zu diesem Zweck drei Dateien.
 
 Bei einem Import eines Gerätes werden diese Dateien ausgeführt. 
 
+## Import der neuen Daten
+
 ### Export und speichern der Konfigurationen (optional)
 
 Alle Konfigurationen und Facts werden im Verzeichnis ./export gespeichert. Dies erleichtert den Import, falls dieser mehrfach angepasst werden soll.
@@ -268,11 +271,9 @@ Möchte man alle Geräte, deren Konfiguration vorher exportiert wurdn, importier
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --primary-only
 ```
 
-### Import der neuen Daten
+## Importieren des Inventories <a name="imoprt"></a>
 
-# Beispiele <a name="examples"></a>
-
-## Onboarding mit Hilfe einer Excel-Datei
+### Onboarding mit Hilfe einer Excel-Datei
 
 Im Unterverzeichnis ./conf ist eine Beispiel Datei inventory.xlsx.example hinterlegt. Diese kann als Ausgang für die Erstellung eines Inventories genutzt werden. Der Aufbau ist wie folgt:
 
@@ -286,7 +287,7 @@ Jede Zeile repräsentiert ein Gerät, jede Spalte eine Eigenschaft des Geräts. 
 
 werden durch den Syntax location__name konfiguriert. **Dabei werden zwei _ benötigt!**
 
-## Onboarding eines einzigen Gerätes
+### Onboarding eines einzigen Gerätes
 
 Um die Konfigurationen aller Geräte einer Excel-Datei zu exportieren:
 
@@ -300,4 +301,4 @@ Möchte man alle Interface hinzufügen, wird statt --primary-only -- interfaces 
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --iterfaces
 ```
 
-# Offline-Geräte <a name="offline"></a>
+## Offline-Geräte <a name="offline"></a>
