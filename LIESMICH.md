@@ -170,4 +170,4 @@ Wird der Parameter logtodatabase auf true gesetzt, werden die Logdaten in die po
 # Onboarding <a name="onboarding"></a>
 
 Mit der onboarding App können Geräte vollautomatisch zu nautobot hinzugefügt werden
-Weitere Informationen können der onboarding Doku entnommen werden [LIESMICH](https://github.com/veritas-sot/miniApps/blob/main/LIESMICH.md). 
+Weitere Informationen können der onboarding Doku entnommen werden [LIESMICH](https://github.com/veritas-sot/miniApps/blob/main/onboarding/LIESMICH.md). 
