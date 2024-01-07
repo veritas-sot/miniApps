@@ -11,18 +11,15 @@ git:
   backups:
     repo: __BACKUP_REPO__
     path: __BACKUP_PATH__
-    subdir: __BACKUP_SUBDIR__
   app_configs:
     repo: __CONFIGS_REPO__
     path: __CONFIGS_PATH__
-    subdir: __CONFIGS_SUBDIR__
   config_contexts:
     repo: __CONFIG_CONTEXT_REPO__
     path: __CONFIG_CONTEXT_PATH__
-    subdir: __CONFIG_CONTEXT_SUBDIR__
 
 directories:
-  hldm: hldm
+  # directory to write configs and facts
   export: export
 
 general:
@@ -40,9 +37,11 @@ general:
       protocol: __zeromq_protocol__
       host: __zeromq_host__
       port: __zeromq_port__
+
 onboarding:
   defaults:
     # the default primary interface we use to get the primary address
+    # the order is important
     interface:
       - Loopback0
       - Loopback100

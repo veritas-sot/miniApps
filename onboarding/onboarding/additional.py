@@ -130,8 +130,9 @@ def add_values_from_excel(response, item_config, device_facts, device_defaults, 
 
     table = []
 
-    basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
-                         onboarding_config.get('git').get('app_configs').get('subdir'))
+    # basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
+    #                      onboarding_config.get('git').get('app_configs').get('subdir'))
+    basedir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'))
     directory = os.path.join(basedir, './onboarding/additional_values/')
 
     filename = "%s/%s" % (directory, item_config.get('file'))

@@ -267,7 +267,6 @@ if __name__ == "__main__":
     parser.add_argument('--defaults', type=str, help="filename of default values in repo", required=False)
     parser.add_argument('--repo', type=str, required=False, help="name of default repo")
     parser.add_argument('--path', type=str, required=False, help="local path to default repo")
-    parser.add_argument('--subdir', type=str, required=False, help="subdir of repo to get/write data from/to")
 
     # parse arguments
     args = parser.parse_args()
