@@ -8,6 +8,7 @@ import os
 import json
 import getpass
 import urllib3
+import csv
 from loguru import logger
 from ipaddress import IPv4Network
 from dotenv import load_dotenv, dotenv_values
@@ -205,6 +206,114 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
 
     return device_config, device_facts, platform
 
+def read_mapping(onboarding_config):
+    # read mapping from miniapps config
+    # conf_dir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
+    #                       onboarding_config.get('git').get('app_configs').get('subdir'))
+    conf_dir = onboarding_config.get('git').get('app_configs').get('path')
+    directory = os.path.join(conf_dir, './onboarding/mappings/')
+
+    filename = "%s/%s" % (directory, 
+        onboarding_config.get('onboarding',{}).get('mappings',{}).get('inventory',{}).get('filename')
+    )
+    if filename:
+        # read mapping from file
+        logger.debug(f'reading mapping_config from {filename}')
+        with open(filename) as f:
+            mapping_config = yaml.safe_load(f.read())
+        column_mapping = mapping_config.get('mappings',{}).get('columns',{})
+        value_mapping = mapping_config.get('mappings',{}).get('values',{})
+
+    return column_mapping, value_mapping
+
+def read_xlsx_inventory(args, onboarding_config):
+    """read inventory from xlsx file and build list"""
+
+    devicelist = []
+
+    # get mapping
+    column_mapping, value_mapping = read_mapping(onboarding_config)
+
+    table = tools.read_excel_file(f'{BASEDIR}/{args.inventory}')
+    for row in table:
+        d = {}
+        for k,v in row.items():
+            key = column_mapping.get(k) if k in column_mapping else k
+            if key in value_mapping:
+                if v == None:
+                    value = value_mapping[key].get('None', v)
+                else:
+                    value = value_mapping[key].get(v, v)
+            else:
+                value = v
+            # convert 'true' or 'false' to boolean values
+            if isinstance(value, str) and value.lower() == 'true':
+                value = True
+            if isinstance(value, str) and value.lower() == 'false':
+                value = False
+            d[key] = value
+        # todo: check if ilter works
+        if args.filter:
+            if args.filter.lower() not in d['name'].lower():
+                continue
+        devicelist.append(d)
+
+    return devicelist
+
+def read_csv_inventory(args, onboarding_config):
+    """read inventory from csv file and build list"""
+
+    devicelist = []
+
+    # get mapping
+    column_mapping, value_mapping = read_mapping(onboarding_config)
+
+    # set default values
+    quote_config = onboarding_config.get('onboarding', {}).get('inventory', {}).get('csv')
+    delimiter = quote_config.get('delimiter',',')
+    quotechar = quote_config.get('quotechar','|')
+    quoting_cf = quote_config.get('quoting','minimal')
+    newline = quote_config.get('newline','')
+    if quoting_cf == "none":
+        quoting = csv.QUOTE_NONE
+    elif quoting_cf == "all":
+        quoting = csv.QUOTE_ALL
+    elif quoting_cf == "nonnumeric":
+        quoting = csv.QUOTE_NONNUMERIC
+    else:
+        quoting = csv.QUOTE_MINIMAL
+    logger.info(f'reading mapping {filename} delimiter={delimiter} ' \
+                 'quotechar={quotechar} newline={newline} quoting={quoting_cf}')
+
+    # read CSV file
+    with open(args.inventory, newline=newline) as csvfile:
+        csvreader = csv.DictReader(csvfile, delimiter=delimiter, quoting=quoting, quotechar=quotechar)
+        for row in csvreader:
+            d = {}
+            for k,v in row.items():
+                key = column_mapping.get(k) if k in column_mapping else k
+                print(key)
+                if key in value_mapping:
+                    if v == None:
+                        value = value_mapping[key].get('None', v)
+                    else:
+                        value = value_mapping[key].get(v, v)
+                else:
+                    value = v
+                # convert 'true' or 'false' to boolean values
+                if isinstance(value, str) and value.lower() == 'true':
+                    value = True
+                if isinstance(value, str) and value.lower() == 'false':
+                    value = False
+                d[key] = value
+            # todo: check if ilter works
+            if args.filter:
+                if args.filter.lower() not in d['name'].lower():
+                    continue
+            devicelist.append(d)
+
+    return devicelist
+
 if __name__ == "__main__":
 
     # to disable warning if TLS warning is written to console
@@ -217,6 +326,7 @@ if __name__ == "__main__":
     device_facts = {}
     device_names_in_sot = {}
     device_ip_in_sot = {}
+
     # devicelist is the list of devices we are processing
     devicelist = []
 
@@ -372,55 +482,9 @@ if __name__ == "__main__":
     # add inventory from file
     if args.inventory:
         if '.xlsx' in args.inventory:
-            # read mapping from miniapps config
-            conf_dir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
-                                  onboarding_config.get('git').get('app_configs').get('subdir'))
-            directory = os.path.join(conf_dir, './onboarding/mappings/')
-
-            filename = "%s/%s" % (directory, 
-                onboarding_config.get('onboarding',{}).get('mappings',{}).get('inventory',{}).get('filename')
-            )
-            if filename:
-                # read mapping from file
-                logger.debug(f'reading mapping_config from {filename}')
-                with open(filename) as f:
-                    mapping_config = yaml.safe_load(f.read())
-                column_mapping = mapping_config.get('mappings',{}).get('columns',{})
-                value_mapping = mapping_config.get('mappings',{}).get('values',{})
-            table = tools.read_excel_file(f'{BASEDIR}/{args.inventory}')
-            for row in table:
-                d = {}
-                for k,v in row.items():
-                    key = column_mapping.get(k) if k in column_mapping else k
-                    if key in value_mapping:
-                        if v == None:
-                            value = value_mapping[key].get('None', v)
-                        else:
-                            value = value_mapping[key].get(v, v)
-                    else:
-                        value = v
-                    # convert 'true' or 'false' to boolean values
-                    if isinstance(value, str) and value.lower() == 'true':
-                        value = True
-                    if isinstance(value, str) and value.lower() == 'false':
-                        value = False
-                    d[key] = value
-                # todo: check if ilter works
-                if args.filter:
-                    if args.filter.lower() not in d['name'].lower():
-                        continue
-                devicelist.append(d)
+            devicelist += read_xlsx_inventory(args, onboarding_config)
         elif '.csv' in args.inventory:
-            with open(args.inventory) as f:
-                config = yaml.safe_load(f.read())
-                for d in config:
-                    # the inventory includes host (IP), hostname (name) and platform (ios or nxos)
-                    # use a simple filter to exclude devices
-                    if args.filter:
-                        if args.filter.lower() not in d['name'].lower():
-                            continue
-                    devicelist.append(d)
-                f.close()
+            devicelist += read_csv_inventory(args, onboarding_config)
         else:
             logger.error(f'cannot read {args.inventory}; unknown file or format')
             sys.exit()
@@ -432,6 +496,9 @@ if __name__ == "__main__":
 
     devices_processed = 0
     devices_overall = len(devicelist)
+
+    print(devicelist)
+    sys.exit()
 
     #
     # now loop through all devices and process one by one

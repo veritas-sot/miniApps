@@ -51,6 +51,12 @@ onboarding:
     # loading mapping from app config (see above)
     inventory:
       filename: inventory.yaml
+  inventory:
+    csv:
+      delimiter: ","
+      quotechar: "|"
+      quoting: minimal
+      newline: ''
   offline_config:
     model: unknown
     serial: offline
