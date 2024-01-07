@@ -155,7 +155,7 @@ defaults:
     device_type: firewall
 ```
 
-<p style="text-align: center;"><img src="https://github.com/veritas-sot/miniApps/blob/main/documentation/exclamation.svg" alt="image" style="width:30px;height:auto;float:left">
+<p style="top: 50%;"><img src="https://github.com/veritas-sot/miniApps/blob/main/documentation/exclamation.svg" alt="image" style="width:30px;height:auto;float:left">
 Um den Standardwert für ein Gerät festzulegen, wird die gesamte Hierachie (von 0.0.0.0/0 bis zur Host-IP) der dazugehörigen IP-Adresse durchlaufen. Dabei können Werte überschrieben werden.</p>
 
 Ein Beispiel: 
