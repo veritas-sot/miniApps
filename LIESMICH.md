@@ -191,7 +191,7 @@ git:
 
 Bevor ein Gerät importiert wird, können zahleiche Standardwerte festgelegt werden. Diese Werte können in einem lokalem git-Verzeichnis gespeicehrt werden und mit dem Parameter path sowie filenae konfiguriert werden. 
 
-Weitere Konfigurationen sind in einem miniApp-Konfigurationsverzeichnis abzulegen
+Weitere Konfigurationen sind in miniApp-Konfigurationsverzeichnissen abzulegen.
 
 ```
   app_configs:
@@ -199,7 +199,19 @@ Weitere Konfigurationen sind in einem miniApp-Konfigurationsverzeichnis abzulege
     path: __CONFIGS_PATH__
 ```
 
-mapping:
+Typischerweise sieht die Struktur eines Verzeichnis-Baumes in etwa so aus:
+
+```
+miniapp_configs
+  ./onboarding/
+    ./additional_values/
+    ./config_context/
+    ./custom_fields/
+    ./mappings/
+    ./tags
+```
+
+mappings:
 
 Wird eine Excel-Liste als Inventory genutzt kann es sein, dass die Spaltennamen nicht zu den Namen, die im nautobot genutzt werden nmüssen, passen. Aus diesem Grund kann ein Mapping konfiguriert werden.
 
@@ -238,6 +250,8 @@ Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut wer
 7. Import der neuen Daten
 
 ## Erstellen des Inventories bei der alten Lösung
+
+Um nautobot mit neuen Daten zu füllen, müssen diese Daten zunächst aus dem Altsstem ausgelesen werden. Eine allgemeine Anleitung für dieses Vorgehen kann hier nicht aufgelistet werden, da dies jeweils auf das (kommerzielle) System ankommt. Oftmals ist es aber möglich, die sogenannten 'custom_properties' zu exportieren und als CSV oder sogar Excel abzuspeichern.
 
 ## Anpassen des Inventories
 
