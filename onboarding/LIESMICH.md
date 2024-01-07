@@ -271,7 +271,7 @@ Möchte man alle Geräte, deren Konfiguration vorher exportiert wurdn, importier
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --primary-only
 ```
 
-## Importieren des Inventories <a name="imoprt"></a>
+## Importieren des Inventories <a name="import"></a>
 
 ### Onboarding mit Hilfe einer Excel-Datei
 
