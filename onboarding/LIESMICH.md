@@ -3,11 +3,12 @@
 1. [onboarding](#*onboarding*)
 2. [Konfiguration](#onboarding_config)
 3. [Ablauf einer Migration](#migration)
+4. [Vorbereiten des Imports](#preparation)
     1. [Das Inventory erstellen](#create_inventory)
     2. [Anpassen des Inventories](#customize_inventory)
     3. [Konfigurieren der Defaultwerte](#default_werte)
     4. [Additional Values](#additional_values)
-    5. [Business Logic](#business_logic)
+    5. [Anpassen Business Logic](#business_logic)
 4. [Beispiele](#examples)
 
 # Onboarding <a name="onboarding"></a>
@@ -91,6 +92,10 @@ Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut wer
 6. Export und speichern der Konfigurationen (optional)
 7. Import der neuen Daten
 
+## Vorbereiten des Imports  <a name="preparation"></a>
+
+Bevor Geräte importiert werden können, müssen ggf. noch einige Dinge angepasst werden. Jedenfalls muss ein Inventory existieren, wenn man nicht jedes Gerät einzeln hinzufügen möchte.
+
 ### Erstellen des Inventories bei der alten Lösung <a name="create_inventory"></a>
 
 Um nautobot mit neuen Daten zu füllen, müssen diese Daten zunächst aus dem Altsstem ausgelesen werden. Eine allgemeine Anleitung für dieses Vorgehen kann hier nicht gegeben werden, da dies jeweils auf das (kommerzielle) System ankommt. Oftmals ist es aber möglich, die sogenannten 'custom_properties' zu exportieren und als CSV oder sogar Excel abzuspeichern.
@@ -166,7 +171,7 @@ Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle 
 
 > Geräte, die mit 'offline: True' konfiguriert werden, werden als 'offline'-Gerät hinzugefügt (siehe [Offline] (#offline)). Geröte mit der Konfiguration 'ignore: True' werden **nicht** importiert.
 
-### Anpassen der zusätzlichen Werte - additional values (optional) <a name="additional_values"></a>
+### Anpassen von zusätzlichen Werten - additional values (optional) <a name="additional_values"></a>
 
 Oftmals ist es notwendig, weitere Werte anzupassen. Um diesen Prozess zu vereinfachen, können weitere Werte mit Hilfe von Listen oder regulären Ausdrücken hinzugefügt werden. 
 
