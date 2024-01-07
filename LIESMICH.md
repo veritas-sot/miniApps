@@ -199,6 +199,8 @@ Weitere Konfigurationen sind in einem miniApp-Konfigurationsverzeichnis abzulege
     path: __CONFIGS_PATH__
 ```
 
+mapping:
+
 Wird eine Excel-Liste als Inventory genutzt kann es sein, dass die Spaltennamen nicht zu den Namen, die im nautobot genutzt werden nmüssen, passen. Aus diesem Grund kann ein Mapping konfiguriert werden.
 
 ```
@@ -209,6 +211,8 @@ Wird eine Excel-Liste als Inventory genutzt kann es sein, dass die Spaltennamen 
 ```
 
 Das Mapping wird in einem Unterverzeichnis im Pfad 'app_configs_path/onboarding/mappings/' gesucht.
+
+offline-Onboarding:
 
 Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut werden kann. Das Onboarding benötigt dennoch einige Standardwerte, die im Bereich 'offline_config' festgelegt werden können.
 
