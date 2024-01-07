@@ -166,8 +166,6 @@ Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle 
 
 ### Anpassen der zusätzlichen Werte - additional values (optional)
 
-### Anpassen der Business Logic (Optional)
-
 Oftmals ist es notwendig, weitere Werte anzupassen. Um diesen Prozess zu vereinfachen, können weitere Werte mit Hilfe von Listen oder regulären Ausdrücken hinzugefügt werden. 
 
 Sie können mehrere YAML Konfigurationen in dem folgenden Verzeichnis hinterlegen. Alle diese Dateien werden vom System gelesen und verarbeitet.
@@ -234,6 +232,24 @@ Im vierten Beispiel wird eine xlsx Datei konfiguriert. In solch einer Datei kön
 ![Additional Values Beispiel](https://github.com/veritas-sot/miniApps/blob/main/documentation/additional_values.png)
 
 Bei dem Gerät lab.local wird die Seriennummer mit dem Wert 12345 überschrieben und das Custom Field 'net' mit dem Wert 'my Network' versehen.
+
+### Anpassen der Business Logic (Optional)
+
+Die 'Business Logic' ermöglicht es, eigenen python Code ausführen zu lassen. Im Verzeichnis
+
+```
+./miniApps/
+  ./onboarding/
+    ./businesslogic/
+```
+
+befinden sich zu diesem Zweck drei Dateien.
+
+* your_config_context.py
+* your_device.py
+* your_interfaces.py
+
+Bei einem Import eines Gerätes werden diese Dateien ausgeführt. 
 
 ### Export und speichern der Konfigurationen (optional)
 
