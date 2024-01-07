@@ -49,7 +49,13 @@ Mit
 conda create --name veritas python=3.11
 ```
 
-wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 angelegt.
+wird ein neues Environment mit dem Namen 'veritas' und der Python Version 3.11 angelegt. Poetry wird benötigt, um die Library zu installieren. Mit
+
+```
+conda install poetry
+```
+
+kann poetry installiert werden.
 
 ## Installation der Library <a name="install_python_lib"></a>
 
@@ -63,18 +69,18 @@ wird die Library installiert und kann anschließend genutzt werden.
 
 # Grundkonfiguration der MiniApps <a name="miniapps_configs"></a>
 
-Jede MiniApp wird durch eine YAML-Konfiguration konfiguriert. veritas nutzt dabei folgende Prioritäten
+Jede MiniApp wird durch eine YAML-Konfiguration konfiguriert. veritas nutzt dabei folgende Prioritäten um die Konfiguration zu lesen:
 
 1. ~/.veritas/miniapps/__appname__/__appname__.yaml
 2. lokales miniApp Verzeichnis z.B. miniApps/onvoarding/onboarding.yaml
 3. ./conf Unterverzeichnis der MiniApp z.B. miniApps/onboarsing/conf/onboarding.yaml
 4. /etc/veritas/miniapps/__appname__/__appname__.yaml
 
-Einige MiniApps benötigen ein Profil (Benutzername und Passwort) um sich bei einem Netzwerkgerät einzuloggen. Dieses Profile wird in der Datei profile.yaml gespeichert. Dabei gilt die gleiche Prioriätenliste wie für die Apps. 
+Einige MiniApps benötigen zudem ein Profil (Benutzername und Passwort) um sich bei einem Netzwerkgerät anzumelden. Dieses Profile wird in der Datei profile.yaml gespeichert. Dabei gilt die gleiche Prioriätenliste wie für die Apps. 
 
 ## Profile <a name="profiles"></a>
 
-Die MiniApps onboarding, kobold, der nachtwaechter sowie die ./script_bakery benötigen ein Profil. Eine profiles.yaml hat folgenden Aufbau:
+Die MiniApps onboarding, kobold, der nachtwaechter sowie die ./script_bakery benötigen ein Profil. Die Datei profiles.yaml hat folgenden Aufbau:
 
 ```
 ---
@@ -105,7 +111,11 @@ Die drei Parameter
 * SALT
 * ITERATIONS
 
-können entweder in einer local .env Datei (wird bei jeder MiniApp benötigt, die ein Profil nutzt!) konfiguriert werden. Wichtig dabei ist die Schreibweise. Alle Parameter müssen in der .env-Datei **GROSS** geschrieben werden. Alternativ kann im MiniApp-Konfigurationsverzeichnis eine Datei salt.yaml abgelegt werden. Diese muss wie folgt aussehen:
+können entweder in einer local .env Datei (wird bei jeder MiniApp benötigt, die ein Profil benötigt!) konfiguriert werden. 
+
+> Wichtig dabei ist die Schreibweise. Alle Parameter müssen in der .env-Datei **GROSS** geschrieben werden. Alternativ kann im MiniApp-Konfigurationsverzeichnis eine Datei salt.yaml abgelegt werden. 
+
+Diese muss wie folgt aussehen:
 
 ```
 ---
@@ -128,13 +138,15 @@ sot:
   ssl_verify: false
 ```
 
-Durch den Parameter **nautobot** wird die URL festgelegt, also beispielsweise https://my-nautobot.meine-firma.de/. Token ist der in nautobot konfigurierte Token zur authentifizierung. Wird ein privates TLS-Zertifikat genutzt und kann dies nicht verifiziert werden, so kann die Warnung durch den Parameter ssl_verify: false ausgeschaltetet werden. 
+Durch den Parameter **nautobot** wird die URL festgelegt, also beispielsweise https://my-nautobot.meine-firma.de/. Token ist der in nautobot konfigurierte Token zur authentifizierung. 
+
+> Wird ein privates TLS-Zertifikat genutzt und kann dies nicht verifiziert werden, so kann die Verifizierung durch den Parameter ssl_verify: false ausgeschaltetet werden. 
 
 ## Restliche konfiguration <a name="miniapp_config"></a>
 
 Es gibt zahlreiche andere Parameter, die im Vorfeld noch konfiguriert werden müssen. Diese sind aber abhängig von der MiniApp. Alle Konfigurationen können in der dazugehörigen YAML-Konfiguration angepasst werden. 
 
-Das Logging einschließlich des Loglevels kann in jeder der MiniApp-Konfiguration festgelegt werden. 
+Das Logging einschließlich des Loglevels kann in **jeder** der MiniApp-Konfiguration wie folgt festgelegt werden. 
 
 ```
 general:
@@ -154,13 +166,62 @@ general:
       port: __zeromq_port__
 ```
 
-Wird der Parameter logtodatabase auf true gesetzt, werden die Logdaten in die postgres-Datenbank geschrieben. Diese muss zuvor aber noch konfiguriert werden. Durch den Parameter logtozeromq kann erreicht werden, dass die Logs mit Hilfe von ZeroMQ zum Messagebus geschickt werden. Eigene MiniApps können diese Logs empfangen und weiter verarbeiten.
+Wird der Parameter logtodatabase auf true gesetzt, werden die Logdaten in die postgres-Datenbank geschrieben. Diese muss zuvor aber noch konfiguriert werden. Durch den Parameter logtozeromq kann erreicht werden, dass die Logs mit Hilfe von ZeroMQ zum Messagebus gesendet werden. Eigene MiniApps können diese Logs empfangen und weiter verarbeiten.
 
 # Onboarding <a name="Onboarding"></a>
 
-Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden. Dabei gibt es verschiedene Möglichkeiten, das "Inventory" zu definieren. Möchte man mehrere Geräte hinzufügen, zum Beispiel wenn man von einer kommerziellen Lösung umsteigen möchte, so kann eine Excel-Datei genutzt werden. Möchte man lediglich ein Gerät hinzufügen, kann mit dem Parameter --device IP auch das Onboarding für ein Gerät gestartet werden.
+Mit Hilfe der onboarding-App können Geräte vollautomatisiert zu nautobot hinzugefügt werden. Dabei gibt es verschiedene Möglichkeiten, das "Inventory" zu definieren. Möchte man mehrere Geräte hinzufügen - zum Beispiel wenn man von einer kommerziellen Lösung umsteigen möchte - so kann eine Excel-Datei genutzt werden. Möchte man lediglich ein Gerät hinzufügen, kann mit dem Parameter --device ip_adresse auch das Onboarding für ein Gerät gestartet werden.
 
 ## Die Konfiguration der Onboarding-App <a name="onboarding_config"></a>
+
+Das Verhalten der onboarding-App kann durch mehrere Konfigurationen beeinflusst werden. 
+
+### onboarding.yaml
+
+In dieser Datei werden neben dem Zugriff auf nautobot und dem Logging auch der Zugriff auf git sowie allgemeine Einstellungen wie das export-Verzeichnis, die Liste der primary-Interfaces, Einstellungen zum Mapping und zum Offline-Import konfiguriert.
+
+git:
+
+```
+  defaults:
+    repo: __DEFAULTS_REPO__
+    path: __DEFAULTS_PATH__
+    filename: __DEFAULTS_FILENAME__
+```
+
+Bevor ein Gerät importiert wird, können zahleiche Standardwerte festgelegt werden. Diese Werte können in einem lokalem git-Verzeichnis gespeicehrt werden und mit dem Parameter path sowie filenae konfiguriert werden. 
+
+Weitere Konfigurationen sind in einem miniApp-Konfigurationsverzeichnis abzulegen
+
+```
+  app_configs:
+    repo: __CONFIGS_REPO__
+    path: __CONFIGS_PATH__
+```
+
+Wird eine Excel-Liste als Inventory genutzt kann es sein, dass die Spaltennamen nicht zu den Namen, die im nautobot genutzt werden nmüssen, passen. Aus diesem Grund kann ein Mapping konfiguriert werden.
+
+```
+  mappings:
+    # loading mapping from app config (see above)
+    inventory:
+      filename: inventory.yaml
+```
+
+Das Mapping wird in einem Unterverzeichnis im Pfad 'app_configs_path/onboarding/mappings/' gesucht.
+
+Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut werden kann. Das Onboarding benötigt dennoch einige Standardwerte, die im Bereich 'offline_config' festgelegt werden können.
+
+```
+  offline_config:
+    model: unknown
+    serial: offline
+    platform: ios
+    primary_interface: Loopback100
+    primary_mask: 255.255.255.255
+    primary_description: Primary
+    filename: ./conf/offline.conf
+```
 
 ## Typischer Ablauf einer Migration <a name="migration"></a>
 
