@@ -1,6 +1,6 @@
 # veritas nautobot miniApps
 
-# Table of contents
+# Inhalt
 1. [Übersicht](#*introduction*)
 2. [Installation](#installation)
     1. [Python Environment](#install_python_env)
@@ -165,7 +165,6 @@ general:
 ```
 
 Wird der Parameter logtodatabase auf true gesetzt, werden die Logdaten in die postgres-Datenbank geschrieben. Diese muss zuvor aber noch konfiguriert werden. Durch den Parameter logtozeromq kann erreicht werden, dass die Logs mit Hilfe von ZeroMQ zum Messagebus gesendet werden. Eigene MiniApps können diese Logs empfangen und weiter verarbeiten.
-
 
 # Onboarding <a name="onboarding"></a>
 

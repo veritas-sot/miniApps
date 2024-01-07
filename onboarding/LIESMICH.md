@@ -1,9 +1,10 @@
-# Table of contents
+# Inhalt
 
 1. onboarding (#*onboarding*)
 2. Konfiguration (#onboarding_config)
 3. Ablauf einer Migration (#migration)
     1. Das Inventory erstellen (#create_inventory)
+    2. Anpassen des Inventories (#customize_inventory)
 
 # Onboarding <a name="onboarding"></a>
 
@@ -88,9 +89,40 @@ Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut wer
 
 ## Erstellen des Inventories bei der alten Lösung <a name="create_inventory"></a>
 
-Um nautobot mit neuen Daten zu füllen, müssen diese Daten zunächst aus dem Altsstem ausgelesen werden. Eine allgemeine Anleitung für dieses Vorgehen kann hier nicht aufgelistet werden, da dies jeweils auf das (kommerzielle) System ankommt. Oftmals ist es aber möglich, die sogenannten 'custom_properties' zu exportieren und als CSV oder sogar Excel abzuspeichern.
+Um nautobot mit neuen Daten zu füllen, müssen diese Daten zunächst aus dem Altsstem ausgelesen werden. Eine allgemeine Anleitung für dieses Vorgehen kann hier nicht gegeben werden, da dies jeweils auf das (kommerzielle) System ankommt. Oftmals ist es aber möglich, die sogenannten 'custom_properties' zu exportieren und als CSV oder sogar Excel abzuspeichern.
 
-## Anpassen des Inventories
+## Anpassen des Inventories <a name="customize_inventory"></a>
+
+Hat man aus dem Altsystem das Inventory exportiert, muss es ggf. noch angepasst werden. Dies kann mit Hilfe des Mappings umgesetzt werden. Es gint zwei prinzpielle Möglichkeiten. a) Das Anpassen eines Spaltennamens (key) oder b) das Anpassen von Werten. Beiedes wird mit Hilfe einer YAML-Konfiguration realisiert.
+
+Im Verzeichnis 
+
+```
+miniapp_configs
+  ./onboarding/
+    ./mappings/
+```
+
+muss die in der onboarding.yaml angegebene mapping-Konfiguration (siehe obej) abgelegt werden. Sie hat folgende Struktur:
+
+```
+---
+mappings:
+  columns:
+    # the format is key in excel/csv => key in nautobot
+    my_hostname: name
+  values:
+    # for each key (eg. name, ip, ...) in your excel/csv you can define new values
+    name:
+      # if name is old_name and should now be new_name use this 
+      old_name: new_name
+```
+
+Um den Spaltennamen anzupassen, muss dieser im Bereich 'columns' angegeben werden. Dabei ist der angegebene key der alte und der Wert der neue Name der Spalte. Im obigen Beispiel wird die Spalte 'my_hostname' nach 'name' umbenannt.
+
+Soll ein Wert angepasst werden, muss zunächst für die 'Spalte' ein Unterbereich konfiguriert werden. In diesem Bereich wird dann der alte sowie der neue Wert konfiguriert. Im obigen Beispiel werden Werte in der Spalte 'name' angepasst. Dabei wird der Wert 'old_name' nach 'new_name' geändert. 
+
+> Es wird zunächst das column-Mapping und dann das value-Mapping durchgeführt.
 
 ## Festlegen der Defaultwerte
 

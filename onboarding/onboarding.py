@@ -208,8 +208,6 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
 
 def read_mapping(onboarding_config):
     # read mapping from miniapps config
-    # conf_dir = "%s/%s" % (onboarding_config.get('git').get('app_configs').get('path'),
-    #                       onboarding_config.get('git').get('app_configs').get('subdir'))
     conf_dir = onboarding_config.get('git').get('app_configs').get('path')
     directory = os.path.join(conf_dir, './onboarding/mappings/')
 
@@ -496,9 +494,6 @@ if __name__ == "__main__":
 
     devices_processed = 0
     devices_overall = len(devicelist)
-
-    print(devicelist)
-    sys.exit()
 
     #
     # now loop through all devices and process one by one
