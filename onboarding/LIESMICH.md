@@ -5,6 +5,8 @@
 3. Ablauf einer Migration (#migration)
     1. Das Inventory erstellen (#create_inventory)
     2. Anpassen des Inventories (#customize_inventory)
+    3. Konfigurieren der Defaultwerte (#default_werte)
+4. Beispiele (#examples)
 
 # Onboarding <a name="onboarding"></a>
 
@@ -87,11 +89,11 @@ Manchmal soll ein Gerät importiert werden, zu dem keine Verbidung aufgebaut wer
 6. Export und speichern der Konfigurationen (optional)
 7. Import der neuen Daten
 
-## Erstellen des Inventories bei der alten Lösung <a name="create_inventory"></a>
+### Erstellen des Inventories bei der alten Lösung <a name="create_inventory"></a>
 
 Um nautobot mit neuen Daten zu füllen, müssen diese Daten zunächst aus dem Altsstem ausgelesen werden. Eine allgemeine Anleitung für dieses Vorgehen kann hier nicht gegeben werden, da dies jeweils auf das (kommerzielle) System ankommt. Oftmals ist es aber möglich, die sogenannten 'custom_properties' zu exportieren und als CSV oder sogar Excel abzuspeichern.
 
-## Anpassen des Inventories <a name="customize_inventory"></a>
+### Anpassen des Inventories <a name="customize_inventory"></a>
 
 Hat man aus dem Altsystem das Inventory exportiert, muss es ggf. noch angepasst werden. Dies kann mit Hilfe des Mappings umgesetzt werden. Es gint zwei prinzpielle Möglichkeiten. a) Das Anpassen eines Spaltennamens (key) oder b) das Anpassen von Werten. Beiedes wird mit Hilfe einer YAML-Konfiguration realisiert.
 
@@ -124,7 +126,7 @@ Soll ein Wert angepasst werden, muss zunächst für die 'Spalte' ein Unterbereic
 
 > Es wird zunächst das column-Mapping und dann das value-Mapping durchgeführt.
 
-## Festlegen der Defaultwerte
+### Festlegen der Defaultwerte  <a name="default_werte"></a>
 
 Die in der onboarding.yaml (Bereich defaults) konfigurierte Datei wird gelesen, um Standardwerte festzulegen. Die Datei hat folgenden Aufbau:
 
@@ -159,11 +161,13 @@ Ein Beispiel:
 
 Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle Werte von 0.0.0.0/0 als Standardwert festgelegt. Danach werden die Werte aus dem Bereich 172.16.0.0/12 gelesen und bereits vorhandenne Werte überschrieben. Im obigen Beispiel wird der device-type für alle Geräte zunächst auf 'default-type' gesetzt. Geräte aus dem Bereich 172.16.0.0/12 erhalten jedoch den device-type 'my-type'. Das Gerät 172.16.0.1/32 erhält letztendlich den device-type 'firewall'
 
-## Anpassen der zusätzlichen Werte - additional values (optional)
+> Geräte, die mit 'offline: True' konfiguriert werden, werden als 'offline'-Gerät hinzugefügt (siehe [Offline] (#offline)). Geröte mit der Konfiguration 'ignore: True' werden **nicht** importiert.
 
-## Anpassen der Business Logic (Optional)
+### Anpassen der zusätzlichen Werte - additional values (optional)
 
-## Export und speichern der Konfigurationen (optional)
+### Anpassen der Business Logic (Optional)
+
+### Export und speichern der Konfigurationen (optional)
 
 Alle Konfigurationen und Facts werden im Verzeichnis ./export gespeichert. Dies erleichtert den Import, falls dieser mehrfach angepasst werden soll.
 
@@ -173,9 +177,11 @@ Möchte man alle Geräte, deren Konfiguration vorher exportiert wurdn, importier
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --primary-only
 ```
 
-## Import der neuen Daten
+### Import der neuen Daten
 
-### Onboarding mit Hilfe einer Excel-Datei
+# Beispiele <a name="examples"></a>
+
+## Onboarding mit Hilfe einer Excel-Datei
 
 Im Unterverzeichnis ./conf ist eine Beispiel Datei inventory.xlsx.example hinterlegt. Diese kann als Ausgang für die Erstellung eines Inventories genutzt werden. Der Aufbau ist wie folgt:
 
@@ -189,7 +195,7 @@ Jede Zeile repräsentiert ein Gerät, jede Spalte eine Eigenschaft des Geräts. 
 
 werden durch den Syntax location__name konfiguriert. **Dabei werden zwei _ benötigt!**
 
-### Onboarding eines einzigen Gerätes
+## Onboarding eines einzigen Gerätes
 
 Um die Konfigurationen aller Geräte einer Excel-Datei zu exportieren:
 
@@ -203,3 +209,4 @@ Möchte man alle Interface hinzufügen, wird statt --primary-only -- interfaces 
 ./onboarding.py --profile default --loglevel info --inventory inventory.xlsx --import --onboarding --iterfaces
 ```
 
+# Offline-Geräte <a name="offline"></a>
