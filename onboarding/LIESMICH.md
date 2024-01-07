@@ -151,7 +151,7 @@ defaults:
     custom_fields:
       net: testnet
       test: value
-    # tags: [ {'name': 'ospf'} ]
+    tags: [ {'name': 'ospf'} ]
   10.0.0.0/8:
     ignore: True
   172.16.0.0/12:
