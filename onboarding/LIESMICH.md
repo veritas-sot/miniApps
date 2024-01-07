@@ -6,6 +6,8 @@
     1. [Das Inventory erstellen](#create_inventory)
     2. [Anpassen des Inventories](#customize_inventory)
     3. [Konfigurieren der Defaultwerte](#default_werte)
+    4. [Additional Values](#additional_values)
+    5. [Business Logic](#business_logic)
 4. [Beispiele](#examples)
 
 # Onboarding <a name="onboarding"></a>
@@ -126,7 +128,7 @@ Soll ein Wert angepasst werden, muss zunächst für die 'Spalte' ein Unterbereic
 
 > Es wird zunächst das column-Mapping und dann das value-Mapping durchgeführt.
 
-### Festlegen der Defaultwerte  <a name="default_werte"></a>
+### Festlegen der Defaultwerte <a name="default_werte"></a>
 
 Die in der onboarding.yaml (Bereich defaults) konfigurierte Datei wird gelesen, um Standardwerte festzulegen. Die Datei hat folgenden Aufbau:
 
@@ -164,7 +166,7 @@ Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle 
 
 > Geräte, die mit 'offline: True' konfiguriert werden, werden als 'offline'-Gerät hinzugefügt (siehe [Offline] (#offline)). Geröte mit der Konfiguration 'ignore: True' werden **nicht** importiert.
 
-### Anpassen der zusätzlichen Werte - additional values (optional)
+### Anpassen der zusätzlichen Werte - additional values (optional) <a name="additional_values"></a>
 
 Oftmals ist es notwendig, weitere Werte anzupassen. Um diesen Prozess zu vereinfachen, können weitere Werte mit Hilfe von Listen oder regulären Ausdrücken hinzugefügt werden. 
 
@@ -233,7 +235,7 @@ Im vierten Beispiel wird eine xlsx Datei konfiguriert. In solch einer Datei kön
 
 Bei dem Gerät lab.local wird die Seriennummer mit dem Wert 12345 überschrieben und das Custom Field 'net' mit dem Wert 'my Network' versehen.
 
-### Anpassen der Business Logic (Optional)
+### Anpassen der Business Logic (Optional) <a name="business_logic"></a>
 
 Die 'Business Logic' ermöglicht es, eigenen python Code ausführen zu lassen. Im Verzeichnis
 
