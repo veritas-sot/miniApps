@@ -1,12 +1,12 @@
 # Inhalt
 
-1. onboarding (#*onboarding*)
-2. Konfiguration (#onboarding_config)
-3. Ablauf einer Migration (#migration)
-    1. Das Inventory erstellen (#create_inventory)
-    2. Anpassen des Inventories (#customize_inventory)
-    3. Konfigurieren der Defaultwerte (#default_werte)
-4. Beispiele (#examples)
+1. [onboarding](#*onboarding*)
+2. [Konfiguration](#onboarding_config)
+3. [Ablauf einer Migration](#migration)
+    1. [Das Inventory erstellen](#create_inventory)
+    2. [Anpassen des Inventories](#customize_inventory)
+    3. [Konfigurieren der Defaultwerte](#default_werte)
+4. [Beispiele](#examples)
 
 # Onboarding <a name="onboarding"></a>
 
