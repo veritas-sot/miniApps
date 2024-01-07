@@ -168,6 +168,73 @@ Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle 
 
 ### Anpassen der Business Logic (Optional)
 
+Oftmals ist es notwendig, weitere Werte anzupassen. Um diesen Prozess zu vereinfachen, können weitere Werte mit Hilfe von Listen oder regulären Ausdrücken hinzugefügt werden. 
+
+Sie können mehrere YAML Konfigurationen in dem folgenden Verzeichnis hinterlegen. Alle diese Dateien werden vom System gelesen und verarbeitet.
+
+```
+miniapp_configs
+  ./onboarding/
+    ./additional_values/
+``` 
+
+Hier ein Beispiel einer YAML-Konfiguration
+
+```
+---
+# active if either True or False
+active: False
+name: match on hostname
+# platform must match the platform in device_defaults (ios, nxos, ...)
+platform: all
+# the following list is processed one by one
+additional:
+  # the name is just a info for you and does not matter
+  - name: first example
+    # matches is used to match on certain values 
+    # its syntax is source / key / [lookup]
+    matches:
+      # facts__fqdn__re: k(?P<digits>\d+)rt
+      # facts__hostname__ic: 0815
+      facts__fqdn: k0815rt.xx
+      # config can either be global or interfaces
+      # config__global__ic: username lab
+      # config__interfaces__ic: ip address
+    values:
+      # custom fields can be used as cf_fieldname
+      cf_net: is in lab
+      # other properties are used by its name
+      serial: 123
+  - name: second example
+    matches:
+      # source / key / [lookup]
+      # facts__fqdn__re: k(?P<digits>\d+)rt
+      facts__fqdn: k0815rt.xxx
+    values:
+      # to set location name; the syntax looks like this
+      location: {'name': '__named__digits'}
+  - name: third example
+    mapping: example_mapping.csv
+    maps_on:
+      # facts or defaults property / csv file property
+      - fqdn: hostname
+    delimiter: ","
+    quotechar: "|"
+    quoting: minimal
+  - name: fourth example additional values form xlsx
+    file: example.xlsx
+    format: xlsx
+    matches_on:
+      # the format is sot_key: excel_key
+      - name: hostname
+```
+
+Im vierten Beispiel wird eine xlsx Datei konfiguriert. In solch einer Datei können weitere Werte für jeden Host hinterlegt werdeb.
+
+![Additional Values Beispiel](https://github.com/veritas-sot/miniApps/blob/main/documentation/additional_values.png)
+
+Bei dem Gerät lab.local wird die Seriennummer mit dem Wert 12345 überschrieben und das Custom Field 'net' mit dem Wert 'my Network' versehen.
+
 ### Export und speichern der Konfigurationen (optional)
 
 Alle Konfigurationen und Facts werden im Verzeichnis ./export gespeichert. Dies erleichtert den Import, falls dieser mehrfach angepasst werden soll.
