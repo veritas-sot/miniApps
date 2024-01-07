@@ -126,6 +126,39 @@ Soll ein Wert angepasst werden, muss zunächst für die 'Spalte' ein Unterbereic
 
 ## Festlegen der Defaultwerte
 
+Die in der onboarding.yaml (Bereich defaults) konfigurierte Datei wird gelesen, um Standardwerte festzulegen. Die Datei hat folgenden Aufbau:
+
+```
+---
+defaults:
+  0.0.0.0/0:
+    manufacturer: cisco
+    status: Active
+    location: {'name': 'default-site'}
+    role: default-role
+    device_type: default-type
+    platform: ios
+    custom_fields:
+      net: testnet
+      test: value
+    # tags: [ {'name': 'ospf'} ]
+  10.0.0.0/8:
+    ignore: True
+  172.16.0.0/12:
+    offline: True
+    role: my-role
+    device_type: my-type
+    platform: ios
+  172.16.0.1/32:
+    device_type: firewall
+```
+
+> Um den Standardwert für ein Gerät festzulegen, wird die gesamte Hierachie (von 0.0.0.0/0 bis zur Host-IP) der dazugehörigen IP-Adresse durchlaufen. Dabei können Werte überschrieben werden. 
+
+Ein Beispiel: 
+
+Wird ein Gerät mit der IP-Adresse 172.16.0.1 importiert, werden zunächst alle Werte von 0.0.0.0/0 als Standardwert festgelegt. Danach werden die Werte aus dem Bereich 172.16.0.0/12 gelesen und bereits vorhandenne Werte überschrieben. Im obigen Beispiel wird der device-type für alle Geräte zunächst auf 'default-type' gesetzt. Geräte aus dem Bereich 172.16.0.0/12 erhalten jedoch den device-type 'my-type'. Das Gerät 172.16.0.1/32 erhält letztendlich den device-type 'firewall'
+
 ## Anpassen der zusätzlichen Werte - additional values (optional)
 
 ## Anpassen der Business Logic (Optional)
