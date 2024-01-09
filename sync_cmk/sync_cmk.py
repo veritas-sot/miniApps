@@ -220,6 +220,18 @@ def get_current_device_configs(sot, device_sot_properties, device_cmk_properties
     sot_config['labels'] = get_cfield_from_sot(device_sot_properties, 'checkmk_labels', ':', '')
     cmk_config['labels'] = device_cmk_properties.get('extensions',{}).get('attributes',{}).get('labels',{})
 
+    # check attributes
+    cfg_attr = check_mk_config.get('custom_fields', {}).get('attributes', {})
+    sot_cf_attributes = {}
+    cmk_cf_attributes = {}
+    for key,value in cfg_attr.items():
+        # we are mapping key (custom field in sot) to value (attributes in cmk)
+        sot_cf_attributes.update(get_cfield_from_sot(device_sot_properties, key, None, value))
+        # cmk has the correct attribute already!
+        cmk_cf_attributes[value] = device_cmk_properties.get('extensions',{}).get('attributes',{}).get(value,{})
+    sot_config['cf_attributes'] = sot_cf_attributes
+    cmk_config['cf_attributes'] = cmk_cf_attributes
+
     # checking folder
     # it is possible to set a static value in nautobot to configure the folder nane
     # the custom_field is named 'checkmk_folder'
@@ -307,6 +319,15 @@ def get_new_cmk_device_config(sot_dev_config, cmk_dev_config):
         # remove the list of labels if no update is necessary
         if not labels_update and 'labels' in attributes:
             del attributes['labels']
+
+    # custom fields to attributes mapping
+    for key, value in sot_dev_config['cf_attributes'].items():
+        if key in cmk_dev_config['cf_attributes'] and cmk_dev_config['cf_attributes'][key] == value:
+            logger.debug(f'tag {key} matches')
+        else:
+            if not attributes:
+                attributes = {}
+            attributes.update({key: value})
 
     # folder
     if sot_dev_config['folder'] != cmk_dev_config['folder']:
@@ -410,11 +431,16 @@ def get_snmp_credentials(sot, device_properties, check_mk_config):
 def get_cfield_from_sot(properties, tagfield, seperator, key_prefix):
     response = {}
     htg_string = properties.get('custom_field_data',{}).get(tagfield,'')
+    if not htg_string:
+        return response
     htgs = htg_string.replace(' ','').split(',')
     for htg in htgs:
         if len(htg) > 0:
-            key, value = htg.split(seperator)
-            response[f'{key_prefix}{key}'] = value
+            if seperator:
+                key, value = htg.split(seperator)
+                response[f'{key_prefix}{key}'] = value
+            else:
+                response[key_prefix] = htg
     return response
 
 def get_folder_name(properties, folder_config):

@@ -44,6 +44,9 @@ defaults:
   sync:
     devices:
       - site: cha
+custom_fields:
+  attributes:
+    name_in_sot: name_in_cmk
 mappings:
   # map sot custom fields to cmk host tag groups
   - sot: cf_name_of_field
