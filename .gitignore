@@ -182,3 +182,6 @@ transformer/transformer.yaml
 scan_prefixes/scan_prefixes.yaml
 onboarding/conf/onboarding.yaml
 miniapps/installation/config_values.yaml
+miniapps/crontab/conf/crontab.yaml
+miniapps/kobold/playbooks/playbook.yaml
+miniapps/onboarding/inventory.yaml
