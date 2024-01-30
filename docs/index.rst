@@ -5,6 +5,7 @@ Welcome to veritas toolkit's documentation!
    :hidden:
    :titlesonly:
 
+   quickstart/index.rst
    datamodel/veritas_datamodel.rst
    miniApps/index.rst
    jupyter_notebooks/index.rst
