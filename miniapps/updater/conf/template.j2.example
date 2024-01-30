@@ -1,0 +1,3 @@
+{%- if values["hostname"] == "lab.local" -%}
+new_device_name
+{%- endif -%}

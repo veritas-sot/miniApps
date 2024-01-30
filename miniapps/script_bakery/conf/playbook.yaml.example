@@ -1,0 +1,11 @@
+---
+playbook:
+  - job: add user
+    configure: true
+    commands:
+      - username xxx
+      - username yyy
+  - job: show running config
+    commands:
+      - show running-config
+      

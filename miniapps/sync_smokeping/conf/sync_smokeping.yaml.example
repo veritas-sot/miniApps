@@ -1,0 +1,107 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+general:
+  logging:
+    loglevel: info
+    log_uuid_to: __logging_uuid_to__
+    log_to_database: __logging_to_database__
+    log_to_rabbitmq: __logging_to_rabbitmq__
+    log_to_zeromq: __logging_to_zeromq__
+    database:
+      host: __logging_database_host__
+      database: __logging_database_database__
+      user: __logging_database_username__
+      password: __logging_database_password__
+      port: __logging_database_port__
+    rabbitmq:
+      host: __logging_rabbitmq_host__
+      port: __logging_rabbitmq_port__
+    zeromq:
+      protocol: __logging_zeromq_protocol__
+      host: __logging_zeromq_host__
+      port: __logging_zeromq_port__
+
+# where to write the config to
+smokeping:
+  configpath: __smokeping_config_path__
+
+probes:
+  filename: Probes
+  FPing:
+    binary: /usr/sbin/fping
+  FPing6:
+    binary: /usr/sbin/fping
+    protocol: 6
+  DNS:
+    binary: /usr/bin/dig
+    lookup: google.com
+    pings: 5
+    step: 300
+  TCPPing:
+    binary: /usr/bin/tcpping
+    forks: 10
+    offset: random
+    pings: 5
+    port: 80
+
+targets:
+  # we need this query to get all cf_net values
+  - filename: Targets
+    query:
+      select: cf_net, primary_ip4
+      from: nb.devices
+      where: all
+    template: target
+  # for each net that you have write one target filename
+  # this is an example for your net called '__your_net_name__'
+  - filename: target_net_filename.conf
+    query: 
+      select: hostname, location, primary_ip4, cf_net
+      from: nb.devices
+      where: cf_net=__your_net_name__
+    template: networks
+  # if you have more than one 'net' write more than one target
+  # - filename: mynet.conf
+  #   query:
+  #     select: hostname, location, primary_ip4, cf_net
+  #     from: nb.devices
+  #     where: cf_net=mynet
+  #   template: networks
+
+templates:
+  networks: |
+    probe = FPing
+    {% for net_name in values["net"] %}
+    + {{ net_name }}
+    menu = {{ net_name }}
+    title = {{ net_name }}
+    {% for location_name in values["location"] %}
+    ++ {{ location_name }}
+    menu = {{ location_name }}
+    title = {{ location_name }}
+    {% for host in values["devices"] %}
+    {%- if host["custom_field_data"]["net"] == net_name and host["location"]["name"] == location_name %}
+    +++ {{ host["hostname"]|replace(".","-") }}
+    menu = {{ host["hostname"] }}
+    title = {{ host["hostname"] }}
+    {%- set ipaddress = host["primary_ip4"]["address"].split('/') %}
+    host = {{ ipaddress [0]}}
+    {% endif %}
+    {%- endfor %}
+    {%- endfor %}
+    {%- endfor %}
+    
+  target: |
+    *** Targets ***
+
+    probe = FPing
+
+    menu = Top
+    title = veritas Network Latency Grapher
+    remark = Welcome to the veritas SmokePing website
+    {% for net_name in values["net"] %}
+    @include {{ net_name }}.conf
+    {%- endfor %}

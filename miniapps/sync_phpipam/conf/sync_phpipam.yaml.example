@@ -1,0 +1,55 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+general:
+  logging:
+    loglevel: info
+    log_uuid_to: __logging_uuid_to__
+    log_to_database: __logging_to_database__
+    log_to_rabbitmq: __logging_to_rabbitmq__
+    log_to_zeromq: __logging_to_zeromq__
+    database:
+      host: __logging_database_host__
+      database: __logging_database_database__
+      user: __logging_database_username__
+      password: __logging_database_password__
+      port: __logging_database_port__
+    rabbitmq:
+      host: __logging_rabbitmq_host__
+      port: __logging_rabbitmq_port__
+    zeromq:
+      protocol: __logging_zeromq_protocol__
+      host: __logging_zeromq_host__
+      port: __logging_zeromq_port__
+  backend:
+    phpipam_url: __phpipam_url__
+    phpipam_port: __phpipam_port__
+    phpipam_appid: __phpipam_appid__
+    phpipam_username: __phpipam_username__
+    phpipam_password: __phpipam_password__
+    # set $api_allow_unsafe = true; in config.php to disable SSL
+    phpipam_ssl_verify: false
+sections:
+  default_section: root
+  select: cf_net
+  section: cf_net~cf_net
+  # groupID/permissions (group 2=> operator, group3 => Guest // 0 na, 1 ro, 2 rw, 3 rwa)
+  permissions: '{"2":"3","3":"0"}'
+  # if folders is set use this to create folder in sections
+  folders: false
+subnets:
+  0.0.0.0/0:
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+  172.16.0.0/16:
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+  172.16.1.0/24:
+    pingSubnet: 0
+    discoverSubnet: 0
+    showName: 0
+

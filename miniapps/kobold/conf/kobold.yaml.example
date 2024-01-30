@@ -1,0 +1,42 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+general:
+  logging:
+    loglevel: info
+    log_uuid_to: __logging_uuid_to__
+    log_to_database: __logging_to_database__
+    log_to_rabbitmq: __logging_to_rabbitmq__
+    log_to_zeromq: __logging_to_zeromq__
+    database:
+      host: __logging_database_host__
+      database: __logging_database_database__
+      user: __logging_database_username__
+      password: __logging_database_password__
+      port: __logging_database_port__
+    rabbitmq:
+      host: __logging_rabbitmq_host__
+      port: __logging_rabbitmq_port__
+    zeromq:
+      protocol: __logging_zeromq_protocol__
+      host: __logging_zeromq_host__
+      port: __logging_zeromq_port__
+defaults:
+  import:
+    delimiter: ","
+    quotechar: "|"
+    quoting: minimal
+    primary_interface: Mgmt0
+
+# mappings are used to map column names to SOT names
+# these settings are example values. Adjust the values to your need
+mappings:
+  export:
+    device_id: id
+    primary_ip: primary_ip4__address
+    interface_name: interfaces__name
+    interface_address: interfaces__ip_addresses__address
+  import:
+    myField: cf_field

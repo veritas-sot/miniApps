@@ -1,0 +1,7 @@
+---
+update:
+  source:
+    named_groups:
+      hostname: ^(?P<name>(.*))
+  destination:
+    name: "__name@upper__"

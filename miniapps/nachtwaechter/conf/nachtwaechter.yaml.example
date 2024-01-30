@@ -1,0 +1,74 @@
+---
+nachtwaechter:
+  threads: 10
+general:
+  logging:
+    loglevel: info
+    log_uuid_to: __logging_uuid_to__
+    log_to_database: __logging_to_database__
+    log_to_rabbitmq: __logging_to_rabbitmq__
+    log_to_zeromq: __logging_to_zeromq__
+    database:
+      host: __logging_database_host__
+      database: __logging_database_database__
+      user: __logging_database_username__
+      password: __logging_database_password__
+      port: __logging_database_port__
+    rabbitmq:
+      host: __logging_rabbitmq_host__
+      port: __logging_rabbitmq_port__
+    zeromq:
+      protocol: __logging_zeromq_protocol__
+      host: __logging_zeromq_host__
+      port: __logging_zeromq_port__
+jobs:
+  baseline:
+    postfix: .baseline
+    commands:
+      - command: show version
+      - command: show cdp neighbors detail
+      - command: show ip interface brief
+      - command: show interface status
+      - command: show ip route
+      - command: show spanning tree
+  reachability:
+    postfix: .reach
+    commands:
+      - command: echo
+  mac_and_ip:
+    postfix: .mac
+    format: table
+    join:
+      source:
+        - table: show ip arp
+          key: MAC
+        - table: show mac address-table
+          key: DESTINATION_ADDRESS
+      destination:
+        name: merged
+        value:
+          - key: ip
+            value: ADDRESS
+          - key: mac
+            value: MAC
+          - key: interface
+            value: INTERFACE
+    commands:
+      - command: show mac address-table
+      - command: show ip arp
+  bgp_neighbors:
+    postfix: .bgp
+    commands:
+      - command: show ip bgp neighbors
+  neighbors:
+    postfix: .neighbors
+    commands:
+      - command: show cdp neighbors detail
+  facts:
+    postfix: .facts
+    commands:
+      - command: show version
+  inventory:
+    postfix: .inventory
+    commands:
+      -  command: how cdp neighbors detail

@@ -1,0 +1,71 @@
+---
+nautobot:
+  url: __nautobot_url__
+  token: '__your_token__'
+  ssl_verify: 'false'
+profile:
+  username: __your_username__
+  password: __your_encrypted_password__
+  encryptionkey: __encryptionkey__
+  salt: __secretsalt__
+  iterations: 400000
+git:
+  app_config:
+    repo: sot_data
+    path: '{HOMEDIR}/veritas/veritasData/miniapp_configs/'
+  backup:
+    repo: sot_data
+    path: '{HOMEDIR}/veritas/veritasData/device_configs'
+  config_context:
+    repo: sot_data
+    path: '{HOMEDIR}/veritas/veritasData/config_contexts'
+  defaults:
+    repo: sot_data
+    path: '{HOMEDIR}/veritas/veritasData/'
+    filename: defaults/default_values.yaml
+  snmp_credentials:
+    repo: sot_data
+    path: '{HOMEDIR}/veritas/veritasData/'
+    filename: defaults/credentials.yaml
+logging:
+  to_database: 'false'
+  to_rabbitmq: 'false'
+  to_zeromq: 'false'
+  uuid_to: rabbitmq
+  database:
+    database: journal
+    host: 127.0.0.1
+    port: 5432
+    username: __db_username__
+    password: __db_password__
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+  zeromq:
+    host: 127.0.0.1
+    port: 12345
+    protocol: tcp
+#
+# App specific configs
+#
+messagebus:
+  database:
+    database: journal
+    host: 127.0.0.1
+    password: __db_username__
+    username: __db_password__
+onboarding:
+  default:
+    interfaces: '["Loopback0", "Loopback100", "mgmt0"]'
+script_bakery:
+  backup_dir: /tmp/backups
+  git:
+    backup:
+      enabled: True
+sync_cmk:
+  checkmk_password: __your_password__
+  checkmk_site: cmk
+  checkmk_url: __checkmk_url__
+  checkmk_username: automation
+smokeping:
+  config_path: __your_smokeping_config_path__

@@ -1,0 +1,9 @@
+---
+update:
+  source:
+    named_groups:
+      hostname: ^(?P<alpha>(a|b|c))(?P<digits>\d+)\.
+      device_type.model: ^(?P<model>(\w+))
+  destination:
+    location.name: __alpha____digits__
+    location.location_type.name: ast

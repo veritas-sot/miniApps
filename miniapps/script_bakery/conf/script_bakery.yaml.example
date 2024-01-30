@@ -1,0 +1,66 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+general:
+  logging:
+    loglevel: info
+    log_uuid_to: __logging_uuid_to__
+    log_to_database: __logging_to_database__
+    log_to_rabbitmq: __logging_to_rabbitmq__
+    log_to_zeromq: __logging_to_zeromq__
+    database:
+      host: __logging_database_host__
+      database: __logging_database_database__
+      user: __logging_database_username__
+      password: __logging_database_password__
+      port: __logging_database_port__
+    rabbitmq:
+      host: __logging_rabbitmq_host__
+      port: __logging_rabbitmq_port__
+    zeromq:
+      protocol: __logging_zeromq_protocol__
+      host: __logging_zeromq_host__
+      port: __logging_zeromq_port__
+credentials:
+  snmp: 
+    repo: __git_snmp_credentials_repo__
+    path: __git_snmp_credentials_path__
+    filename: __git_snmp_credentials_filename__
+git:
+  backups:
+    enabled: __git_backup_enabled__
+    repo: __git_backup_repo__
+    path: __git_backup_path__
+
+# the next sections contain example values only
+# please use your own and correct settings
+
+users:
+  - username: username
+    privilege: 15
+    secret: password
+  - username: another_name
+    privilege: 15
+    secret: another_password
+snmp:
+  defaults:
+    accesslist: MGMT
+  users:
+    v3_auth_privacy: snmp-server user _security_name_ _security_group_ v3 auth _auth_protocol_ _auth_password_ priv _privacy_protocol_ _privacy_password_
+    v3_auth_no_privacy: snmp-server user _security_name_ _security_group_ v3 auth _auth_protocol_ _auth_password_ 
+  global_config:
+    - general: snmp-server contact _snmp_contact_
+    - v3: snmp-server group _security_group_ v3 auth
+    - v3: snmp-server group _security_group_ v3 auth context vlan- match prefix
+  access-list:
+    # SNMP is the name of the access list
+    - SNMP:
+      config:
+        10: remark MGMT
+        20: permit _IP_
+        30: deny any log
+backup:
+  backup_dir: __backup_dir__
+  individual_hostdir: True
