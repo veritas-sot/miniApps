@@ -2,15 +2,14 @@
 
 import argparse
 import os
-import json
 import csv
 import yaml
 import urllib3
 import re
 import jinja2
+import sys
 from benedict import benedict
 from loguru import logger
-from pathlib import Path
 from openpyxl import load_workbook
 
 import veritas.logging
@@ -44,9 +43,9 @@ def parse_row(row, key_mapping, value_mapping):
             if 'custom_fields' not in data:
                 data['custom_fields'] = {}
             data['custom_fields'][key.split('cf_')[1]] = value
-        elif '__' in key:
+        elif '.' in key:
             # check if key has subkeys
-            path = key.split('__')
+            path = key.split('.')
             d = build_dict(value, {}, path)
             if path[0] == 'interfaces':
                 data.update(d[path[0]])
@@ -101,7 +100,6 @@ def read_csv(filename, updater_config, key_mapping={}, value_mapping={}):
     return contains_interface, data
 
 def read_xlsx(filename, key_mapping={}, value_mapping={}):
-    contains_interface = False
     data = []
     table = []
 
@@ -109,11 +107,11 @@ def read_xlsx(filename, key_mapping={}, value_mapping={}):
     workbook = load_workbook(filename)
     # Select the active worksheet
     worksheet = workbook.active
-    
+
     # loop through table and build list of dict
     rows = worksheet.max_row
     # the +1 is important otherwise we miss the the last column (eg. checksum)
-    columns = worksheet.max_column +1 
+    columns = worksheet.max_column + 1 
     for row in range(2, rows + 1):
         line = {}
         for col in range(1, columns):
@@ -124,7 +122,6 @@ def read_xlsx(filename, key_mapping={}, value_mapping={}):
 
     for row in table:
         old_checksum = new_checksum = 0
-        contains_interface = any(d.startswith('interface') for d in row.keys())
         if any(d == 'checksum' for d in row.keys()):
             old_checksum = row['checksum']
             del row['checksum']
@@ -133,8 +130,7 @@ def read_xlsx(filename, key_mapping={}, value_mapping={}):
 
         row['checksum'] = old_checksum == new_checksum
         data.append(parse_row(row, key_mapping, value_mapping))
-    logger.debug(f'contains_interface={contains_interface}')
-    return contains_interface, data
+    return data
 
 def do_update(sot, data, updater_config, endpoint, dry_run):
     if dry_run:
@@ -144,23 +140,24 @@ def do_update(sot, data, updater_config, endpoint, dry_run):
 
     nb = sot.rest(url=updater_config['sot']['nautobot'], 
                   token=updater_config['sot']['token'],
-                  verify_ssl=updater_config['sot']['ssl_verify'])
+                  verify_ssl=updater_config['sot']['ssl_verify'],
+                  debug=False)
     nb.session()
     response = nb.patch(url=f"api/{endpoint}/", json=data)
     if response.status_code != 200:
         logger.error(f'could not update data; got error {response.content}')
     else:
-        logger.info(f'data updated')
+        logger.info('data updated')
 
-def bulk_update(sot, filename, updater_config, dry_run=False):
+def bulk_update(sot, filename, updater_config, add_missing_data=False, dry_run=False):
     # get mapping from config
     key_mapping = updater_config.get('mappings',{}).get('keys',{})
     value_mapping = updater_config.get('mappings',{}).get('valaues',{})
 
     if 'csv' in filename:
-        contains_interface, data = read_csv(filename, updater_config, key_mapping, value_mapping)
+        data = read_csv(filename, updater_config, key_mapping, value_mapping)
     elif 'xlsx' in filename:
-        contains_interface, data = read_xlsx(filename, key_mapping, value_mapping)
+        data = read_xlsx(filename, key_mapping, value_mapping)
 
     # Data without modification does not need to be changed unless the user wants it.
     updates = []
@@ -168,8 +165,30 @@ def bulk_update(sot, filename, updater_config, dry_run=False):
         if not row['checksum'] or args.force:
             updates.append(row)
 
-    logger.info(f'{len(updates)} to be updated force={args.force} interfaces: {contains_interface}')
+    logger.info(f'updating {len(updates)} items; force={args.force}')
     if len(updates) > 0:
+
+        contains_interface = any(d.startswith('interface') for d in updates[0].keys())
+        contains_primary_ip = any(d.startswith('primary_ip4') for d in updates[0].keys())
+        contains_primary_interface = any(d.startswith('primary_ip4.interfaces') for d in updates[0].keys())
+
+        logger.debug(f'contains_interface={contains_interface} '
+                     f'contains_primary_ip={contains_primary_ip} '
+                     f'contains_primary_interface={contains_primary_interface} ')
+
+        # do we have to add missing data like missing IP addresses
+        # If you change the primary IP address of a device and have not previously 
+        # added the IP to nautobot, nautobot will raises an error.
+
+        if contains_primary_ip and add_missing_data:
+            logger.debug('Check whether the IP address already exists')
+            for update in updates:
+                add_ip_address(sot, update)
+
+        if contains_primary_interface and contains_primary_ip:
+            for update in updates:
+                update_primary_interface(sot, update)
+
         # are we able to make a bulk update by using the ID?
         if 'id' in updates[0]:
             if contains_interface:
@@ -192,6 +211,71 @@ def bulk_update(sot, filename, updater_config, dry_run=False):
                         print(f'host {device["hostname"]} update: {device}')
                     else:
                         sot.device(device['hostname']).update(device)
+
+def add_ip_address(self, sot, properties):
+    primary_ip = properties.get('primary_ip4.address')
+    if not sot.get.address(primary_ip):
+        addr = {'address': primary_ip,
+                'status': {'name': 'Active'},
+                'namespace': 'Global'
+               }
+        if sot.ipam.add_ip(addr):
+            logger.info(f'added {primary_ip} to IPAM')
+            return True
+        else:
+            logger.error(f'could not add IP {primary_ip} to IPAM; this may cause further errors')
+            return False
+
+def update_primary_interface(sot, properties):
+    # get id of the device
+    # It is best to use the ID. This makes it possible to change all 
+    # properties, including the name.
+    if 'id' in properties:
+        device = sot.get.device(name=properties['id'], by_id=True)
+    else:
+        device = properties.get('hostname')
+    
+    if not device:
+        logger.error(f'failed to get host {properties.get("hostname")}')
+        return False
+    # We need the currently configured address
+    current_primary_ip = device.primary_ip4
+
+    # get interface
+    interface = properties.get('primary_ip4.interfaces.name')
+
+    # remove old assignments
+    assignment = sot.ipam.get_assignment(
+        interface=interface,
+        address=current_primary_ip,
+        device=device
+        )
+
+    if assignment:
+        logger.debug(f'removing current assignment of {interface}')
+        try:
+            assignment.delete()
+        except Exception as exc:
+            logger.error(f'failed to delete assignment; got exception {exc}')
+            return False
+    else:
+        logger.debug(f'failed to get assignment of {interface} on {device}')
+
+    primary_ip = properties.get('primary_ip4.address',{})
+    interface = properties.get('primary_ip4.interfaces.name')
+    assigned = sot.ipam.assign_ipaddress_to_interface(
+        device=device,
+        interface=interface,
+        address=primary_ip
+    )
+    if assigned:
+        logger.debug(f'assigning IP address {primary_ip} to interface {interface}')
+        sot.ipam.set_primary(
+            device=device,
+            address=primary_ip
+        )
+    else:
+        logger.error(f'failed to assign IP address {primary_ip} to interface {interface}')
 
 def camel(s):
   s = re.sub(r"(_|-)+", " ", s).title().replace(" ", "")
@@ -288,7 +372,7 @@ def update_from_file(sot, filename, where, template, updater_config, using='nb.d
             # we have to check if the key can be found in our entity
             try:
                 item = entity[ng_key]
-            except KeyError as e:
+            except KeyError:
                 logger.error(f'key {ng_key} not found in entity')
                 continue
             logger.bind(extra=extra).debug(f'key: {ng_key} pattern: {pattern} item: {item}')
@@ -298,7 +382,7 @@ def update_from_file(sot, filename, where, template, updater_config, using='nb.d
                     matched_values[group] = group_val
 
         if len(matched_values) == 0:
-            logger.bind(extra=extra).debug(f'entity without matching group')
+            logger.bind(extra=extra).debug('entity without matching group')
 
         # now matched_values is complete
         # we loop through the destinations and set the new value
@@ -317,7 +401,7 @@ def update_from_file(sot, filename, where, template, updater_config, using='nb.d
                 match = modifier.match(new_value)
                 # at first check if we have to use a emplate
                 if template:
-                    logger.debug(f'using template to get new_value')
+                    logger.debug('using template to get new_value')
                     print(row)
                     new_value = get_value_from_template(row, template)
                 # now check if we have some modifiers (upper, lower)
@@ -376,7 +460,7 @@ def update_from_file(sot, filename, where, template, updater_config, using='nb.d
                         response = nb_obj.update(data=updates)
                         logger.bind(extra=extra).info(f'item updated; data={updates}; response={response}')
                     except Exception as exc:
-                        logger.bind(extra=extra).error(f'could not update item')
+                        logger.bind(extra=extra).error(f'could not update item; got exception {exc}')
 
 
 if __name__ == "__main__":
@@ -398,12 +482,14 @@ if __name__ == "__main__":
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
 
-    parser.add_argument('--bulk-update', type=str, required=False, help="use file to update data")
+    parser.add_argument('--bulk-update', type=str, required=False, help="use file (csv, xlsx) to update data")
     parser.add_argument('--update', type=str, required=False, help="use yaml config to update data")
     parser.add_argument('--template', type=str, default="", required=False, help="template to use to update value")
+
     # force is only used with bulk-update
     parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
     parser.add_argument('--dry-run', action='store_true', help='print updates only')
+    parser.add_argument('--add-missing-data', action='store_true', help='add missing data if possible (eg. IP-address)')
 
     # parse arguments
     args = parser.parse_args()
@@ -431,7 +517,7 @@ if __name__ == "__main__":
                   url=updater_config['sot']['nautobot'])
 
     if args.bulk_update:
-        bulk_update(sot, args.bulk_update, updater_config, args.dry_run)
+        bulk_update(sot, args.bulk_update, updater_config, args.add_missing_data, args.dry_run)
     if args.update and args.devices:
         update_from_file(sot, args.update, args.devices, args.template, updater_config, 'nb.devices', args.dry_run)
     if args.update and args.addresses:
