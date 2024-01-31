@@ -76,6 +76,8 @@ jobs:
     description: export properties
     devices:
       sql:
+        # the values of the select statement must correspond to the coluns you
+        # want to export
         select: id, name, primary_ip4, interfaces, location, cf_net, cf_select
         from: nb.devices
         where: name__ic=local
@@ -89,9 +91,10 @@ jobs:
           # columns: id, name, location.name, cf_net,cf_select, checksum
           # columns: name, interfaces.id, interfaces.name, interfaces.description,checksum
           format: excel
-          delimiter: ","
-          quotechar: "|"
-          quoting: minimal
+          # If you export a CSV file, you can configure delimiter, quotechar, and quoting
+          # delimiter: ","
+          # quotechar: "|"
+          # quoting: minimal
           filename: ./export/properties.xlsx
 
   - job: export_config

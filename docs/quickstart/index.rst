@@ -41,6 +41,11 @@ Now clone and install the toolkit. Go to the directory in which the veritas subd
     cd miniApps
     poetry install
 
+.. tip::
+
+    To configure your miniApps have a look at the ./installtion miniApp. Using this app you
+    can configure all your miniApps within minutes. 
+
 Jupyter Notebooks
 *****************
 
