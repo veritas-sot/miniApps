@@ -6,7 +6,7 @@ jobs:
     description: set device tag
     devices:
       sql:
-        select: hostname
+        select: name
         from: nb.devices
         where: location=default-site and name__ic=local
     tasks:
@@ -18,7 +18,7 @@ jobs:
     description: set interface tag
     devices:
       sql:
-        select: hostname, interfaces
+        select: name, interfaces
         from: nb.devices
         where: name__ic=local and interfaces_name__ic=GigabitEthernet
     tasks:
@@ -30,7 +30,7 @@ jobs:
     description: set custom field on device
     devices:
       sql:
-        select: hostname, interfaces
+        select: name, interfaces
         from: nb.devices
         where: name=eins.local
     tasks:
@@ -42,7 +42,7 @@ jobs:
     description: set interface custom field
     devices:
       sql:
-        select: hostname, interfaces
+        select: name, interfaces
         from: nb.devices
         where: name__ic=local and interfaces_name__ic=GigabitEthernet
     tasks:
@@ -54,7 +54,7 @@ jobs:
     description: update device
     devices:
       sql:
-        select: hostname, interfaces
+        select: name, interfaces
         from: nb.devices
         where: name=eins.local
     tasks:
@@ -65,7 +65,7 @@ jobs:
     description: update interface
     devices:
       sql:
-        select: hostname, interfaces
+        select: name, interfaces
         from: nb.devices
         where: name__ic=local and interfaces_name__ic=GigabitEthernet
     tasks:
@@ -76,30 +76,29 @@ jobs:
     description: export properties
     devices:
       sql:
-        # of course the selected colums must include the columns you export
-        select: id, hostname, location, cf_net, cf_select
+        select: id, name, primary_ip4, interfaces, location, cf_net, cf_select
         from: nb.devices
-        where: name=eins.local
+        where: name__ic=local
     tasks:
       - export: 
         - content: properties
-          directory: ./configs
           header: True
-          # columns: hostname, primary_ip4__address, interfaces__name, interfaces__ip_addresses__address
-          # columns: interfaces__name, interfaces__description
-          columns: id, hostname, location__name, cf_net,cf_select, checksum
-          # columns: interfaces__id, interfaces__name, interfaces__description,checksum
-          format: csv
+          columns: id, name, primary_ip4.address, primary_ip4.interfaces.name, checksum
+          # columns: name, primary_ip4.address, interfaces.name, interfaces.ip_addresses.address, checksum
+          # columns: interfaces.name, interfaces.description
+          # columns: id, name, location.name, cf_net,cf_select, checksum
+          # columns: name, interfaces.id, interfaces.name, interfaces.description,checksum
+          format: excel
           delimiter: ","
           quotechar: "|"
           quoting: minimal
-          filename: ./export/properties.csv
+          filename: ./export/properties.xlsx
 
   - job: export_config
     description: export configs, facts and properties
     devices:
       sql:
-        select: id, hostname, platform, primary_ip4
+        select: id, name, platform, primary_ip4
         from: nb.devices
         where: name=eins.local
     tasks:
@@ -107,13 +106,13 @@ jobs:
         # content can be either config, facts, hldm or properties
         - content: config, facts
           directory: configs
-          filename: __hostname__.json
+          filename: __name__.json
 
   - job: export_hldm
     description: export HLDM
     devices:
       sql:
-        select: hostname,cf_net,location
+        select: name,cf_net,location
         from: nb.devices
         where: name=eins.local
     tasks:
@@ -121,5 +120,5 @@ jobs:
         # content can be either config, facts, hldm or properties
         - content: hldm
           directory: hldm/__cf_net__/__location_name__
-          filename: __hostname__.json
+          filename: __name__.json
 

@@ -1,11 +1,13 @@
 import os
 import json
 import csv
-import xlsxwriter
+import pandas as pd
 from loguru import logger
+from dotenv import load_dotenv
+
+# veritas
 from veritas.devicemanagement import scrapli as dm
 from veritas.tools import tools
-from dotenv import load_dotenv
 
 
 def get_value(values, keys):
@@ -33,14 +35,13 @@ def get_number_of_rows(raw_data):
                 # we have multiple lists and the number of rows
                 # differ. In this case we are not able to export the data
                 if rows != len(values):
-                    logger.error(f'the number of rows differ for the results')
+                    logger.error('the number of rows differ for the results')
                     return None
     return rows
 
 def get_device_config_and_facts(kobold, sot, device_properties):
     device_facts = {}
 
-    hostname = device_properties.get('hostname')
     device_ip = device_properties.get('primary_ip4',{}).get('address')
     # check if device_ip is cidr notation
     device_ip=device_ip.split('/')[0]
@@ -90,74 +91,41 @@ def get_device_config_and_facts(kobold, sot, device_properties):
     return device_config, device_facts
 
 def get_device_data_to_export(kobold, sot, task, devices):
+
     """
     prepare data to export by scanning through ALL devices and build table
     """
+
     # our list of dicts that contains the data we export
     data_to_export = []
+    # some defaults
     calculate_checksum = False
-    # get mapping to map column name to SOT property name
-    mappings = kobold.get_mapping() # ('mappings',{}).get('export')
+    header_written = False
+
     # columns is the list of device/interface properties the user wants to export
     columns = task.get('columns').replace(' ','').split(',')
 
-    header_written = False
-    # loop through ALL devices
-    for device_properties in devices:
-        device_id = device_properties.get('id')
-        hostname = device_properties.get('hostname')
-        logger.debug(f'getting data of {hostname}')
-        device_data = {}
-        cf_fields = ""
-
-        values = set()
+    for device in devices:
+        device_property = {}
         for column in columns:
-            if column.startswith('cf_'):
-                values.add('custom_field_data')
-            elif '__' in column:
-                values.add(column.split('__')[0])
-            elif column == 'checksum':
-                continue
-            else:
-                values.add(column)
-        parameter = {'name': hostname}
-        logger.debug(f'values {list(values)} parameter {parameter}')
-        raw_data = sot.get.query(values=list(values),
-                                 parameter=parameter)
-
-        # we are getting a list with one device in it
-        data = raw_data[0]
-        # now get the values
-        for column in columns:
-            if 'checksum' in column:
-                calculate_checksum = True
-            #check if column name is in mapping
-            if column in mappings:
-                key = mappings.get(column).split('__')
-            elif column.startswith('cf_'):
-                key = ['custom_field_data', column.replace('cf_','')]
-            else:
-                key = column.split('__')
-            device_data[column] = get_value(data, key)
-
-        # now create the table for this device
-        # the number of rows depends of the number of interfaces to export
-        # if we do NOT have any interfaces the number of rows is 1
-        # otherwise the number of rows is the number of interfaces
-        number_of_rows = get_number_of_rows(device_data)
-        if number_of_rows is None:
-            # error: unequal numbers of rows detected
+            data = get_value(device, column.split('.'))
+            logger.debug(f'column={column} data={data}')
+            device_property[column] = data
+        
+        number_of_rows = get_number_of_rows(device_property)
+        if not number_of_rows:
+            logger.error('number of rows are different for some columns')
             continue
-        if number_of_rows == -1:
-            number_of_rows = 1
-        logger.debug(f'the table has {number_of_rows} rows and {len(columns)} columns')
-        # add header first of user wants it
+        logger.debug(f'number_of_rows={number_of_rows}')
+
+        # first add header if user wants it
         if 'header' in task and not header_written:
             header_written = True
             row = []
             for column in columns:
                 row.append(column)
             data_to_export.append(row)
+
         # loop through the number of rows
         for n in range(number_of_rows):
             # initialize empty row
@@ -165,13 +133,23 @@ def get_device_data_to_export(kobold, sot, task, devices):
             # and set column to 0
             number_of_column = 0
             for column in columns:
-                if isinstance(device_data[column], str):
-                    row[number_of_column] = device_data[column]
+                # check if we have to calculate an MD5 sum
+                if 'checksum' in column:
+                    calculate_checksum = True
+                if isinstance(device_property[column], str):
+                    row[number_of_column] = device_property[column]
                 else:
-                    if device_data[column] is None:
+                    if device_property[column] is None:
                         row[number_of_column] = 'null'
                     else:
-                        row[number_of_column] = device_data[column][n]
+                        dta =  device_property[column][n]
+                        if isinstance(dta, list):
+                            if len(dta) > 0:
+                                row[number_of_column] = dta[0]
+                            else:
+                                row[number_of_column] = ""
+                        else:
+                            row[number_of_column] = dta
                 number_of_column += 1
             # calculate checksum if necessary
             if calculate_checksum:
@@ -179,7 +157,6 @@ def get_device_data_to_export(kobold, sot, task, devices):
 
             # now put row to the list of exported values
             data_to_export.append(row)
-
     return data_to_export
 
 def export_as_csv(task, data_to_export):
@@ -212,12 +189,8 @@ def export_as_csv(task, data_to_export):
             export_writer.writerow(line)
 
 def export_as_excel(task, data_to_export):
-    header = []
-    table_start_col = 65 # 65=A
-    table_start_row = 1
-    number_of_cols = 0
+
     filename = task.get('filename','export.xlsx')
-    
     logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
     # create directory if it does not exsists
@@ -225,27 +198,19 @@ def export_as_excel(task, data_to_export):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    workbook = xlsxwriter.Workbook(filename)
-    worksheet = workbook.add_worksheet()
-    header_data = data_to_export.pop(0)
-    number_of_cols = len(header_data)
-    table_coordinations = '%s%s:%s%s' % (chr(table_start_col),
-                                         table_start_row,
-                                         chr(table_start_col + len(header_data) - 1),
-                                         table_start_row + (len(data_to_export) ))
-    for c in header_data:
-        header.append({'header': c})
-    worksheet.add_table(table_coordinations, {'data': data_to_export, 
-                                              'header_row': True, 
-                                              'columns': header
-                                             })
-    worksheet.autofit()
-    workbook.close()
+    if task.get('header'):
+        headers = data_to_export[0]
+        print(headers)
+
+    df = pd.DataFrame(data_to_export)
+    writer = pd.ExcelWriter(filename, engine='xlsxwriter')
+    df.to_excel(writer, sheet_name='Export', startrow=0, header=False, index=False)
+    writer.close()
 
 def export_device_properties(kobold, sot, task, devices):
     data_to_export = get_device_data_to_export(kobold, sot, task, devices)
     if len(data_to_export) == 0:
-        logger.bind(extra='export').info(f'got no data to export')
+        logger.bind(extra='export').info('got no data to export')
         return
     if task.get('format') == 'csv':
         return export_as_csv(task, data_to_export)
@@ -327,6 +292,8 @@ def pattern_to_filename(path, data):
     # it seems that there is no easy regex to get all __xxx__ matches if it is allowed
     # to use multiple occurences of this pattern like __cf_net____location/name__
     i = 0
+    # todo: check if this is correct
+    start = 0
     active = False
     while i < len(path) - 2:
         if '__' == path[i:i+2]:
@@ -376,7 +343,6 @@ def pattern_to_filename(path, data):
     return prefix
 
 def export_hldm(kobold, sot, task, devices):
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
     filename_pattern = task.get('filename', '__hostname__')
     subdir_pattern = task.get('directory', '')
 
@@ -396,17 +362,9 @@ def export_hldm(kobold, sot, task, devices):
 
 def export(kobold, sot, tasks, devices):
     logger.info(f'exporting {tasks}')
-    device_config = device_facts = None
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-    conn = None
 
     for task in tasks:
         content = task.get('content')
-        directory = task.get('directory')
-        if content == 'properties':
-            properties = task.get('columns')
-            format = task.get('format','csv')
-
         if 'config' in content or 'facts' in content:
             for device in  devices:
                 export_config_and_facts(kobold, sot, task, device)

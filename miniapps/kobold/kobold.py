@@ -1,7 +1,4 @@
 import yaml
-import json
-import getpass
-import os
 import export
 from loguru import logger
 
@@ -53,9 +50,6 @@ class Kobold(object):
     def get_jobs(self):
         return self._jobs
 
-    def get_mapping(self):
-        return []
-
     # certain jobs
 
     def tag_management(self, task, device_list):
@@ -66,7 +60,7 @@ class Kobold(object):
         else:
             tags = configured_tags
         if scope is None or len(tags) == 0:
-            logger.error(f'scope and tags must be configured to set tags')
+            logger.error('scope and tags must be configured to set tags')
             return
         for device in device_list:
             hostname = device.get('hostname')
@@ -171,13 +165,17 @@ class Kobold(object):
 
         if 'sql' in job.get('devices',{}):
             sql = job.get('devices').get('sql')
-            device_list = self._sot.select(sql.get('select')) \
-                                   .using(sql.get('from'), sql.get('using')) \
-                                   .where(sql.get('where'))
+            select = sql.get('select')
+            using = sql.get('from', sql.get('using'))
+            where = sql.get('where')
+            logger.debug(f'getting device_list select={select} using={using} where={where}')
+            device_list = self._sot.select(select) \
+                                   .using(using) \
+                                   .where(where)
             logger.debug(f'got {len(device_list)} devices')
         tasks = job.get('tasks')
         if tasks is None:
-            logger.error(f'no task configured!!!')
+            logger.error('no task configured!!!')
             return False
 
         for task in tasks:
