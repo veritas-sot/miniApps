@@ -79,7 +79,7 @@ def add_new_hosts(args, sot, checkmk_config):
 def remove_hosts(args, sot, checkmk_config):
     """remove hosts in cmk"""
     nn_of_devices_to_be_removed = 0
-    devices_to_be_renmoved = []
+    devices_to_be_removed = []
 
     cmk = checkmk.Checkmk(sot=sot, 
                           url=checkmk_config.get('check_mk',{}).get('url'),
@@ -98,11 +98,11 @@ def remove_hosts(args, sot, checkmk_config):
         if not any(d['hostname'] == hostname for d in all_sot_devices):
             logger.debug(f'{hostname} found in cmk but not in sot; removing it')
             nn_of_devices_to_be_removed += 1
-            devices_to_be_renmoved.append(hostname)
+            devices_to_be_removed.append(hostname)
     
     if args.dry_run:
         print(f'{nn_of_devices_to_be_removed}/{len(all_sot_devices)} devices found in cmk but not in sot')
-        for d in devices_to_be_renmoved:
+        for d in devices_to_be_removed:
             print(d)
 
 def update_hosts(args, sot, checkmk_config):
