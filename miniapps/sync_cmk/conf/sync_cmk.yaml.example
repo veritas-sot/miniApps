@@ -131,7 +131,7 @@ folders:
           use_for_services: False
         tag_if_alias_desc: if_description
   structure: 
-    template: polling_engine~network~site
+    template: polling_engine~network~location
     polling_engine: 
       default: default_polling_engine
       cidr:
@@ -142,14 +142,12 @@ folders:
     network:
       default: default_network
       custom_field: my_cfield
-    site:
+    location:
       default: None
-      # abhaengig vom Wert in Feld 'net' wird das Feld cf__net_name (bei tdn)
-      # oder cf__ast (bei ipana) genutzt
       depending_on:
         - custom_field: my_cfield
           value: my_value
-          folder: prop__site__name
+          folder: prop__location__name
         - custom_field: another_cfield
           value: another_value
           folder: cf__cfieldname
