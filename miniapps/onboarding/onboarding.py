@@ -72,8 +72,8 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
     else:
         primary_interface_name = primary_interface
 
-    device_defaults['primary_interface'] = {
-        'ip': primary_cidr,
+    offline_primary_interface = {
+        'address': primary_cidr,
         'mask': primary_mask,
         'name': primary_interface_name,
         'description': primary_description
@@ -86,6 +86,13 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
         "fqdn": hostname,
         "args.device": device_ip
     }
+
+    for key, value in offline_primary_interface.items():
+        if key in device_defaults['primary_interface']:
+            logger.bind(extra='off (=)').trace(f'key=primary_interface.{key} value={value}')
+        else:
+            logger.bind(extra='off (+)').trace(f'key=primary_interface.{key} value={value}')
+        device_defaults['primary_interface'][key] = value
 
     if 'config' in device_defaults:
         # should we use a local device config?
@@ -143,6 +150,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
     # set the name of the device
     if device_fqdn:
         device_defaults['name'] = device_fqdn
+        logger.bind(extra='onb (=)').trace(f'key=name value={device_fqdn}')
 
     # get the "real" primary address of the device
     # the primary address is the ip address of the 'default' interface.
@@ -162,11 +170,12 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
     if args.onboarding:
         # call the pre-processing business logic
         logger.info('calling device pre-processing of business logic')
-        # this method mofifies the device_defaults if needed (side effect!)
-        onboarding_bl_device.device_pre_processing(sot, 
-                                                   device_defaults, 
-                                                   configparser, 
-                                                   onboarding.get_onboarding_config())
+        # this method modifies the device_defaults if needed (side effect!)
+        onboarding_bl_device.device_pre_processing(
+            sot, 
+            device_defaults, 
+            configparser, 
+            onboarding.get_onboarding_config())
 
         logger.info('getting device properties')
         # now get the device properties
@@ -185,7 +194,6 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                         device_properties, 
                         configparser, 
                         onboarding.get_onboarding_config())
-
         # get vlan properties
         if args.interfaces or args.primary_only:
             logger.info('getting VLAN properties')
@@ -220,6 +228,29 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                             configparser, 
                             onboarding.get_onboarding_config())
 
+        # we have some internal attributes we have to remove
+        if 'ip' in device_properties:
+            del device_properties['ip']
+        if 'ignore' in device_properties:
+            del device_properties['ignore']
+        if 'offline' in device_properties:
+            del device_properties['offline']
+        if 'config' in device_properties:
+            del device_properties['config']
+
+        # debug:print all values
+        for key, value in device_properties.items():
+            logger.bind(extra='final dev').trace(f'key={key} value={value}')
+        for trc_iface in interfaces:
+            for key, value in trc_iface.items():
+                logger.bind(extra='final inf').trace(f'key={key} value={value}')
+        for trc_vlan in vlan_properties:
+            for key, value in trc_vlan.items():
+                logger.bind(extra='final vlan').trace(f'key={key} value={value}')
+
+        # debugging output of all values
+        logger.bind(extra='overview').debug(device_properties)
+
         # we have all data we need to onboard the device
         # at this point the new device was NOT added to our SOT yet
         # we have either the primary interface or all interfaces and all vlans
@@ -236,12 +267,16 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                 .add_prefix(False) \
                 .add_device(device_properties)
 
+            if not new_device:
+                message = 'failed to add host to nautobot'
+            else:
+                message = 'added device to sot'
             result = {'app': 'onboarding',
-                              'details': {
+                             'details': {
                                 'entity': device_fqdn,
-                                'message': 'host added to sot'}
-                             }
-            logger.bind(result=result).journal(f'added device to sot; device_fqdn={device_fqdn}')
+                                'message': message}
+                     }
+            logger.bind(result=result).journal(message)
         else:
             # update device properties; the device exists and args.update is set
             device_in_nb = device_facts.get('device_in_nb')
@@ -384,6 +419,7 @@ if __name__ == "__main__":
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="log uuid used for journal")
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
@@ -479,23 +515,31 @@ if __name__ == "__main__":
         for d in args.device.split(','):
             devicelist.append({'host': d, 'name': d})
 
-    devices_processed = 0
-    devices_overall = len(devicelist)
-
     #
     # now loop through all devices and process one by one
     #
     # This is the main LOOP of this script
     #
+    devices_processed = 0
+    devices_overall = len(devicelist)
     logger.info(f'processing {len(devicelist)} device(s)')
+
     for device_dict in devicelist:
         devices_processed += 1
+
+        # in_sot is later set to True if the device is already in the sot
         in_sot = False
         device_in_nb = None
+
         # device might be an IP ADDRESS and not the name
         # it is possible to use 'host' or 'ip' to import a device
-        host_or_ip = device_dict.get('host', device_dict.get('ip')).lower()
+        host_or_ip = device_dict.get('host', device_dict.get('ip'))
+        if not host_or_ip:
+            logger.error('failed to get host or IP; maybe you have empty rows in your inventory')
+            continue
+
         # the hostname is ALWAYS lower case
+        host_or_ip = host_or_ip.lower()
         hostname = device_dict.get('name', host_or_ip).lower()
         # there is no space in a hostname!!!
         hostname = hostname.split(' ')[0]
@@ -536,11 +580,12 @@ if __name__ == "__main__":
                 logger.debug(f'device {hostname} is new or will be updated')
 
         # get device default of this host
-        device_defaults = onboarding.get_device_defaults(host_or_ip, device_dict)
+        device_defaults = onboarding.get_device_defaults(
+            host_or_ip, 
+            device_dict)
 
         # now we have all the device defaults
-        logger.debug(f'device_defaults: {device_defaults}')
-
+        # logger.debug(f'device_defaults: {device_defaults}')
         # If 'ignore' is set, the device will not be processed.
         if device_defaults.get('ignore', False):
             logger.info(f'ignore set to true on {hostname}; skipping device')
@@ -597,7 +642,6 @@ if __name__ == "__main__":
 
         # parse config to get interfaces and so on
         configparser = onboarding.parse_config(device_config, device_facts, device_defaults)
-
         # call onboarding
         onboard_device(sot,
                        onboarding,
