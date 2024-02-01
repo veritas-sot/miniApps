@@ -10,6 +10,7 @@ The toolkit includes the following miniApps
    authentication.rst
    installation.rst
    onboarding.rst
+   kobold.rst
    
 Quickstart Guide
 ****************
