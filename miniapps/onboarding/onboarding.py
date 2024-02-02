@@ -128,7 +128,7 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
 
     return device_config, device_facts, platform
 
-def onboard_device(sot, onboarding, args, device_facts, configparser, device_defaults):
+def onboard_device(sot, onboarding, args, device_facts, configparser, device_defaults, dry_run=False):
     """onboard new device to nautobot"""
 
     # we have some empty variables
@@ -142,8 +142,8 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         device_fqdn = device_facts['fqdn'].lower()
     else:
         # get fqdn from config instead
-        device_fqdn = configparser.get_fqdn()
-
+        device_fqdn = configparser.get_fqdn().lower()
+    device_fqdn = configparser.get_fqdn().lower()
     # set extra parameter to logger
     logger.configure(extra={"extra": device_fqdn})
 
@@ -239,7 +239,8 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
             del device_properties['config']
 
         # debug:print all values
-        for key, value in device_properties.items():
+        sorted_dp = dict(sorted(device_properties.items()))
+        for key, value in sorted_dp.items():
             logger.bind(extra='final dev').trace(f'key={key} value={value}')
         for trc_iface in interfaces:
             for key, value in trc_iface.items():
@@ -247,6 +248,11 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         for trc_vlan in vlan_properties:
             for key, value in trc_vlan.items():
                 logger.bind(extra='final vlan').trace(f'key={key} value={value}')
+
+        if dry_run:
+            logger.info('dry run enabled; continuing without onboarding')
+            logger.bind(extra='overview').info(device_properties)
+            return
 
         # debugging output of all values
         logger.bind(extra='overview').debug(device_properties)
@@ -294,6 +300,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
 
             if args.interfaces or args.primary_only:
                 # get ALL interfaces of our device
+                logger.debug('getting the list of all interfaces')
                 all_interfaces = sot.get.interfaces(device_id=new_device.id)
 
             if args.interfaces:
@@ -309,7 +316,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                             nb_interface.update(interface)
                             logger.info(f'updated interface {interface_name}')
                     if not found:
-                        logger.debug(f'interface {interface_name} not found in SOT')
+                        logger.info(f'adding new interface {interface_name}')
                         new_interfaces.append(interface)
                 if len(new_interfaces) > 0:
                     sot.onboarding.add_prefix(False) \
@@ -413,7 +420,7 @@ if __name__ == "__main__":
     parser.add_argument('--export', action='store_true', help='write config and facts to file')
     parser.add_argument('--show-facts', action='store_true', help='show facts only and exit')
     parser.add_argument('--show-config', action='store_true', help='show config only and exit')
-
+    parser.add_argument('--dry-run', action='store_true', help='show key/values but do not onboard')
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="used other config file")
     # set the log level and handler
@@ -580,9 +587,7 @@ if __name__ == "__main__":
                 logger.debug(f'device {hostname} is new or will be updated')
 
         # get device default of this host
-        device_defaults = onboarding.get_device_defaults(
-            host_or_ip, 
-            device_dict)
+        device_defaults = onboarding.get_device_defaults(host_or_ip, device_dict)
 
         # now we have all the device defaults
         # logger.debug(f'device_defaults: {device_defaults}')
@@ -648,7 +653,8 @@ if __name__ == "__main__":
                        args,
                        device_facts,
                        configparser,
-                       device_defaults)
+                       device_defaults,
+                       args.dry_run)
 
     # after adding all devices to our sot we add the cables
     # if args.cables:
