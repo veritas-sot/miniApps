@@ -27,8 +27,6 @@ download and install the library by running:
 
 .. code-block:: shell
 
-    # go back to the upper directory
-    cd ..
     git clone https://github.com/veritas-sot/veritas.git
     cd veritas
     poetry install
@@ -37,13 +35,16 @@ Now clone and install the toolkit. Go to the directory in which the veritas subd
 
 .. code-block:: shell
 
+    # go back to the upper directory if you installed veritas before
+    cd ..
+
     git clone https://github.com/veritas-sot/miniApps.git
     cd miniApps
     poetry install
 
 .. tip::
 
-    To configure your miniApps have a look at the ./installtion miniApp. Using this app you
+    To configure your miniApps have a look at the ./installation miniApp. Using this app you
     can configure all your miniApps within minutes. 
 
 Jupyter Notebooks

@@ -248,7 +248,24 @@ or the device type can be used, but do not have to be.
 The onboarding process
 **********************
 
-Once you have created the inventory, you can start onboarding.
+First, a brief overview of the order in which the configuration or files are read and processed.
+
+Sequence of processing files and configs
+========================================
+
+The onboarding process is as follows:
+
+  1. Read prefix based global default values from REPO (eg. default_values)
+  2. Use inventory to set device properties. If a value already exists, it is overwritten. 
+     Otherwise the values are added.
+  3. The pre-processing business logic is called
+  4. Read config files in ./miniapp_configs/onboarding/additional_values/
+     If a value already exists, it is overwritten. Otherwise the values are added.
+  5. The post-processing business logic is called
+  6. After the interface configs were made the post-processing business logic for the
+     interfaces is called.
+  7. The device is onboarded
+
 
 Preparing the data
 ==================
@@ -510,8 +527,8 @@ Last but not least the CSV file...
 Onboarding a single device
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Instead of onboarding the complete inventory you can use the parameter '--device IP-Address' to start the onboarding process for 
-this device. 
+Instead of onboarding the complete inventory you can use the parameter '--device IP-Address' to 
+start the onboarding process for this device. 
 
 Sarting the onboarding
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -522,7 +539,7 @@ The following output shows the possible arguments of the onboarding app:
 
       usage: onboarding.py [-h] [--onboarding] [--primary-only] [--interfaces] [--cables] 
                           [--config-context] [--tags] [--update] [--export] [--show-facts] 
-                          [--show-config] [--config CONFIG] [--loglevel LOGLEVEL] 
+                          [--show-config] [--dry-run] [--config CONFIG] [--loglevel LOGLEVEL] 
                           [--loghandler LOGHANDLER] [--uuid UUID] 
                           [--scrapli-loglevel SCRAPLI_LOGLEVEL] [--device DEVICE] 
                           [--inventory INVENTORY] [--sot SOT] [--import] [--filter FILTER] 
@@ -541,6 +558,7 @@ The following output shows the possible arguments of the onboarding app:
         --export              write config and facts to file
         --show-facts          show facts only and exit
         --show-config         show config only and exit
+        --dry-run             show key/values but do not onboard
         --config CONFIG       used other config file
         --loglevel LOGLEVEL   used loglevel
         --loghandler LOGHANDLER

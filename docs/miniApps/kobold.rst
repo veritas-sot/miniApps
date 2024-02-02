@@ -34,8 +34,9 @@ Let it run
     --profile PROFILE
     --port PORT           TCP Port to connect to device
 
-playbook syntax and properties
-******************************
+General structure of a Playbook
+*******************************
+
 Playbooks configure what to do. A 'job' always consists of:
 
     - a name
@@ -43,9 +44,15 @@ Playbooks configure what to do. A 'job' always consists of:
     - an 'SQL' statement that is used to configure which devices the job affects and ...
     - a task that specifies what exactly is to be done.
 
-For example, to change the name and primary IP address of several devices 
-at the same time, which all have the ending .local, these should first be exported. 
-This can be done using the following task.
+Examples
+********
+
+Here are some examples:
+
+Export device properties
+========================
+To change the name and/or the primary IP address of several devices, which all have the 
+ending .local, these should first be exported. This can be done using the following task.
 
 .. code-block:: yaml
 
@@ -80,8 +87,36 @@ The Excel table created by this job looks like this.
   :width: 700
   :alt: Inventory
 
-You can then use your favorite spreadsheets (e.g. libreoffice) to adjust the data of the devices 
+You can then use your favorite software (e.g. libreoffice) to modify the data of the devices 
 and read it in again with the miniApp ./updater.py.
+
+Export HLDM
+===========
+
+.. code-block:: yaml
+
+    - job: export_hldm
+      description: export HLDM
+      devices:
+        sql:
+          select: name
+          from: nb.devices
+          where: name=lab.local
+      tasks:
+        - export: 
+          - content: hldm
+            directory: hldm/__location.name__
+            filename: __name__.json
+
+You start the job by:
+
+.. code-block:: shell
+
+    ./run.py --profile default --playbook playbooks/playbook.yaml --job export_hldm --loglevel info
+
+    2024-02-02 14:15:15 | INFO  | unset  | starting job export_hldm / export HLDM
+    2024-02-02 14:15:15 | INFO  | unset  | exporting [{'content': 'hldm', 'directory': 'hldm/__cf_net__/__location.name__', 'filename': '__name__.json'}]
+    2024-02-02 14:15:16 | INFO  | unset  | creating missing directory hldm/my_Network/site_1
 
 Example playbook
 ****************
