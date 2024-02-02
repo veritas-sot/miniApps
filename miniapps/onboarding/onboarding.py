@@ -143,7 +143,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
     else:
         # get fqdn from config instead
         device_fqdn = configparser.get_fqdn().lower()
-    device_fqdn = configparser.get_fqdn().lower()
+
     # set extra parameter to logger
     logger.configure(extra={"extra": device_fqdn})
 
@@ -249,11 +249,6 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
             for key, value in trc_vlan.items():
                 logger.bind(extra='final vlan').trace(f'key={key} value={value}')
 
-        if dry_run:
-            logger.info('dry run enabled; continuing without onboarding')
-            logger.bind(extra='overview').info(device_properties)
-            return
-
         # debugging output of all values
         logger.bind(extra='overview').debug(device_properties)
 
@@ -263,7 +258,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         # now add device or update it
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
-        if not device_facts['is_in_sot']:
+        if not device_facts['is_in_sot'] and not dry_run:
             logger.debug('device not found in SOT; adding it')
             # add new device to SOT
             new_device = sot.onboarding \
@@ -316,9 +311,10 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                             nb_interface.update(interface)
                             logger.info(f'updated interface {interface_name}')
                     if not found:
-                        logger.info(f'adding new interface {interface_name}')
+                        logger.info(f'adding new interface {interface_name}')                        
                         new_interfaces.append(interface)
-                if len(new_interfaces) > 0:
+                # update device if not dry run
+                if len(new_interfaces) > 0 and not dry_run:
                     sot.onboarding.add_prefix(False) \
                                   .assign_ip(True) \
                                   .add_interfaces(device=new_device, interfaces=new_interfaces)
@@ -338,20 +334,25 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                     for nb_interface in all_interfaces:
                         if interface_name == nb_interface.display:
                             primary_interface_found = True
+                            if dry_run:
+                                logger.info(f'updated primary interface {interface_name}')
+                            else:
+                                sot.onboarding.add_prefix(False) \
+                                            .assign_ip(True) \
+                                            .update_interfaces(device=new_device, interfaces=interfaces)
+                                result = {'app': 'onboarding',
+                                'details': {
+                                    'entity': device_fqdn,
+                                    'message': f'updated primary interface {interface_name}'}
+                                }
+                                logger.bind(result=result).journal(f'updated primary interface {interface_name}')
+
+                    if not primary_interface_found and not dry_run:
+                        logger.info('no primary inteface found; seems to be a new one; adding it')
+                        if not dry_run:
                             sot.onboarding.add_prefix(False) \
                                           .assign_ip(True) \
-                                          .update_interfaces(device=new_device, interfaces=interfaces)
-                            result = {'app': 'onboarding',
-                              'details': {
-                                'entity': device_fqdn,
-                                'message': f'updated primary interface {interface_name}'}
-                             }
-                            logger.bind(result=result).journal(f'updated primary interface {interface_name}')
-                    if not primary_interface_found:
-                        logger.info('no primary inteface found; seems to be a new one; adding it')
-                        sot.onboarding.add_prefix(False) \
-                                      .assign_ip(True) \
-                                      .add_interfaces(device=new_device, interfaces=interfaces)
+                                          .add_interfaces(device=new_device, interfaces=interfaces)
 
             # maybe the primary IP has changed. Check it and update if necessary
             if new_device.primary_ip4:
@@ -361,8 +362,9 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                 current_primary_ip = "unknown or none"
                 logger.info(f'the device {new_device.display} has no primary IP configured; setting it now')
             if current_primary_ip != primary_address:
-                logger.info(f'updating primary IP of device {new_device.display} {current_primary_ip} vs. {primary_address}')
-                sot.onboarding.set_primary_address(primary_address, new_device)
+                logger.info(f'updating primary IP of device {new_device.display} from {current_primary_ip} to {primary_address}')
+                if not dry_run:
+                    sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
         # if the onboarding part did not run we need the device_properties
