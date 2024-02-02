@@ -402,7 +402,6 @@ def update_from_file(sot, filename, where, template, updater_config, using='nb.d
                 # at first check if we have to use a emplate
                 if template:
                     logger.debug('using template to get new_value')
-                    print(row)
                     new_value = get_value_from_template(row, template)
                 # now check if we have some modifiers (upper, lower)
                 elif match:
