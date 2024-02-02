@@ -1,9 +1,12 @@
 import os
 import json
 import csv
+import sys
 import pandas as pd
+import re
 from loguru import logger
 from dotenv import load_dotenv
+from benedict import benedict
 
 # veritas
 from veritas.devicemanagement import scrapli as dm
@@ -42,11 +45,19 @@ def get_number_of_rows(raw_data):
 def get_device_config_and_facts(kobold, sot, device_properties):
     device_facts = {}
 
+    print(device_properties)
+
     device_ip = device_properties.get('primary_ip4',{}).get('address')
     # check if device_ip is cidr notation
     device_ip=device_ip.split('/')[0]
     platform = device_properties.get('platform',{}).get('name')
-    manufacturer = device_properties.get('platform',{}).get('manufacturer',{}).get('name','cisco')
+    # sometimes devices have no manufacturer
+    manfctrr = device_properties.get('platform',{}).get('manufacturer',{})
+    if not manfctrr or manfctrr == 'None':
+        logger.info('this device has no manufacturer; using cisco')
+        manufacturer = 'cisco'
+    else:
+        manufacturer = manfctrr.get('name','cisco')
 
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
@@ -276,78 +287,52 @@ def get_val(p, data):
             else:
                 return tools.get_value_from_dict(data, key)
 
-def pattern_to_filename(path, data):
-    prefix = ""
-    indexes = []
+def pattern_to_filename(pattern, data):
+    logger.debug(f'getting filename from {pattern}')
+    
+    final_path = []
+    separator = re.compile(".*?__(.*?)__.*?")
+    hldm = benedict(data, keyattr_dynamic=True)
 
-    logger.debug(f'pattern_to_filename {path}')
+    path = pattern.split('/')
+    logger.debug(f'list of path={path}')
 
-    # check if pattern has any dynamic values
-    if '__' not in path:
-        return path
+    for item in path:
+        if '__' not in item:
+            final_path.append(item)
+            continue
 
-    # build a list of (static|dynamic) fields
-    # we loop through our pattern and check if a '__' is found
-    # if we found this pattern we add the corresponding start and end values to our list
-    # it seems that there is no easy regex to get all __xxx__ matches if it is allowed
-    # to use multiple occurences of this pattern like __cf_net____location/name__
-    i = 0
-    # todo: check if this is correct
-    start = 0
-    active = False
-    while i < len(path) - 2:
-        if '__' == path[i:i+2]:
-            if active:
-                indexes.append({'start': start, 'end': i+2})
-                active = False
+        match = separator.match(item)
+        if match:
+            key = match.group(1)
+            if key.startswith('cf_'):
+                custom_fields = hldm['custom_field_data']
+                try:
+                    value = custom_fields[key.replace('cf_','')].replace(' ','_').replace('/','_')
+                    final_item = item.replace(f'__{key}__', value)
+                    logger.debug(f'key={key} value={final_item}')
+                    final_path.append(final_item)
+                except Exception:
+                    logger.error(f'unknown key {key}')
             else:
-                start = i
-                active = True
-            i += 2
-        else:
-            i += 1
-    if active:
-        indexes.append({'start': start, 'end': len(path)})
+                try:
+                    value = hldm[key]
+                    final_item = item.replace(f'__{key}__', value)
+                    logger.debug(f'key={key} value={final_item}')
+                    final_path.append(final_item)
+                except Exception:
+                    logger.error(f'unknown key {key}')
 
-    # now we have a list of all dynamic fields
-    # we have to check if there is a gap between two fields
-    # in this case there is a static value we use additionaly eg. 
-    # __cf_net__xxx__location/name__ where xxx is a static value between the two dynamic fields
-
-    last_index = 0
-    for i in indexes:
-        start = i.get('start')
-        end = i.get('end')
-        # logger.debug(f'start {start} end {end}')
-        if last_index == 0 and start > last_index:
-            value = path[last_index:start]
-            prefix = "%s%s" % (prefix, value)
-            # logger.debug(f'static value detected at {last_index} / {start} value {value}')
-        elif start - last_index == 1:
-            value = path[last_index:last_index+1]
-            prefix = "%s%s" % (prefix, value)
-            # logger.debug(f'static value detected at {last_index} value {value}')
-
-        key = path[start:end]
-        value = get_val(key, data)
-        prefix = "%s%s" % (prefix, value)
-        # logger.debug(f'dynamic value detected at {start} / {end} value {value}')
-
-        last_index = end
-
-    if last_index != len(path):
-        value = path[last_index:]
-        prefix = "%s%s" % (prefix, value)
-        # logger.debug(f'static value at the end detected {last_index} value: {value}')
-
-    return prefix
+    final_pattern = '/'.join(final_path)
+    logger.debug(f'final pattern={final_pattern}')
+    return final_pattern
 
 def export_hldm(kobold, sot, task, devices):
-    filename_pattern = task.get('filename', '__hostname__')
+    filename_pattern = task.get('filename', '__name__')
     subdir_pattern = task.get('directory', '')
 
     for device in devices:
-        hostname = device.get('hostname')
+        hostname = device.get('name')
         logger.debug(f'exporting HLDM of {hostname}')
         hldm = sot.get.hldm(device=hostname)[0]
         subdir = pattern_to_filename(subdir_pattern, hldm)
