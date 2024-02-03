@@ -76,7 +76,7 @@ jobs:
     description: export properties
     devices:
       sql:
-        # the values of the select statement must correspond to the coluns you
+        # the values of the select statement must correspond must include the columns you
         # want to export
         select: id, name, primary_ip4, interfaces, location, cf_net, cf_select
         from: nb.devices

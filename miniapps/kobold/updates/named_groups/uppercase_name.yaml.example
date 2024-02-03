@@ -1,0 +1,11 @@
+---
+update:
+  - job: name_to_upper
+    description: change hostname to upper case
+    devices:
+      where: name__ic=local
+    source:
+      named_groups:
+        hostname: ^(?P<name>(.*))
+    destination:
+      name: "__name@upper__"

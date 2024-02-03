@@ -1,8 +1,0 @@
----
-update:
-  source:
-    named_groups:
-      hostname: ^(?P<host>(.*?))\.(?P<domain>(.*))
-  destination:
-    location.name: "__host@zfill(5)__.__domain__"
-    location.location_type.name: ast

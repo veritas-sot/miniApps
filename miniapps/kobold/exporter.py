@@ -1,17 +1,52 @@
 import os
 import json
 import csv
-import sys
 import pandas as pd
-import re
 from loguru import logger
 from dotenv import load_dotenv
-from benedict import benedict
 
 # veritas
 from veritas.devicemanagement import scrapli as dm
 from veritas.tools import tools
 
+def get_profile(profile, username, password, playbook):
+    """set username and password in playbook
+
+    Parameters
+    ----------
+    profile : str
+        commandline profile
+    username : str
+        commandline username
+    password : str
+        commandline password
+    playbook : str
+        name of playbook
+    """
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug('reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug('no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
+
+    # load profiles
+    profile_config = tools.get_miniapp_config('kobold', BASEDIR, 'profiles.yaml')
+    # get username and password either from profile
+    username, password = tools.get_username_and_password(
+            profile_config,
+            profile,
+            username,
+            password)
+
+    playbook.username = username
+    playbook.password = password
 
 def get_value(values, keys):
     if isinstance(values, list):
@@ -42,10 +77,8 @@ def get_number_of_rows(raw_data):
                     return None
     return rows
 
-def get_device_config_and_facts(kobold, sot, device_properties):
+def get_device_config_and_facts(sot, playbook, device_properties):
     device_facts = {}
-
-    print(device_properties)
 
     device_ip = device_properties.get('primary_ip4',{}).get('address')
     # check if device_ip is cidr notation
@@ -63,18 +96,14 @@ def get_device_config_and_facts(kobold, sot, device_properties):
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
     # Connect the path with the '.env' file name
     load_dotenv(os.path.join(BASEDIR, '.env'))
-    
-    # get username and password
-    username, password = kobold.get_username_and_password()
 
-    logger.info(f'ssh to {username}@{device_ip}:{kobold.get_tcp_port()} on platform {platform}')
+    logger.info(f'ssh to {playbook.username}@{device_ip}:{playbook.tcp_port} on platform {platform}')
     conn = dm.Devicemanagement(ip=device_ip,
                                platform=platform,
                                manufacturer=manufacturer.lower(),
-                               username=username,
-                               password=password,
-                               port=kobold.get_tcp_port(),
-                               scrapli_loglevel=kobold.get_scrapli_loglevel())
+                               username=playbook.username,
+                               password=playbook.password,
+                               port=playbook.tcp_port)
 
     # retrieve facts like fqdn, model and serialnumber
     logger.debug(f'now gathering facts from {device_ip}')
@@ -101,7 +130,7 @@ def get_device_config_and_facts(kobold, sot, device_properties):
 
     return device_config, device_facts
 
-def get_device_data_to_export(kobold, sot, task, devices):
+def get_device_data_to_export(sot, task, devices):
 
     """
     prepare data to export by scanning through ALL devices and build table
@@ -170,6 +199,67 @@ def get_device_data_to_export(kobold, sot, task, devices):
             data_to_export.append(row)
     return data_to_export
 
+def export_config_and_facts(sot, playbook, task, device_properties):
+
+    hostname = device_properties.get('hostname')
+    logger.debug(f'getting config and facts from {hostname}')
+    device_config, device_facts = get_device_config_and_facts(sot, playbook, device_properties)
+    content = task.get('content')
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    if 'config' in content:
+        filename = "%s/%s/%s.conf" % (
+            BASEDIR, 
+            task.get('directory','./configs'), 
+            hostname)
+        subdir = os.path.dirname(filename)
+        if not os.path.exists(subdir):
+                logger.info(f'creating missing directory {subdir}')
+                os.makedirs(subdir)
+
+        logger.info(f'writing config to {filename}')
+        try:
+            with open(filename, 'w') as f:
+                f.write(device_config)
+        except Exception as exc:
+            logger.error(f'could not write config; got exception {exc}')
+
+    if 'facts' in content:
+        hostname = device_properties.get('hostname')
+        filename = "%s/%s/%s.facts" % (
+            BASEDIR, 
+            task.get('directory','./configs'), 
+            hostname)
+        subdir = os.path.dirname(filename)
+        if not os.path.exists(subdir):
+                logger.info(f'creating missing directory {subdir}')
+                os.makedirs(subdir)
+
+        logger.info(f'writing facts to {filename}')
+        try:
+            with open(filename, 'w') as f:
+                f.write(json.dumps(device_facts,indent=4))
+        except Exception as exc:
+            logger.error(f'could not write facts; got exception {exc}')
+
+def export_hldm(sot, playbook, task, devices):
+    filename_pattern = task.get('filename', '__name__')
+    subdir_pattern = task.get('directory', '')
+
+    for device in devices:
+        hostname = device.get('name')
+        logger.debug(f'exporting HLDM of {hostname}')
+        hldm = sot.get.hldm(device=hostname)[0]
+        subdir = playbook.pattern_to_filename(subdir_pattern, hldm)
+        filename = playbook.pattern_to_filename(filename_pattern, hldm)
+
+        logger.debug(f'writing HLDM to subdir {subdir} filename {filename}')
+        if not os.path.exists(subdir):
+                logger.info(f'creating missing directory {subdir}')
+                os.makedirs(subdir)
+        with open(f'{subdir}/{filename}', "w") as f:
+            f.write(json.dumps(hldm, indent=4))
+
 def export_as_csv(task, data_to_export):
     logger.info(f'exporting {len(data_to_export)} entries as CSV')
     delimiter = task.get('delimiter',',')
@@ -209,17 +299,13 @@ def export_as_excel(task, data_to_export):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    if task.get('header'):
-        headers = data_to_export[0]
-        print(headers)
-
     df = pd.DataFrame(data_to_export)
     writer = pd.ExcelWriter(filename, engine='xlsxwriter')
     df.to_excel(writer, sheet_name='Export', startrow=0, header=False, index=False)
     writer.close()
 
-def export_device_properties(kobold, sot, task, devices):
-    data_to_export = get_device_data_to_export(kobold, sot, task, devices)
+def export_device_properties(sot, playbook, task, devices):
+    data_to_export = get_device_data_to_export(sot, task, devices)
     if len(data_to_export) == 0:
         logger.bind(extra='export').info('got no data to export')
         return
@@ -228,133 +314,50 @@ def export_device_properties(kobold, sot, task, devices):
     if task.get('format') == 'excel' or task.get('format') == 'xlsx':
         return export_as_excel(task, data_to_export)
 
-def export_config_and_facts(kobold, sot, task, device_properties):
-
-    hostname = device_properties.get('hostname')
-    logger.debug(f'getting config and facts from {hostname}')
-    device_config, device_facts = get_device_config_and_facts(kobold, sot, device_properties)
-    content = task.get('content')
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
-    if 'config' in content:
-        filename = "%s/%s/%s.conf" % (
-            BASEDIR, 
-            task.get('directory','./configs'), 
-            hostname)
-        subdir = os.path.dirname(filename)
-        if not os.path.exists(subdir):
-                logger.info(f'creating missing directory {subdir}')
-                os.makedirs(subdir)
-
-        logger.info(f'writing config to {filename}')
-        try:
-            with open(filename, 'w') as f:
-                f.write(device_config)
-        except Exception as exc:
-            logger.error(f'could not write config; got exception {exc}')
-
-    if 'facts' in content:
-        hostname = device_properties.get('hostname')
-        filename = "%s/%s/%s.facts" % (
-            BASEDIR, 
-            task.get('directory','./configs'), 
-            hostname)
-        subdir = os.path.dirname(filename)
-        if not os.path.exists(subdir):
-                logger.info(f'creating missing directory {subdir}')
-                os.makedirs(subdir)
-
-        logger.info(f'writing facts to {filename}')
-        try:
-            with open(filename, 'w') as f:
-                f.write(json.dumps(device_facts,indent=4))
-        except Exception as exc:
-            logger.error(f'could not write facts; got exception {exc}')
-
-def get_val(p, data):
-    key = p.replace('__','')
-
-    if key.startswith('cf_'):
-        key = ['custom_field_data', key.replace('cf_','')]
-        return tools.get_value_from_dict(data, key)
-    else:
-        # eg site_slug
-        if '_' in key:
-            return tools.get_value_from_dict(data, key.split('_'))
-        else:
-            if isinstance(key, str):
-                return tools.get_value_from_dict(data, [key])
-            else:
-                return tools.get_value_from_dict(data, key)
-
-def pattern_to_filename(pattern, data):
-    logger.debug(f'getting filename from {pattern}')
-    
-    final_path = []
-    separator = re.compile(".*?__(.*?)__.*?")
-    hldm = benedict(data, keyattr_dynamic=True)
-
-    path = pattern.split('/')
-    logger.debug(f'list of path={path}')
-
-    for item in path:
-        if '__' not in item:
-            final_path.append(item)
-            continue
-
-        match = separator.match(item)
-        if match:
-            key = match.group(1)
-            if key.startswith('cf_'):
-                custom_fields = hldm['custom_field_data']
-                try:
-                    value = custom_fields[key.replace('cf_','')].replace(' ','_').replace('/','_')
-                    final_item = item.replace(f'__{key}__', value)
-                    logger.debug(f'key={key} value={final_item}')
-                    final_path.append(final_item)
-                except Exception:
-                    logger.error(f'unknown key {key}')
-            else:
-                try:
-                    value = hldm[key]
-                    final_item = item.replace(f'__{key}__', value)
-                    logger.debug(f'key={key} value={final_item}')
-                    final_path.append(final_item)
-                except Exception:
-                    logger.error(f'unknown key {key}')
-
-    final_pattern = '/'.join(final_path)
-    logger.debug(f'final pattern={final_pattern}')
-    return final_pattern
-
-def export_hldm(kobold, sot, task, devices):
-    filename_pattern = task.get('filename', '__name__')
-    subdir_pattern = task.get('directory', '')
-
-    for device in devices:
-        hostname = device.get('name')
-        logger.debug(f'exporting HLDM of {hostname}')
-        hldm = sot.get.hldm(device=hostname)[0]
-        subdir = pattern_to_filename(subdir_pattern, hldm)
-        filename = pattern_to_filename(filename_pattern, hldm)
-
-        logger.debug(f'writing HLDM to subdir {subdir} filename {filename}')
-        if not os.path.exists(subdir):
-                logger.info(f'creating missing directory {subdir}')
-                os.makedirs(subdir)
-        with open(f'{subdir}/{filename}', "w") as f:
-            f.write(json.dumps(hldm, indent=4))
-
-def export(kobold, sot, tasks, devices):
+def run_task(args, sot, playbook, tasks, devices):
     logger.info(f'exporting {tasks}')
 
     for task in tasks:
         content = task.get('content')
         if 'config' in content or 'facts' in content:
+
+            # set username and password
+            get_profile(args.profile, args.username,args.password, playbook)
+
             for device in  devices:
-                export_config_and_facts(kobold, sot, task, device)
+                export_config_and_facts(sot, playbook, task, device)
         elif 'hldm' in content:
-            export_hldm(kobold, sot, task, devices)
+            export_hldm(sot, playbook, task, devices)
         elif 'properties' in content:
             # export columns of all devices
-            export_device_properties(kobold, sot, task, devices)
+            export_device_properties(sot, playbook, task, devices)
+
+def export(sot, playbook, args):
+    job = playbook.jobs.get(args.job)
+    if not job:
+        logger.error(f'unknown job {args.job}')
+        return False
+
+    name = job.get('job')
+    description = job.get('description','no description')
+    logger.info(f'starting job {name} / {description}')
+
+    if 'sql' in job.get('devices',{}):
+        sql = job.get('devices').get('sql')
+        select = sql.get('select')
+        using = sql.get('from', sql.get('using'))
+        where = sql.get('where')
+        logger.debug(f'getting device_list select={select} using={using} where={where}')
+        device_list = sot.select(select) \
+                         .using(using) \
+                         .where(where)
+        logger.debug(f'got {len(device_list)} devices')
+    tasks = job.get('tasks')
+    if tasks is None:
+        logger.error('no task configured!!!')
+        return False
+
+    for task in tasks:
+        if 'export' in task:
+            run_task(args, sot, playbook, task['export'], device_list)
+

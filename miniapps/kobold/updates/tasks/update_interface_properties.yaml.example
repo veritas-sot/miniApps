@@ -1,0 +1,10 @@
+---
+update:
+  - job: update_device_property
+    description: Set device property
+    devices:
+      select: name, interfaces
+      where: name__ic=local and interfaces_name=Loopback0
+    tasks:
+      - interface_property:
+          status: {'name': 'Active'}

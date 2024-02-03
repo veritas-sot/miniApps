@@ -1,0 +1,16 @@
+---
+update:
+  - job: update_device_property
+    description: Set device property
+    devices:
+      where: name__ic=local
+    tasks:
+      - delete_tag:
+          scope: dcim.device
+          tag: test
+      - add_tag:
+          scope: dcim.device
+          tag: test2
+      - set_tag:
+          scope: dcim.device
+          tag: test

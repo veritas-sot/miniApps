@@ -1,5 +1,0 @@
----
-crypto:
-  encryptionkey: __profile_encryptionkey__
-  salt: __profile_salt__
-  iterations: __profile_iterations__

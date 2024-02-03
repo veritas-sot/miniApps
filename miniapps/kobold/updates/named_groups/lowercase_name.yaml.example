@@ -1,0 +1,9 @@
+---
+update:
+  - job: name_to_lowercase
+    description: change hostname to upper case
+    source:
+      named_groups:
+        hostname: ^(?P<name>(.*))
+    destination:
+      name: "__name@lower__"

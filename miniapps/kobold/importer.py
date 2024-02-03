@@ -3,13 +3,10 @@
 import argparse
 import os
 import json
-import csv
-import yaml
 import urllib3
 import sys
 from loguru import logger
-from pathlib import Path
-from openpyxl import load_workbook
+from slugify import slugify
 
 import veritas.logging
 from veritas.sot import sot as sot

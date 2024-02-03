@@ -1,0 +1,18 @@
+---
+update:
+  - job: update_device_property
+    description: Set device property
+    devices:
+        select: name, interfaces
+        from: nb.devices
+        where: name=lab-01.zz and interfaces_name=Loopback0
+    tasks:
+      - delete_tag:
+          scope: dcim.interface
+          tag: dhcp
+      - add_tag:
+          scope: dcim.interface
+          tag: dhcp
+      - set_tag:
+          scope: dcim.interface
+          tag: dhcp

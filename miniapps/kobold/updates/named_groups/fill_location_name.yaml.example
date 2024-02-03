@@ -1,0 +1,10 @@
+---
+update:
+  - job: fill_location
+    description: Fill locations with 0
+    source:
+      named_groups:
+        hostname: ^(?P<host>(.*?))\.(?P<domain>(.*))
+    destination:
+      location.name: "__host@zfill(5)__.__domain__"
+      location.location_type.name: ast
