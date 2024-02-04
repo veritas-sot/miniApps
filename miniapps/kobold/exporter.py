@@ -249,7 +249,7 @@ def export_hldm(sot, playbook, task, devices):
     for device in devices:
         hostname = device.get('name')
         logger.debug(f'exporting HLDM of {hostname}')
-        hldm = sot.get.hldm(device=hostname)[0]
+        hldm = sot.get.hldm(device=hostname, get_id=False)[0]
         subdir = playbook.pattern_to_filename(subdir_pattern, hldm)
         filename = playbook.pattern_to_filename(filename_pattern, hldm)
 
@@ -351,7 +351,7 @@ def export(sot, playbook, args):
         device_list = sot.select(select) \
                          .using(using) \
                          .where(where)
-        logger.debug(f'got {len(device_list)} devices')
+        logger.info(f'got {len(device_list)} devices')
     tasks = job.get('tasks')
     if tasks is None:
         logger.error('no task configured!!!')
