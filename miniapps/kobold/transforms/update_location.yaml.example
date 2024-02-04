@@ -3,6 +3,8 @@ transform:
   - job: update_location
     description: Update Location to A001....
     source:
+      from: nb.devices
+      where: name__ic=local
       named_groups:
         hostname: ^(?P<alpha>(a|b|c))(?P<digits>\d+)\.
         device_type.model: ^(?P<model>(\w+))

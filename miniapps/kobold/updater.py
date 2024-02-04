@@ -364,38 +364,16 @@ def do_jobs_from_file(args, sot, updater_config):
     for job in jobs:
         if args.job and jobs.get('job') != args.job:
             continue
-        
-        # get where clause
-        if args.devices:
-            where = args.devices
-            using =  "nb.devices"
-            select = "name"
-        elif args.prefixes:
-            where = args.prefixes
-            using =  "nb.prefixes"
-            select = "prefix, ip_addresses, primary_ip4_for, name"
-        elif args.addresses:
-            where = args.addresses
-            using = "nb.ipaddresses"
-            select = "primary_ip4_for, name"
-        elif job.get('devices',{}).get('where'):
-            where = job.get('devices')
-            select = job.get('devices',{}).get('select','name')
-            using =  "nb.devices"
-        elif job.get('prefixes',{}).get('where'):
-            where = job.get('prefixes')
-            using =  "nb.prefixes"
-            select = job.get('prefixes',{}).get('select','prefix, ip_addresses, primary_ip4_for, name')
-        elif job.get('addresses',{}).get('where'):
-            where = job.get('addresses')
-            using =  "nb.ipaddresses"
-            select = job.get('addresses',{}).get('select','primary_ip4_for, name')
-        else:
-            # abort job
-            where = None
-            select = None
-            using = None
-        
+
+        # defaults should be
+        # devices: name
+        # prefixes: prefix, ip_addresses, primary_ip4_for, name
+        # addresses: primary_ip4_for, name
+
+        # get select, using, and where
+        select = job.get('source',{}).get('select')
+        using =  job.get('source',{}).get('from')
+        where =  args.where if args.where else job.get('source',{}).get('where')
         logger.debug(f'select={select} where={where} using={using}')
 
         # we do NOT want to update all devices
@@ -409,12 +387,12 @@ def do_jobs_from_file(args, sot, updater_config):
         run_task(args, sot, job, select, using, where)
 
 def read_yaml(filename):
-    with open(filename) as f:
-        try:
+    try:
+        with open(filename) as f:
             return yaml.safe_load(f.read())
-        except Exception as exc:
-            logger.error(f'could not read or parse config; got exception {exc}')
-            return None
+    except Exception as exc:
+        logger.error(f'could not read or parse config; got exception {exc}')
+        return None
 
 def update(sot, args, kobold_config):
 

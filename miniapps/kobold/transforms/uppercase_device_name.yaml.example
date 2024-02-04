@@ -2,9 +2,9 @@
 transform:
   - job: name_to_upper
     description: change hostname to upper case
-    devices:
-      where: name__ic=local
     source:
+      from: nb.devices
+      where: name__ic=local
       named_groups:
         name: ^(?P<name>(.*))
     destination:

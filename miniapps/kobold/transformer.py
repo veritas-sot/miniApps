@@ -22,7 +22,7 @@ def get_value_from_template(device, template):
 
     return ""
 
-def run_simple_update(sot, config, template, updater_config, 
+def run_simple_update(sot, config, template, 
                       where='name=', using='nb.devices', dry_run=False):
     """read config from file and update items depending on this config"""
 
@@ -201,7 +201,7 @@ def run_simple_update(sot, config, template, updater_config,
 
 #### main
 
-def do_jobs_from_file(args, sot, updater_config):
+def transform(sot, args, kobold_config):
     jobs_yaml = read_yaml(args.filename)
     if not jobs_yaml:
         logger.error(f'failed to read YAML config {args.filename}')
@@ -213,38 +213,26 @@ def do_jobs_from_file(args, sot, updater_config):
         if args.job and jobs.get('job') != args.job:
             continue
 
-        # get where clause
-        where = args.devices if args.devices else job.get('devices',{}).get('where')
-        using = "nb.devices"
-        if args.addresses:
-            where = args.addresses if args.addresses else job.get('addresses')
-            using = "nb.ipaddresses"
-        
-        # we do NOT want to update all devices
+        # get using, and where
+        using =  job.get('source',{}).get('from')
+        where =  args.where if args.where else job.get('source',{}).get('where')
+        logger.debug(f'where={where} using={using}')
+
+        # we do NOT want to transform all devices
         if not where:
             logger.error('there is no where clause specified. We do not want to update ALL devices')
             logger.error('Please use --devices name= if you realy want to update alles devices')
             print('there is no where clause specified. We do not want to update ALL devices')
             print('Please use --devices name= if you realy want to update alles devices')
             return
-
+        
         run_simple_update(
-            sot, job, args.template, updater_config, 
-            where=where, using=using, dry_run=args.dry_run)
+            sot, job, args.template, where=where, using=using, dry_run=args.dry_run)
 
 def read_yaml(filename):
-    with open(filename) as f:
-        try:
+    try:
+        with open(filename) as f:
             return yaml.safe_load(f.read())
-        except Exception as exc:
-            logger.error(f'could not read or parse config; got exception {exc}')
-            return None
-
-def transform(sot, args, kobold_config):
-
-    # make some checks
-    if args.devices and args.addresses:
-        logger.error('use either --devices or --addresses')
-        return
-
-    do_jobs_from_file(args,sot, kobold_config.get('transform',{}))
+    except Exception as exc:
+        logger.error(f'could not read or parse config; got exception {exc}')
+        return None

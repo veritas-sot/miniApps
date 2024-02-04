@@ -3,6 +3,8 @@ transform:
   - job: name_to_lowercase
     description: change hostname to upper case
     source:
+      from: nb.devices
+      where: name__ic=local
       named_groups:
         hostname: ^(?P<name>(.*))
     destination:

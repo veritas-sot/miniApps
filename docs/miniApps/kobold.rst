@@ -6,92 +6,110 @@ Kobold
 
 Brief overview
 **************
-Kobold, in English Goblin, is a miniApp with which you can run playbooks. 
-You can use this app to export data or carry out updates.
+Kobold is a miniApp to export, update and transform device properties. 
 
 Let it run
 **********
 
 .. code-block:: shell
 
+      usage: kobold.py [-h] [--loglevel LOGLEVEL] [--loghandler LOGHANDLER] 
+                       [--uuid UUID] [--config CONFIG] {update,export,transform} ...
 
-    usage: run.py [-h] [--config CONFIG] [--loglevel LOGLEVEL] [--loghandler LOGHANDLER] 
-                  [--scrapli-loglevel SCRAPLI_LOGLEVEL] [--uuid UUID]
-                  [--playbook PLAYBOOK] [--job JOB] [--dry-run] [--profile PROFILE] [--port PORT]
+      positional arguments:
+        {update,export,transform}
+          update              update devices
+          export              export data of devices
+          transform           transform properties of devices
 
-    options:
-    -h, --help            show this help message and exit
-    --config CONFIG       used config file
-    --loglevel LOGLEVEL   used loglevel
-    --loghandler LOGHANDLER
-                            used log handler
-    --scrapli-loglevel SCRAPLI_LOGLEVEL
-                            Scrapli loglevel
-    --uuid UUID           database logging uuid
-    --playbook PLAYBOOK   run playbook
-    --job JOB             run job(s) in playboook
-    --dry-run             just print what todo on what device or interface
-    --profile PROFILE
-    --port PORT           TCP Port to connect to device
+      options:
+        -h, --help            show this help message and exit
+        --loglevel LOGLEVEL   used loglevel
+        --loghandler LOGHANDLER
+                              used log handler
+        --uuid UUID           database logger uuid
+        --config CONFIG       updater config file
 
-General structure of a Playbook
-*******************************
 
-Playbooks configure what to do. A 'job' always consists of:
+General arguments
+*****************
 
-    - a name
-    - a short description
-    - an 'SQL' statement that is used to configure which devices the job affects and ...
-    - a task that specifies what exactly is to be done.
-
-Examples
-********
-
-Here are some examples:
-
-Export device properties
-========================
-To change the name and/or the primary IP address of several devices, which all have the 
-ending .local, these should first be exported. This can be done using the following task.
-
-.. code-block:: yaml
-
-      - job: export_properties
-        description: export properties
-        devices:
-          sql:
-            select: id, name, primary_ip4
-            from: nb.devices
-            where: name__ic=local
-        tasks:
-          - export: 
-            - content: properties
-              header: True
-              columns: id, name, primary_ip4.address, primary_ip4.interfaces.name, checksum
-              format: excel
-              filename: ./export/properties.xlsx
-
-You start the job by:
+You can set the loglevel, loghandler and the UUID for all the commands. The syntax is:
 
 .. code-block:: shell
 
-    ./run.sh --playbook playbooks/playbook.yaml --job export_properties
+    >>> ./kobold --loglevel debug {update,export,transform} ....
 
-    2024-01-31 23:18:04 | INFO | starting job export_properties / export properties
-    2024-01-31 23:18:04 | INFO | exporting [{'content': 'properties', 'header': True, 'columns': 'id, name, primary_ip4.address, primary_ip4.interfaces.name, checksum', 'format': 'excel', 'filename': './export/properties.xlsx'}]
-    2024-01-31 23:18:04 | INFO | exp properties | exporting data as EXCEL to ./export/properties.xlsx
+You must therefore write these three parameters at **the beginning** of the command.
 
-The Excel table created by this job looks like this.
+Exporter
+********
+To export device properties, configs, facts or the HLDM use the exporter. 
+
+.. code-block:: shell
+
+      usage: kobold.py export [-h] --playbook PLAYBOOK 
+                               --job JOB (--profile PROFILE | --username USERNAME | --password PASSWORD)
+
+      options:
+        -h, --help           show this help message and exit
+        --playbook PLAYBOOK  playbook config to use
+        --job JOB            job to run
+        --profile PROFILE    profile to get login credentials
+        --username USERNAME  login username
+        --password PASSWORD  login password
+
+To use the exporter you have to write a playbook. A playbook looks like this:
+
+.. code-block:: yaml
+
+      ---
+      jobs:
+        - job: export_properties
+          description: export properties
+          devices:
+            sql:
+              # the values of the select statement must correspond must include the columns you
+              # want to export
+              select: id, name, primary_ip4
+              from: nb.devices
+              where: name__ic=local
+          tasks:
+            - export: 
+              - content: properties
+                header: True
+                columns: id, name, primary_ip4.address, primary_ip4.interfaces.name, checksum
+                format: excel
+                filename: ./export/properties.xlsx
+
+The parameter content specifies what to do. It is either properties, config, facts or hldm.
+
+Export device properties
+========================
+
+Using the playbook above, the miniApp exports the **device properties**
+
+  - id
+  - name
+  - primary_ip4.address (the primary IP Address)
+  - primary_ip4.interfaces.name (the name of the primary interface)
+
+and writes the data to a xlsx file named './export/properties.xlsx'. You must specify a job to run it.
+The result looks like this:
+
+.. code-block:: shell
+
+    >>> ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_properties
 
 .. image:: ./kobold_export.png
   :width: 700
-  :alt: Inventory
+  :alt: Kobold export
 
-You can then use your favorite software (e.g. libreoffice) to modify the data of the devices 
-and read it in again with the miniApp ./updater.py.
+You can then modify the data and reimport it using the kobold updater.
 
-Export HLDM
-===========
+Export the HLDM
+===============
+To export the HLDM of devices use this playbook:
 
 .. code-block:: yaml
 
@@ -103,149 +121,191 @@ Export HLDM
           from: nb.devices
           where: name=lab.local
       tasks:
-        - export: 
+        - export:
           - content: hldm
             directory: hldm/__location.name__
             filename: __name__.json
 
-You start the job by:
+And then use this command:
 
 .. code-block:: shell
 
-    ./run.py --profile default --playbook playbooks/playbook.yaml --job export_hldm --loglevel info
+    >>> ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_hldm
+    2024-02-04 16:40:20 | INFO | unset | starting job export_hldm / export HLDM
+    2024-02-04 16:40:20 | INFO | unset | exporting [{'content': 'hldm', 'directory': 'hldm/__cf_net__/__location.name__', 'filename': '__name__.json'}]
 
-    2024-02-02 14:15:15 | INFO  | unset  | starting job export_hldm / export HLDM
-    2024-02-02 14:15:15 | INFO  | unset  | exporting [{'content': 'hldm', 'directory': 'hldm/__cf_net__/__location.name__', 'filename': '__name__.json'}]
-    2024-02-02 14:15:16 | INFO  | unset  | creating missing directory hldm/my_Network/site_1
 
-Example playbook
-****************
+Updater
+*******
+With the help of the updater you can:
+
+  - import data that was exported (and maybe modified)
+  - update device properties
+  - transform device properties (upper case device names etc.)
+
+.. code-block:: shell
+
+      usage: kobold.py update [-h] --filename FILENAME [--job JOB] [--where WHERE] 
+                              [--force] [--dry-run] [--add-missing-data]
+
+      options:
+        -h, --help           show this help message and exit
+        --filename FILENAME  name of file to update data
+        --job JOB            job to run
+        --where WHERE        overwrite where statement
+        --force              force bulk updates even if checksum equals
+        --dry-run            print updates only
+        --add-missing-data   add missing data if possible (eg. IP-address)
+
+Import csv and xlsx files
+=========================
+To re-import some device data that was exported and modified before, use this command:
+
+.. code-block:: shell
+
+    ./kobold.py update --filename export/properties.xlsx [--add-missing-data]
+  
+This updates the data. If you change the primary interface and the primary IP address and 
+these are not yet in the IPAM, the --add-missing-data parameter must be added.
+
+Update device properties or set tags
+====================================
+The miniApp directory contains several examples. In ./kobold/updates/ you find examples to:
+
+  - set, add, or delete device tags
+  - set, add, or delete interface tags
+  - update device properties
+  - update device properties using the IP-Address of the device (and not the name)
+  - update interface properties
+
+Let's have a look at one example:
+
+.. code-block:: yaml
+
+      ---
+      update:
+        - job: update_device_property
+          description: Set device property
+          source:
+            select: name
+            from: nb.devices
+            where: name__ic=local
+          tasks:
+            - device_property:
+                serial: my_new_serial
+                status: {'name': 'Active'}
+                custom_fields: {'net': 'my_net'}
+
+Each job consists of a job identifier, a description (optional), a source and the tasks. 
+
+.. tip::
+
+  To get the list of devices use:
+
+    .. code-block:: yaml
+
+      devices:
+          select: name, interfaces
+          from: nb.devices
+          where: name=lab-01.zz and interfaces_name=Loopback0
+      
+    where 
+      - 'select' specifies what properties to get
+      - 'from' the name of the 'nautobot module' and
+      - 'where' a SQL-like statement what devices to get.
+
+  Using --where as an argument overwrites the configured where statement! 
+
+You can set device properties by using 'device_property' as task. Have a look at the next example to see 
+how to set, add or delete a tag.
+
+.. code-block:: yaml
+
+    tasks:
+      - delete_tag:
+          scope: dcim.device
+          tag: test
+      - add_tag:
+          scope: dcim.device
+          tag: test2
+      - set_tag:
+          scope: dcim.device
+          tag: test
+
+To update an interface, look at this example:
+
+.. code-block:: yaml
+
+      ---
+      update:
+        - job: update_device_property
+          description: Set device property
+          source:
+            select: name, interfaces
+            from: nb.devices
+            where: name__ic=local and interfaces_name=Loopback0
+          tasks:
+            - interface_property:
+                status: {'name': 'Active'}
+
+This sets the status of all interfaces to 'Active' whose device has the word local in its name.
+
+Transformer
+***********
+To transform some device properties use the transform command.
+
+.. code-block:: shell
+
+      usage: kobold.py transform [-h] --filename FILENAME [--job JOB] [--where WHERE] 
+                                 [--template TEMPLATE] [--dry-run]
+
+      options:
+        -h, --help           show this help message and exit
+        --filename FILENAME  name of file to transform data
+        --job JOB            job to run
+        --where WHERE        overwrite where statement
+        --template TEMPLATE  template to use to update value
+        --dry-run            print updates only
+        
+If you do not specify a job, all jobs in the file will be executed. The directory
+./kobold/transforms contains some examples. The structure of the configuration is 
+similar to that of the update.
 
 .. code-block:: yaml
 
     ---
-    globals:
-      import: ./import
-    jobs:
-      - job: device_tags
-        description: set device tag
-        devices:
-          sql:
-            select: name
-            from: nb.devices
-            where: location=default-site and name__ic=local
-        tasks:
-          - set_tag:
-            scope: dcim.device
-            tag: test
+    transform:
+      - job: name_to_upper
+        description: change hostname to upper case
+        source:
+          from: nb.devices
+          where: name__ic=local
+          named_groups:
+            name: ^(?P<name>(.*))
+        destination:
+          name: "__name@upper__"
 
-      - job: interface_tags
-        description: set interface tag
-        devices:
-          sql:
-            select: name, interfaces
-            from: nb.devices
-            where: name__ic=local and interfaces_name__ic=GigabitEthernet
-        tasks:
-          - delete_tag:
-            scope: dcim.interface
-            tag: dhcp
+To transform a property you have to specify a 'source' and a 'destination'. 
+On the one hand, the source specifies which devices are to be processed. On the other hand 
+the source contains a regular expression, to be more precise a named group. This named group is 
+used to transform the destination value. In the example above the named group catches the device name and 
+saves this value in the variable 'name'. This variable and a modifier (eg. upper) is then used to 
+transform the property.
 
-      - job: device_cf_field
-        description: set custom field on device
-        devices:
-          sql:
-            select: name, interfaces
-            from: nb.devices
-            where: name=eins.local
-        tasks:
-          - custom_field:
-            - net: eins
-              scope: dcim.device
+Another example illustrates how to transform the location.
 
-      - job: interface_cf_field
-        description: set interface custom field
-        devices:
-          sql:
-            select: name, interfaces
-            from: nb.devices
-            where: name__ic=local and interfaces_name__ic=GigabitEthernet
-        tasks:
-          - custom_field:
-            - iface_field: test
-              scope: dcim.interface
+.. code-block:: yaml
 
-      - job: update_device
-        description: update device
-        devices:
-          sql:
-            select: name, interfaces
-            from: nb.devices
-            where: name=eins.local
-        tasks:
-          - update_device:
-            serial: 12345
-
-      - job: update_interface
-        description: update interface
-        devices:
-          sql:
-            select: name, interfaces
-            from: nb.devices
-            where: name__ic=local and interfaces_name__ic=GigabitEthernet
-        tasks:
-          - update_interface:
-            description: mydescr
-
-      - job: export_properties
-        description: export properties
-        devices:
-          sql:
-            # the values of the select statement must correspond to the coluns you
-            # want to export
-            select: id, name, primary_ip4, interfaces, location, cf_net, cf_select
+      ---
+      transform:
+        - job: update_location
+          description: Update Location to a001....
+          source:
             from: nb.devices
             where: name__ic=local
-        tasks:
-          - export: 
-            - content: properties
-              header: True
-              columns: id, name, primary_ip4.address, primary_ip4.interfaces.name, checksum
-              # columns: name, primary_ip4.address, interfaces.name, interfaces.ip_addresses.address, checksum
-              # columns: interfaces.name, interfaces.description
-              # columns: id, name, location.name, cf_net,cf_select, checksum
-              # columns: name, interfaces.id, interfaces.name, interfaces.description,checksum
-              format: excel
-              # If you export a CSV file, you can configure delimiter, quotechar, and quoting
-              # delimiter: ","
-              # quotechar: "|"
-              # quoting: minimal
-              filename: ./export/properties.xlsx
-
-      - job: export_config
-        description: export configs, facts and properties
-        devices:
-          sql:
-            select: id, name, platform, primary_ip4
-            from: nb.devices
-            where: name=lab.local
-        tasks:
-          - export: 
-            # content can be either config, facts, hldm or properties
-            - content: config, facts
-              directory: configs
-              filename: __name__.json
-
-      - job: export_hldm
-        description: export HLDM
-        devices:
-          sql:
-            select: name,cf_net,location
-            from: nb.devices
-            where: name=lab.local
-        tasks:
-        - export: 
-            # content can be either config, facts, hldm or properties
-            - content: hldm
-              directory: hldm/__cf_net__/__location_name__
-              filename: __name__.json
+            named_groups:
+              hostname: ^(?P<alpha>(a|b|c))(?P<digits>\d+)\.
+              device_type.model: ^(?P<model>(\w+))
+          destination:
+            location.name: __alpha____digits__
+            location.location_type.name: branch

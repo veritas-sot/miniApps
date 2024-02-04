@@ -1,84 +1,12 @@
 ---
-globals:
-  import: ./import
 jobs:
-  - job: device_tags
-    description: set device tag
-    devices:
-      sql:
-        select: name
-        from: nb.devices
-        where: location=default-site and name__ic=local
-    tasks:
-      - set_tag:
-        scope: dcim.device
-        tag: test
-
-  - job: interface_tags
-    description: set interface tag
-    devices:
-      sql:
-        select: name, interfaces
-        from: nb.devices
-        where: name__ic=local and interfaces_name__ic=GigabitEthernet
-    tasks:
-      - delete_tag:
-        scope: dcim.interface
-        tag: dhcp
-
-  - job: device_cf_field
-    description: set custom field on device
-    devices:
-      sql:
-        select: name, interfaces
-        from: nb.devices
-        where: name=eins.local
-    tasks:
-      - custom_field:
-        - net: eins
-          scope: dcim.device
-
-  - job: interface_cf_field
-    description: set interface custom field
-    devices:
-      sql:
-        select: name, interfaces
-        from: nb.devices
-        where: name__ic=local and interfaces_name__ic=GigabitEthernet
-    tasks:
-      - custom_field:
-        - iface_field: test
-          scope: dcim.interface
-
-  - job: update_device
-    description: update device
-    devices:
-      sql:
-        select: name, interfaces
-        from: nb.devices
-        where: name=eins.local
-    tasks:
-      - update_device:
-          serial: 12345
-
-  - job: update_interface
-    description: update interface
-    devices:
-      sql:
-        select: name, interfaces
-        from: nb.devices
-        where: name__ic=local and interfaces_name__ic=GigabitEthernet
-    tasks:
-      - update_interface:
-          description: mydescr
-
   - job: export_properties
     description: export properties
     devices:
       sql:
         # the values of the select statement must correspond must include the columns you
         # want to export
-        select: id, name, primary_ip4, interfaces, location, cf_net, cf_select
+        select: id, name, primary_ip4
         from: nb.devices
         where: name__ic=local
     tasks:
@@ -91,7 +19,6 @@ jobs:
           # columns: id, name, location.name, cf_net,cf_select, checksum
           # columns: name, interfaces.id, interfaces.name, interfaces.description,checksum
           format: excel
-          # If you export a CSV file, you can configure delimiter, quotechar, and quoting
           # delimiter: ","
           # quotechar: "|"
           # quoting: minimal
@@ -103,25 +30,43 @@ jobs:
       sql:
         select: id, name, platform, primary_ip4
         from: nb.devices
-        where: name=eins.local
+        where: name=lab.local
     tasks:
       - export: 
         # content can be either config, facts, hldm or properties
         - content: config, facts
           directory: configs
-          filename: __name__.json
 
   - job: export_hldm
     description: export HLDM
     devices:
       sql:
-        select: name,cf_net,location
+        select: name
         from: nb.devices
-        where: name=eins.local
+        where: name=lab-01.local
     tasks:
       - export: 
         # content can be either config, facts, hldm or properties
         - content: hldm
-          directory: hldm/__cf_net__/__location_name__
+          directory: hldm/__cf_net__/__location.name__
           filename: __name__.json
 
+  - job: export_locations
+    description: export locations
+    devices:
+      sql:
+        # of course the selected colums must include the columns you export
+        select: locations
+        from: nb.general
+        where: 
+    tasks:
+      - export: 
+        - content: properties
+          directory: ./configs
+          header: True
+          columns: name, status, checksum
+          format: excel
+          delimiter: ","
+          quotechar: "|"
+          quoting: minimal
+          filename: ./export/locations.xlsx

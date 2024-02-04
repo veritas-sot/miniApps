@@ -2,10 +2,10 @@
 update:
   - job: update_device_property
     description: Set device property
-    devices:
-        select: name, interfaces
-        from: nb.devices
-        where: name=lab-01.zz and interfaces_name=Loopback0
+    source:
+      select: name, interfaces
+      from: nb.devices
+      where: name=lab-01.zz and interfaces_name=Loopback0
     tasks:
       - delete_tag:
           scope: dcim.interface

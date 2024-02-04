@@ -3,6 +3,8 @@ transform:
   - job: fill_location
     description: Fill locations with 0
     source:
+      from: nb.devices
+      where: name__ic=local
       named_groups:
         hostname: ^(?P<host>(.*?))\.(?P<domain>(.*))
     destination:

@@ -2,7 +2,9 @@
 update:
   - job: update_device_property
     description: Set device property
-    devices:
+    source:
+      select: name
+      from: nb.devices
       where: name__ic=local
     tasks:
       - delete_tag:

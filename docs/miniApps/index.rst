@@ -17,5 +17,5 @@ Quickstart Guide
 
 1. Create your encrypted password (authentication)
 2. Use installation script (or notebook) to create configs
-3. Start your App
+3. Use your App
 

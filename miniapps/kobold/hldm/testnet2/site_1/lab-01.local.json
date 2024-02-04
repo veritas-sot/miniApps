@@ -1,0 +1,115 @@
+{
+    "id": "6a56a984-e9a2-451f-8b00-7501399c8a30",
+    "name": "lab-01.local",
+    "hostname": "lab-01.local",
+    "primary_ip4": {
+        "id": "28e19305-685e-4e68-a480-31101d4acddb",
+        "ip_version": 4,
+        "address": "192.168.0.1/32",
+        "description": "lab-01.local Loopback0",
+        "mask_length": 32,
+        "dns_name": "",
+        "interfaces": [
+            {
+                "id": "e09e2e72-b7ff-4083-b646-2828a12c91e7",
+                "name": "Loopback0"
+            }
+        ]
+    },
+    "role": {
+        "id": "85845b07-e3b8-45c1-9619-1a0e059da029",
+        "name": "default-role"
+    },
+    "device_type": {
+        "id": "b478c6d9-7d84-4367-a77c-dbc078c7507c",
+        "model": "iosv",
+        "manufacturer": {
+            "id": "2368c807-a705-4621-8a15-4a0ecf2ee01a",
+            "name": "cisco"
+        }
+    },
+    "platform": {
+        "id": "22ba9fa1-d614-4340-8bd4-b61d1b074590",
+        "name": "ios",
+        "manufacturer": null
+    },
+    "tags": [
+        {
+            "id": "2b3798f2-f9fc-48e9-97df-4ad0ee0dedd4",
+            "name": "test",
+            "content_types": [
+                {
+                    "id": "3",
+                    "app_label": "dcim",
+                    "model": "device"
+                },
+                {
+                    "id": "13",
+                    "app_label": "dcim",
+                    "model": "interface"
+                }
+            ]
+        }
+    ],
+    "tenant": null,
+    "rack": null,
+    "location": {
+        "id": "71b09aa4-ca5d-4a2d-9cf7-c0471bebe940",
+        "name": "site_1",
+        "description": "Branch Office"
+    },
+    "status": {
+        "id": "f8121765-f3cc-4662-92d2-000258c6383a",
+        "name": "Active"
+    },
+    "asset_tag": null,
+    "config_context": {},
+    "custom_field_data": {
+        "net": "testnet2"
+    },
+    "position": null,
+    "serial": "offline",
+    "interfaces": [
+        {
+            "id": "e09e2e72-b7ff-4083-b646-2828a12c91e7",
+            "name": "Loopback0",
+            "description": "Primary",
+            "enabled": true,
+            "mac_address": null,
+            "type": "A_1000BASE_T",
+            "mode": null,
+            "status": {
+                "id": "f8121765-f3cc-4662-92d2-000258c6383a",
+                "name": "Active"
+            },
+            "ip_addresses": [
+                {
+                    "address": "192.168.0.1/32",
+                    "status": {
+                        "id": "f8121765-f3cc-4662-92d2-000258c6383a",
+                        "name": "Active"
+                    },
+                    "role": null,
+                    "tags": [],
+                    "parent": {
+                        "id": "74936133-7be4-4cc4-904b-3a348ed3d150",
+                        "network": "192.168.0.0",
+                        "prefix": "192.168.0.0/24",
+                        "prefix_length": 24,
+                        "namespace": {
+                            "id": "d07521f8-3f55-4cba-9bf8-34e2dde472bb",
+                            "name": "Global"
+                        }
+                    }
+                }
+            ],
+            "connected_circuit_termination": null,
+            "tagged_vlans": [],
+            "untagged_vlan": null,
+            "cable": null,
+            "tags": [],
+            "lag": null,
+            "member_interfaces": []
+        }
+    ]
+}

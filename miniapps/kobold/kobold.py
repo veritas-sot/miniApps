@@ -38,12 +38,9 @@ def main(args_list=None):
     # updater
     #
     # this parameter is only used in if --update was set
-    group_update = parser_update.add_mutually_exclusive_group(required=False)
     parser_update.add_argument('--filename', type=str, required=True, help="name of file to update data")
     parser_update.add_argument('--job', type=str, required=False, help="job to run")
-    group_update.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    group_update.add_argument('--addresses', type=str, required=False, help="query to get list of IP addresses")
-    group_update.add_argument('--prefixes', type=str, required=False, help="query to get list of IP prefixes")
+    parser_update.add_argument('--where', type=str, required=False, help="overwrite where statement")
     parser_update.add_argument('--force', action='store_true', help='force bulk updates even if checksum equals')
     parser_update.add_argument('--dry-run', action='store_true', help='print updates only')
     parser_update.add_argument('--add-missing-data', action='store_true', help='add missing data if possible (eg. IP-address)')
@@ -61,12 +58,9 @@ def main(args_list=None):
     #
     # transformer
     #
-    group_transform = parser_transform.add_mutually_exclusive_group(required=True)
     parser_transform.add_argument('--filename', type=str, required=True, help="name of file to transform data")
     parser_transform.add_argument('--job', type=str, required=False, help="job to run")
-    group_transform.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    group_transform.add_argument('--addresses', type=str, required=False, help="query to get list of IP addresses")
-    group_transform.add_argument('--prefixes', type=str, required=False, help="query to get list of IP prefixes")
+    parser_transform.add_argument('--where', type=str, required=False, help="overwrite where statement")   
     parser_transform.add_argument('--template', type=str, default="", required=False, help="template to use to update value")
     parser_transform.add_argument('--dry-run', action='store_true', help='print updates only')
 

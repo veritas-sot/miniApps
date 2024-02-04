@@ -2,10 +2,12 @@
 update:
   - job: update_device_property
     description: Set device property
-    devices:
+    source:
+      select: name
+      from: nb.devices
       where: name__ic=local
     tasks:
       - device_property:
-          serial: 12345
+          serial: my_new_serial
           status: {'name': 'Active'}
-          custom_fields: {'net': 'jajaja'}
+          custom_fields: {'net': 'my_net'}
