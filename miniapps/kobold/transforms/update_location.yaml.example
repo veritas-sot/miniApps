@@ -1,5 +1,5 @@
 ---
-update:
+transform:
   - job: update_location
     description: Update Location to A001....
     source:

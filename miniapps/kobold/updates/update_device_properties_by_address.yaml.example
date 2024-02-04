@@ -1,0 +1,19 @@
+---
+update:
+  - job: update_device_property
+    description: Update device property by using the device IP address
+    # get the host by its IP address
+    addresses:
+      select: primary_ip4_for, name
+      using: nb.ipaddresses
+      where: prefix="192.168.1.0/24"
+    # if you are using addresses instead of devices you have to 
+    # preprocess the result. Although the host name is part of the result, 
+    # it cannot be used by result['name']. The name is within a list of 'primary_ip4_for'
+    preprocessing:
+        name: primary_ip4_for[0].name
+    tasks:
+      - device_property:
+          serial: abcde
+          status: {'name': 'Active'}
+          custom_fields: {'net': 'neinnein'}

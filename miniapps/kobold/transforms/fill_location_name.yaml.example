@@ -1,5 +1,5 @@
 ---
-update:
+transform:
   - job: fill_location
     description: Fill locations with 0
     source:
