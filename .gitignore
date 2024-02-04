@@ -186,3 +186,5 @@ miniapps/crontab/conf/crontab.yaml
 miniapps/kobold/playbooks/playbook.yaml
 miniapps/onboarding/inventory.yaml
 miniapps/kobold/playbooks/export.yaml
+miniapps/kobold/export
+miniapps/kobold/hldm
