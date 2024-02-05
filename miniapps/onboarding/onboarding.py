@@ -425,14 +425,6 @@ if __name__ == "__main__":
     parser.add_argument('--dry-run', action='store_true', help='show key/values but do not onboard')
     # the user can enter a different config file
     parser.add_argument('--config', type=str, required=False, help="used other config file")
-    # set the log level and handler
-    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
-    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-
-    # uuid is written to the database logger
-    parser.add_argument('--uuid', type=str, required=False, help="log uuid used for journal")
-    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
-
     # where do we get our data from
     parser.add_argument('--device', type=str, required=False, help="hostname or IP address of device to onboard")
     parser.add_argument('--inventory', type=str, required=False, help="read inventory from file (xlsx, csv, yaml)")
@@ -442,11 +434,19 @@ if __name__ == "__main__":
     # we need username and password if the config is retrieved by the device
     # credentials can be configured using a profile
     # have a look at the config file
-    parser.add_argument('--username', type=str, required=False, help="username to connect to devices")
+    group_profile = parser.add_mutually_exclusive_group(required=True)
+    group_profile.add_argument('--profile', type=str, required=False, help="profile used to connect to devices")
+    group_profile.add_argument('--username', type=str, required=False, help="username to connect to devices")
     parser.add_argument('--password', type=str, required=False, help="password to use to connect to devices")
-    parser.add_argument('--profile', type=str, required=False, help="profile used to connect to devices")
     # which TCP port should we use to connect to devices
     parser.add_argument('--port', type=int, default=22, help="TCP Port to connect to device", required=False)
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="log uuid used for journal")
+    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
+    parser.add_argument('--debug-veritas', action='store_true', help="debug veritas lib")
 
     # to read the defaults values we use our sot (repo)
     parser.add_argument('--defaults', type=str, help="Use different default file", required=False)
@@ -471,7 +471,8 @@ if __name__ == "__main__":
     # create onboarding instance
     onboarding = onb.Onboarding(profile=args.profile, 
                                 username=args.username, 
-                                password=args.password)
+                                password=args.password,
+                                tcp_port=args.port)
 
     # get onboarding_config
     onboarding_config = onboarding.get_onboarding_config()
@@ -488,7 +489,7 @@ if __name__ == "__main__":
     sot = sot.Sot(url=onboarding_config['sot']['nautobot'],
                   token=onboarding_config['sot']['token'],
                   ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
-                  debug=True)
+                  debug=args.debug_veritas)
 
     # get defaults
     if args.defaults:
