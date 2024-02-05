@@ -31,8 +31,8 @@ Let it run
         --config CONFIG       updater config file
 
 
-General arguments
-*****************
+Options for all commands
+************************
 
 You can set the loglevel, loghandler and the UUID for all the commands. The syntax is:
 
@@ -157,13 +157,13 @@ With the help of the updater you can:
         --dry-run            print updates only
         --add-missing-data   add missing data if possible (eg. IP-address)
 
-Import csv and xlsx files
-=========================
-To re-import some device data that was exported and modified before, use this command:
+Update devices using csv or xlsx files
+======================================
+To update some device data that was exported and modified before, use this command:
 
 .. code-block:: shell
 
-    ./kobold.py update --filename export/properties.xlsx [--add-missing-data]
+    ./kobold.py update --filename export/properties.xlsx [--add-missing-data] [--dry-run]
   
 This updates the data. If you change the primary interface and the primary IP address and 
 these are not yet in the IPAM, the --add-missing-data parameter must be added.
@@ -309,3 +309,17 @@ Another example illustrates how to transform the location.
           destination:
             location.name: __alpha____digits__
             location.location_type.name: branch
+
+Importer
+********
+The importer is used to import new devices (using the HLDM import or an xlsx file) 
+and IP-addresses (using xlsx file).
+
+Use
+
+.. code-block:: shell
+
+      usage: kobold.py import --filename FILENAME [--dry-run]
+
+to import new devices or IP-adresses. You can find some examples in the ./kobold/imports directory.
+To see what the importer would do use --dry-run.
