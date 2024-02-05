@@ -41,11 +41,11 @@ def bulk_update(sot, filename, updater_config, add_missing_data=False, force=Fal
 
         if contains_primary_ip and add_missing_data:
             for update in updates:
-                add_ip_address(sot, update)
+                add_ip_address(sot, update, dry_run)
 
         if contains_primary_interface and contains_primary_ip:
             for update in updates:
-                update_primary_interface(sot, update)
+                update_primary_interface(sot, update, dry_run)
 
         # are we able to make a bulk update by using the ID?
         if 'id' in updates[0]:
@@ -187,7 +187,7 @@ def do_update(sot, data, updater_config, endpoint, dry_run):
     else:
         logger.info('data updated')
 
-def add_ip_address(sot, properties):
+def add_ip_address(sot, properties, dry_run=False):
     primary_ip = properties.get('primary_ip4.address')
     if not sot.get.address(primary_ip):
         logger.debug(f'IP address {primary_ip} does not exists')
@@ -195,6 +195,9 @@ def add_ip_address(sot, properties):
                 'status': {'name': 'Active'},
                 'namespace': 'Global'
                }
+        if dry_run:
+            print(f'adding {primary_ip} to IPAM')
+            return
         if sot.ipam.add_ip(addr):
             logger.info(f'added {primary_ip} to IPAM')
             return True
@@ -202,7 +205,7 @@ def add_ip_address(sot, properties):
             logger.error(f'could not add IP {primary_ip} to IPAM; this may cause further errors')
             return False
 
-def update_primary_interface(sot, properties):
+def update_primary_interface(sot, properties, dry_run=False):
     # get id of the device
     # It is best to use the ID. This makes it possible to change all 
     # properties, including the name.
@@ -227,15 +230,18 @@ def update_primary_interface(sot, properties):
         device=device
         )
 
-    if assignment:
-        logger.debug(f'removing current assignment of {interface}')
-        try:
-            assignment.delete()
-        except Exception as exc:
-            logger.error(f'failed to delete assignment; got exception {exc}')
-            return False
+    if dry_run:
+        print(f'removing current assignment of {interface}')
     else:
-        logger.debug(f'failed to get assignment of {interface} on {device}')
+        if assignment:
+            logger.debug(f'removing current assignment of {interface}')
+            try:
+                assignment.delete()
+            except Exception as exc:
+                logger.error(f'failed to delete assignment; got exception {exc}')
+                return False
+        else:
+            logger.debug(f'failed to get assignment of {interface} on {device}')
 
     primary_ip = properties.get('primary_ip4.address',{})
     interface = properties.get('primary_ip4.interfaces.name')
@@ -244,14 +250,17 @@ def update_primary_interface(sot, properties):
         interface=interface,
         address=primary_ip
     )
-    if assigned:
-        logger.debug(f'assigning IP address {primary_ip} to interface {interface}')
-        sot.ipam.set_primary(
-            device=device,
-            address=primary_ip
-        )
+    if dry_run:
+        print(f'assigning IP address {primary_ip} to interface {interface}')
     else:
-        logger.error(f'failed to assign IP address {primary_ip} to interface {interface}')
+        if assigned:
+            logger.debug(f'assigning IP address {primary_ip} to interface {interface}')
+            sot.ipam.set_primary(
+                device=device,
+                address=primary_ip
+            )
+        else:
+            logger.error(f'failed to assign IP address {primary_ip} to interface {interface}')
 
 #### tasks
 

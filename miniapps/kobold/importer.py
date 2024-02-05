@@ -1,149 +1,124 @@
-#!/usr/bin/env python
-
-import argparse
-import os
 import json
-import urllib3
-import sys
 from loguru import logger
-from slugify import slugify
-
-import veritas.logging
-from veritas.sot import sot as sot
-from veritas.tools import tools
+from benedict import benedict
+from openpyxl import load_workbook
 
 
 def read_json(filename):
-    data = []
-    logger.debug(f'reading HLDM from {filename}')
-    with open(filename, 'r') as f:
-        data.append(json.load(f))
+    logger.debug(f'reading JSON from {filename}')
+    try:
+        with open(filename, 'r') as f:
+            data = json.load(f)
+        return benedict(data, keyattr_dynamic=True)
+    except Exception as exc:
+        logger.error(f'failed to load JSON; got exception {exc}')
+        return {}
 
-    return data
+def read_xlsx(filename):
+    table = []
+    workbook = load_workbook(filename = filename)
+    worksheet = workbook.active
+    # loop through table and build list of dict
+    rows = worksheet.max_row
+    columns = worksheet.max_column + 1 
+    for row in range(2, rows + 1):
+        line = benedict(keyattr_dynamic=True)
+        for col in range(1, columns):
+            key = worksheet.cell(row=1, column=col).value
+            value = worksheet.cell(row=row, column=col).value
+            line[key] = value
+        table.append(line)
+    return table
 
-def prepare_new_data(args, sot, defaults, new_data):
-    device_defaults = {}
-    data = []
+def import_hldm(sot, device_properties, dry_run=False):
 
-    for item in new_data:
-        if 'name' in item:
-            hostname = item.get('name').lower()
-            del item['name']
+    list_of_interfaces = []
+
+    saved_values = benedict(keyattr_dynamic=True)
+    for item in ['interfaces','config_context','primary_ip4','tags', 'hostname', 'custom_field_data']:
+        if item in dict(device_properties):
+            saved_values[item] = device_properties[item]
+            del device_properties[item]
+
+    # remove empty and null values
+    device_properties.clean()
+
+    # custom fields
+    device_properties['custom_fields'] = saved_values.get('custom_field_data',{})
+
+    # prepare interfaces
+    if 'interfaces' in saved_values:
+        for interface in saved_values['interfaces']:
+            iface = benedict(interface, keyattr_dynamic=True)
+            iface.clean()
+            if 'type' in iface:
+                iface['type'] = iface['type'].replace('A_','').replace('_','-').lower()
+            list_of_interfaces.append(iface)
+    else:
+        list_of_interfaces.append({})
+
+    # get primary ip
+    primary_interface = saved_values['primary_ip4.interfaces[0].name']
+
+    # new_device = sot.get.device('lab-01.local')
+    if dry_run:
+        name = device_properties.get('name')
+        print(f'importing device {name} properties={device_properties} ' \
+              f'interfaces={list_of_interfaces} primary={primary_interface}')
+    else:
+        name = device_properties.get('name')
+        new_device = sot.onboarding \
+                        .interfaces(list_of_interfaces) \
+                        .primary_interface(primary_interface) \
+                        .add_prefix(False) \
+                        .add_device(device_properties)
+        if new_device:
+            logger.info(f'imported {name} to nautobot')
         else:
-            raise Exception('need hostname to add data')
+            logger.error(f'failed to import {name} to nautobot')
 
-        field = None
-        if 'primary_ip' in item:
-            field = 'primary_ip'
-        elif 'primary_ip4' in item:
-            field = 'primary_ip4'
+    # set tags
+    list_of_tags = []
+    tags = saved_values.get('tags')
+    if tags:
+        if isinstance(tags, str):
+            # excel sheet
+            list_of_tags = tags.split(',')
+        elif isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, str):
+                    list_of_tags.append(tag)
+                elif isinstance(tag, dict):
+                    # hldm
+                    if 'name' in tag:
+                        list_of_tags.append(tag['name'])
+        if dry_run:
+            print(f'adding tags {list_of_tags}')
         else:
-            raise Exception('need IP address to add data')
+            sot.device(new_device.display).set_tags(list_of_tags)
 
-        # the used IP address is stored in 'primary_ip4
-        primary_ip = item.get(field)
-        del item[field]
-        item['primary_ip4'] = primary_ip
+def import_ipaddresses(sot, ipaddresses, dry_run=False):
+    if dry_run:
+        for ip in ipaddresses:
+            print(f'importing {ip}')
+        return
+    success = sot.ipam.add_ip(ipaddresses)
+    if success:
+        logger.info('successfully imported IP-addresses')
+    else:
+        logger.error('failed to import IP-addresses')
 
-        device_defaults = get_device_defaults(defaults, primary_ip)
-        device_properties = {
-            "name": hostname,
-            "site": {'slug': slugify(device_defaults.get('site'))},
-            "device_role": {'slug': slugify(device_defaults.get('device_role'))},
-            "device_type": {'slug': slugify(device_defaults.get('device_type'))},
-            "manufacturer": {'slug': slugify(device_defaults.get('manufacturer'))},
-            "platform": {'slug': slugify(device_defaults.get('platform'))},
-            "status": device_defaults.get('status','active'),
-            "custom_fields": device_defaults.get('custom_fields',{})
-        }
-
-        # customfields are special; we have to merge the dict
-        if 'custom_fields' in item:
-            cfields = item['custom_fields']
-            del item['custom_fields']
-
-        # overwrite existing values with import
-        device_properties.update(item)
-        # and add custom fields of the item
-        for key, value in cfields.items():
-            device_properties['custom_fields'][key] = value
-        data.append(device_properties)
-
-    return data
-
-def import_device(sot, device_properties):
-
-    interface_ip_addresses = {}
-    interfaces = device_properties.get('interfaces')
-    config_context = device_properties.get('config_context')
-    primary_ip4 = device_properties.get('primary_ip4')
-    del device_properties['interfaces']
-    del device_properties['config_context']
-    del device_properties['primary_ip4']
-
-    # we have to modify the interfaces
-    for interface in interfaces:
-        ip_addresses = interface.get('ip_addresses')
-        # type and mode are lower case
-        if 'type' in interface:
-            interface['type'] = interface['type'].lower()
-        if 'mode' in interface and interface['mode']:
-            interface['mode'] = interface['mode'].lower()
-        # 'lag' must not be null
-        if 'lag' in interface and not interface['lag']:
-            del interface['lag']
-        # save IP address
-        if 'ip_addresses' in interface and len(interface['ip_addresses']) > 0:
-            interface_ip_addresses[interface['name']] = interface['ip_addresses']
-
-    new_device = sot.onboarding \
-        .interfaces(interfaces) \
-        .add_prefix(True) \
-        .add_device(device_properties)
-
-if __name__ == "__main__":
-    # to disable warning if TLS warning is written to console
-    urllib3.disable_warnings()
-
-    parser = argparse.ArgumentParser()
-
-    # the user can enter a different config file
-    parser.add_argument('--config', default="importer.yaml", type=str, required=False, help="importer config file")
-    # set the log level and handler
-    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
-    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-    # uuid is written to the database logger
-    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
-
-    parser.add_argument('--filename', type=str, required=True, help="data to import")
-    parser.add_argument('--force', action='store_true', help='force update even if checksum is equal')
-
-    # parse arguments
-    args = parser.parse_args()
-
-    # Get the path to the directory this file is in
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
-    # read config
-    updater_config = tools.get_miniapp_config('updater', BASEDIR, args.config)
-    if not updater_config:
-        print('unable to read config')
-        sys.exit()
-
-    # create logger environment
-    veritas.logging.create_logger_environment(
-        config=updater_config, 
-        cfg_loglevel=args.loglevel,
-        cfg_loghandler=args.loghandler,
-        app='importer',
-        uuid=args.uuid)
-
-    # we need the SOT object to talk to the SOT
-    sot = sot.Sot(token=updater_config['sot']['token'],
-                  ssl_verify=updater_config['sot'].get('ssl_verify', False),
-                  url=updater_config['sot']['nautobot'])
-
-    if args.filename:
-        device_hldm = read_json(args.filename)
-        import_device(sot, device_hldm[0])
+def import_data(sot, args):
+    if 'json' in args.filename:
+        data = read_json(args.filename)
+        # check which data we have
+        if all(k in data for k in ('name','status','device_type', 'role')):
+            import_hldm(sot, data)
+    elif 'xlsx' in args.filename:
+        data = read_xlsx(args.filename)
+        if all(k in data[0] for k in ('address','namespace', 'status')):
+            import_ipaddresses(sot, data, args.dry_run)
+        elif all(k in data[0] for k in ('name','status','device_type', 'role')):
+            for device in data:
+                import_hldm(sot, device, args.dry_run)
     

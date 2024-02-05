@@ -48,7 +48,7 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
     model = device_defaults.get('model', 
             onboarding_config['onboarding']['offline_config'].get('model','unknown'))
     serial = device_defaults.get('serial', 
-                onboarding_config['onboarding']['offline_config'].get('serial','offline'))
+                onboarding_config['onboarding']['offline_config'].get('serial',''))
     manufacturer = device_defaults.get('manufacturer', 
                     onboarding_config['onboarding']['offline_config'].get('manufacturer','cisco'))
     platform = device_defaults.get('platform', 
