@@ -1,0 +1,21 @@
+---
+columns:
+  device:
+    - name
+    - role.name
+    - device_type.model
+    - serial
+    - location.name
+    - location.location_type.name
+    - status.name
+    - platform.name
+    - custom_fields.net
+    - custom_fields.snmp_credentials
+    - tags
+    - primary_ip4.interfaces[0].name
+  interfaces:
+    - name
+    - ip_addresses[x].address
+    - description
+    - type
+    - status.name

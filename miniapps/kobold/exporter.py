@@ -1,9 +1,14 @@
 import os
 import json
+import yaml
 import csv
 import pandas as pd
 from loguru import logger
 from dotenv import load_dotenv
+from openpyxl import Workbook
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter
+from benedict import benedict
 
 # veritas
 from veritas.devicemanagement import scrapli as dm
@@ -290,7 +295,6 @@ def export_as_csv(task, data_to_export):
             export_writer.writerow(line)
 
 def export_as_excel(task, data_to_export):
-
     filename = task.get('filename','export.xlsx')
     logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
@@ -314,6 +318,153 @@ def export_device_properties(sot, playbook, task, devices):
     if task.get('format') == 'excel' or task.get('format') == 'xlsx':
         return export_as_excel(task, data_to_export)
 
+def export_device_to_xlsx(sot, playbook, task, devices):
+    try:
+        with open(task.get('columns')) as f:
+            columns = yaml.safe_load(f.read())
+    except Exception as exc:
+        logger.error(f'could not read or parse columns; got exception {exc}')
+        return None
+
+    for dev in devices:
+        # we need a benedict to get all values
+        device = benedict(dev, keyattr_dynamic=True)
+        name = device.get('name')
+        filename = task.get('filename').replace('__name__', name)
+        logger.configure(extra={"extra": name})
+        # create directory if it does not exsists
+        directory = os.path.dirname(filename)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        # create workbook and sheets
+        workbook = Workbook()
+        device_sheet = workbook.create_sheet("Device")
+        interfaces_sheet = workbook.create_sheet("Interfaces")
+        if 'Sheet' in workbook.sheetnames:
+            sheet = workbook['Sheet']
+            workbook.remove(sheet)
+
+        # add header of device sheet
+        header = []
+        for property in columns['columns']['device']:
+            header.append(property)
+        logger.debug(f'device header {header}')
+        device_sheet.append(header)
+
+        # we need the len of the heasder later to add table
+        device_col = chr(64+len(header))
+
+        # now add data to device sheet
+        list_of_tags = []
+        values = []
+        for property in columns['columns']['device']:
+            value = device.get(property)
+            if value:
+                if 'tags' == property:
+                    for tag in value:
+                        list_of_tags.append(tag['name'])
+                    value = ",".join(list_of_tags)
+            values.append(value)
+        device_sheet.append(values)
+
+        # and format data as table
+        device_table = Table(displayName="Device", ref=f'A1:{device_col}2')
+        style = TableStyleInfo(
+            name="TableStyleMedium9", 
+            showFirstColumn=False,
+            showLastColumn=False, 
+            showRowStripes=True, 
+            showColumnStripes=True)
+        device_table.tableStyleInfo = style
+        device_sheet.add_table(device_table)
+
+        # get list of interfaces
+        interfaces = device.get('interfaces',[])
+
+        # add header to interface sheet
+        # this list is dynamic beacause some interfaces may
+        # have multiple IP addresses and for each address we have to add one column
+        interface_headers = set()
+
+        # to build the table we need the number of rows
+        interfaces_row = len(interfaces) + 1
+
+        # add data to interface sheet
+        interface_values = benedict(
+            keyattr_dynamic=True)
+        for iface in interfaces:
+            interface = benedict(iface, keyattr_dynamic=True)
+            values = benedict(keyattr_dynamic=True)
+            for property in columns['columns']['interfaces']:
+                key = property
+                if 'ip_addresses[x].address' == property:
+                    ip_addr = interface['ip_addresses']
+                    x = 0
+                    for ip in ip_addr:
+                        key = f'ip_addresses[{x}].address'
+                        values[key] = ip['address']
+                        interface_headers.add(f'ip_addresses[{x}].address')
+                        x += 1
+                else:
+                    values[key] = interface[property]
+                    interface_headers.add(property)
+            interface_values[iface.get('name')] = values
+  
+        # now add data
+        # reorder headers
+        sorted_headers = []
+        for property in columns['columns']['interfaces']:
+            if property != 'ip_addresses[x].address':
+                sorted_headers.append(property)
+                interface_headers.remove(property)
+        for property in sorted(list(interface_headers)):
+            sorted_headers.append(property)
+
+        # add headers first
+        interfaces_sheet.append(list(sorted_headers))
+
+        for iface,iface_values in interface_values.items():
+            values = []
+            for key in sorted_headers:
+                try:
+                    value = iface_values[key]
+                    values.append(value)
+                    #logger.debug(f'key={key} value={value}')
+                except Exception:
+                    values.append('')
+            interfaces_sheet.append(values)
+
+        # and format interface sheet as table
+        interfaces_col = chr(64+len(sorted_headers))
+        logger.debug(f'interface table: A1:{interfaces_col}{interfaces_row}')
+        interface_table = Table(displayName="Interfaces", ref=f'A1:{interfaces_col}{interfaces_row}')
+        style = TableStyleInfo(
+            name="TableStyleMedium9", 
+            showFirstColumn=False,
+            showLastColumn=False, 
+            showRowStripes=True, 
+            showColumnStripes=True)
+        interface_table.tableStyleInfo = style
+        interfaces_sheet.add_table(interface_table)
+
+        # adjust width to device columns
+        for column_cells in device_sheet.columns:
+            new_column_length = max(len(str(cell.value)) for cell in column_cells)
+            new_column_letter = (get_column_letter(column_cells[0].column))
+            if new_column_length > 0:
+                device_sheet.column_dimensions[new_column_letter].width = new_column_length*1.1
+
+        # adjust width to interface columns
+        for column_cells in interfaces_sheet.columns:
+            new_column_length = max(len(str(cell.value)) for cell in column_cells)
+            new_column_letter = (get_column_letter(column_cells[0].column))
+            if new_column_length > 0:
+                interfaces_sheet.column_dimensions[new_column_letter].width = new_column_length*1.1
+
+        # save file
+        workbook.save(filename=filename)
+
 def run_task(args, sot, playbook, tasks, devices):
     logger.info(f'exporting {tasks}')
 
@@ -331,6 +482,8 @@ def run_task(args, sot, playbook, tasks, devices):
         elif 'properties' in content:
             # export columns of all devices
             export_device_properties(sot, playbook, task, devices)
+        elif 'device_to_xlsx' in content:
+            export_device_to_xlsx(sot, playbook, task, devices)
 
 def export(sot, playbook, args):
     job = playbook.jobs.get(args.job)

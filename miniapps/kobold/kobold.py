@@ -61,7 +61,8 @@ def main(args_list=None):
     # importer
     #
 
-    parser_import.add_argument('--filename', type=str, required=True, help="name of file to transform data")
+    parser_import.add_argument('--filename', type=str, required=False, help="name of file to transform data")
+    parser_import.add_argument('--device', type=str, required=False, help="name of file to import device")
     parser_import.add_argument('--dry-run', action='store_true', help='print updates only')
 
     #

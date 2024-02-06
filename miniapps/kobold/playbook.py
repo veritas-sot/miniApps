@@ -80,7 +80,7 @@ class Playbook(object):
             if match:
                 key = match.group(1)
                 if key.startswith('cf_'):
-                    custom_fields = hldm['custom_field_data']
+                    custom_fields = hldm['custom_fields']
                     try:
                         value = custom_fields[key.replace('cf_','')].replace(' ','_').replace('/','_')
                         final_item = item.replace(f'__{key}__', value)
