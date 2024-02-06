@@ -319,46 +319,35 @@ def export_device_properties(sot, playbook, task, devices):
         return export_as_excel(task, data_to_export)
 
 def export_device_to_xlsx(sot, playbook, task, devices):
-    try:
-        with open(task.get('columns')) as f:
-            columns = yaml.safe_load(f.read())
-    except Exception as exc:
-        logger.error(f'could not read or parse columns; got exception {exc}')
-        return None
+
+    # get the columns we have to export
+    columns = task.get('columns')
 
     for dev in devices:
-        # we need a benedict to get all values
+        # we need a benedict to get all values of the device
         device = benedict(dev, keyattr_dynamic=True)
         name = device.get('name')
-        filename = task.get('filename').replace('__name__', name)
         logger.configure(extra={"extra": name})
-        # create directory if it does not exsists
-        directory = os.path.dirname(filename)
-        if not os.path.exists(directory):
-            os.makedirs(directory)
 
-        # create workbook and sheets
+        # create workbook and sheets (Device - renamed - , Interfaces)
         workbook = Workbook()
-        device_sheet = workbook.create_sheet("Device")
+        device_sheet = workbook.active
+        device_sheet.title = "Device"
         interfaces_sheet = workbook.create_sheet("Interfaces")
-        if 'Sheet' in workbook.sheetnames:
-            sheet = workbook['Sheet']
-            workbook.remove(sheet)
+        interfaces_sheet.title = "Interfaces"
+        interfaces_sheet.sheet_properties.tabColor = "1072BA"
 
-        # add header of device sheet
-        header = []
-        for property in columns['columns']['device']:
-            header.append(property)
-        logger.debug(f'device header {header}')
-        device_sheet.append(header)
-
-        # we need the len of the heasder later to add table
-        device_col = chr(64+len(header))
+        # add header of device sheet (ordered by config)
+        device_header = []
+        for property in columns['device']:
+            device_header.append(property)
+        logger.debug(f'device header {device_header}')
+        device_sheet.append(device_header)
 
         # now add data to device sheet
         list_of_tags = []
         values = []
-        for property in columns['columns']['device']:
+        for property in columns['device']:
             value = device.get(property)
             if value:
                 if 'tags' == property:
@@ -369,13 +358,15 @@ def export_device_to_xlsx(sot, playbook, task, devices):
         device_sheet.append(values)
 
         # and format data as table
+        device_col = chr(64+len(device_header))
+        logger.debug(f'device table: A1:{device_col}2')
         device_table = Table(displayName="Device", ref=f'A1:{device_col}2')
         style = TableStyleInfo(
-            name="TableStyleMedium9", 
+            name="TableStyleMedium2", 
             showFirstColumn=False,
             showLastColumn=False, 
             showRowStripes=True, 
-            showColumnStripes=True)
+            showColumnStripes=False)
         device_table.tableStyleInfo = style
         device_sheet.add_table(device_table)
 
@@ -387,16 +378,14 @@ def export_device_to_xlsx(sot, playbook, task, devices):
         # have multiple IP addresses and for each address we have to add one column
         interface_headers = set()
 
-        # to build the table we need the number of rows
-        interfaces_row = len(interfaces) + 1
-
-        # add data to interface sheet
-        interface_values = benedict(
-            keyattr_dynamic=True)
+        # add data to interface_values. This dict is later used to fill the table
+        # we do not add the values directly to the sheet because 1) the number of
+        # headers is variable and 2) we want to sort the columns
+        interface_values = benedict(keyattr_dynamic=True)
         for iface in interfaces:
             interface = benedict(iface, keyattr_dynamic=True)
             values = benedict(keyattr_dynamic=True)
-            for property in columns['columns']['interfaces']:
+            for property in columns['interfaces']:
                 key = property
                 if 'ip_addresses[x].address' == property:
                     ip_addr = interface['ip_addresses']
@@ -411,59 +400,69 @@ def export_device_to_xlsx(sot, playbook, task, devices):
                     interface_headers.add(property)
             interface_values[iface.get('name')] = values
   
-        # now add data
-        # reorder headers
+        # now add data and sort headers
         sorted_headers = []
-        for property in columns['columns']['interfaces']:
+        for property in columns['interfaces']:
             if property != 'ip_addresses[x].address':
                 sorted_headers.append(property)
                 interface_headers.remove(property)
         for property in sorted(list(interface_headers)):
             sorted_headers.append(property)
 
-        # add headers first
+        # now add headers to sheet
         interfaces_sheet.append(list(sorted_headers))
 
+        # and at least the interface data
         for iface,iface_values in interface_values.items():
             values = []
             for key in sorted_headers:
                 try:
                     value = iface_values[key]
                     values.append(value)
-                    #logger.debug(f'key={key} value={value}')
                 except Exception:
+                    # if the key was not found (this can happen because
+                    # not all interfaces have the same number of IP addresses)
+                    # we add a ''
                     values.append('')
             interfaces_sheet.append(values)
 
         # and format interface sheet as table
         interfaces_col = chr(64+len(sorted_headers))
+        interfaces_row = len(interfaces) + 1
         logger.debug(f'interface table: A1:{interfaces_col}{interfaces_row}')
         interface_table = Table(displayName="Interfaces", ref=f'A1:{interfaces_col}{interfaces_row}')
         style = TableStyleInfo(
-            name="TableStyleMedium9", 
+            name="TableStyleMedium2", 
             showFirstColumn=False,
             showLastColumn=False, 
             showRowStripes=True, 
-            showColumnStripes=True)
+            showColumnStripes=False)
         interface_table.tableStyleInfo = style
         interfaces_sheet.add_table(interface_table)
 
-        # adjust width to device columns
-        for column_cells in device_sheet.columns:
-            new_column_length = max(len(str(cell.value)) for cell in column_cells)
-            new_column_letter = (get_column_letter(column_cells[0].column))
-            if new_column_length > 0:
-                device_sheet.column_dimensions[new_column_letter].width = new_column_length*1.1
+        set_column_width(device_sheet, 1.0)
+        set_column_width(interfaces_sheet)
 
-        # adjust width to interface columns
-        for column_cells in interfaces_sheet.columns:
-            new_column_length = max(len(str(cell.value)) for cell in column_cells)
-            new_column_letter = (get_column_letter(column_cells[0].column))
-            if new_column_length > 0:
-                interfaces_sheet.column_dimensions[new_column_letter].width = new_column_length*1.1
+        # create directory if it does not exsists and save it
+        filename = task.get('filename').replace('__name__', name)
+        directory = os.path.dirname(filename)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
 
-        # save file
         workbook.save(filename=filename)
+
+def set_column_width(sheet, factor=1.1):
+    for column in sheet.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(cell.value)
+            except Exception:
+                pass
+        adjusted_width = (max_length + 2) * factor
+        sheet.column_dimensions[column_letter].width = adjusted_width
 
 def run_task(args, sot, playbook, tasks, devices):
     logger.info(f'exporting {tasks}')
