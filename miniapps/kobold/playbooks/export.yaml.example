@@ -24,20 +24,6 @@ jobs:
           # quoting: minimal
           filename: ./export/properties.xlsx
 
-  - job: device_to_xlsx
-    description: export devices to xlsx file
-    devices:
-      sql:
-        # the values of the select statement must correspond to the mapping
-        select: name, primary_ip4, interfaces, status, platform, device_type, tags, location, custom_fields, role, serial
-        from: nb.devices
-        where: name__ic=local
-    tasks:
-      - export: 
-        - content: device_to_xlsx
-          mapping: ./playbooks/mapping.yaml
-          filename: ./export/__name__.xlsx
-
   - job: export_config
     description: export configs, facts and properties
     devices:

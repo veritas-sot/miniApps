@@ -1,13 +1,12 @@
 import os
 import json
-import yaml
 import csv
 import pandas as pd
 from loguru import logger
 from dotenv import load_dotenv
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
-from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill, Font
 from benedict import benedict
 
 # veritas
@@ -265,7 +264,11 @@ def export_hldm(sot, playbook, task, devices):
         with open(f'{subdir}/{filename}', "w") as f:
             f.write(json.dumps(hldm, indent=4))
 
-def export_as_csv(task, data_to_export):
+#
+# device properties
+#
+
+def export_device_properties_as_csv(task, data_to_export):
     logger.info(f'exporting {len(data_to_export)} entries as CSV')
     delimiter = task.get('delimiter',',')
     quotechar = task.get('quotechar','|')
@@ -294,7 +297,7 @@ def export_as_csv(task, data_to_export):
         for line in data_to_export:
             export_writer.writerow(line)
 
-def export_as_excel(task, data_to_export):
+def export_device_properties_as_xlsxl(task, data_to_export):
     filename = task.get('filename','export.xlsx')
     logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
@@ -314,18 +317,24 @@ def export_device_properties(sot, playbook, task, devices):
         logger.bind(extra='export').info('got no data to export')
         return
     if task.get('format') == 'csv':
-        return export_as_csv(task, data_to_export)
+        return export_device_properties_as_csv(task, data_to_export)
     if task.get('format') == 'excel' or task.get('format') == 'xlsx':
-        return export_as_excel(task, data_to_export)
+        return export_device_properties_as_xlsxl(task, data_to_export)
+
+#
+# export devcice to xlsx
+#
 
 def export_device_to_xlsx(sot, playbook, task, devices):
 
     # get the columns we have to export
     columns = task.get('columns')
+    colors = task.get('colors')
 
     for dev in devices:
         # we need a benedict to get all values of the device
         device = benedict(dev, keyattr_dynamic=True)
+        #print(json.dumps(device, indent=4))
         name = device.get('name')
         logger.configure(extra={"extra": name})
 
@@ -337,16 +346,26 @@ def export_device_to_xlsx(sot, playbook, task, devices):
         interfaces_sheet.title = "Interfaces"
         interfaces_sheet.sheet_properties.tabColor = "1072BA"
 
-        # add header of device sheet (ordered by config)
-        device_header = []
-        for property in columns['device']:
-            device_header.append(property)
-        logger.debug(f'device header {device_header}')
-        device_sheet.append(device_header)
-
-        # now add data to device sheet
+        # we need two lists
         list_of_tags = []
-        values = []
+        list_of_vrfs = []
+
+        # add header and style cells
+        row = 2
+        ft = Font(color=colors.get('header_font', 'FFFFFF'))
+        header_color = colors.get('header','004c81ba')
+        a1 = device_sheet["A1"]
+        b1 = device_sheet["B1"]
+        a1.value = "Property"
+        b1.value = "Value"
+        a1.font = ft
+        b1.font = ft
+        a1.fill = PatternFill(
+                    start_color=header_color, end_color=header_color, fill_type = "solid")
+        b1.fill = PatternFill(
+                    start_color=header_color, end_color=header_color, fill_type = "solid")
+
+        # add device data to 'Device' sheets
         for property in columns['device']:
             value = device.get(property)
             if value:
@@ -354,21 +373,23 @@ def export_device_to_xlsx(sot, playbook, task, devices):
                     for tag in value:
                         list_of_tags.append(tag['name'])
                     value = ",".join(list_of_tags)
-            values.append(value)
-        device_sheet.append(values)
-
-        # and format data as table
-        device_col = chr(64+len(device_header))
-        logger.debug(f'device table: A1:{device_col}2')
-        device_table = Table(displayName="Device", ref=f'A1:{device_col}2')
-        style = TableStyleInfo(
-            name="TableStyleMedium2", 
-            showFirstColumn=False,
-            showLastColumn=False, 
-            showRowStripes=True, 
-            showColumnStripes=False)
-        device_table.tableStyleInfo = style
-        device_sheet.add_table(device_table)
+                elif 'vrfs' == property:
+                    for vrf in value:
+                        vrf_name = vrf.get('name','')
+                        vrf_namespace = vrf.get('namespace',{}).get('name','')
+                        list_of_vrfs.append(f'{vrf_name}({vrf_namespace})')
+                    value = ",".join(list_of_vrfs)
+                elif isinstance(value, list) and len(value) == 0:
+                    continue
+                logger.debug(f'key={property} value={value}')
+                device_sheet.cell(column=1, row=row).value = property
+                device_sheet.cell(column=2, row=row).value = value
+                color = colors.get(property, colors.get('default','00FFFFFF'))
+                device_sheet.cell(column=1, row=row).fill = PatternFill(
+                        start_color=color, end_color=color, fill_type = "solid")
+                device_sheet.cell(column=2, row=row).fill = PatternFill(
+                        start_color=color, end_color=color, fill_type = "solid")
+                row += 1
 
         # get list of interfaces
         interfaces = device.get('interfaces',[])
@@ -376,58 +397,31 @@ def export_device_to_xlsx(sot, playbook, task, devices):
         # add header to interface sheet
         # this list is dynamic beacause some interfaces may
         # have multiple IP addresses and for each address we have to add one column
-        interface_headers = set()
+        interface_headers = []
 
-        # add data to interface_values. This dict is later used to fill the table
-        # we do not add the values directly to the sheet because 1) the number of
-        # headers is variable and 2) we want to sort the columns
-        interface_values = benedict(keyattr_dynamic=True)
+        # add header to interfaces sheet
+        
+        for property in columns['interfaces']:
+            interface_headers.append(property)
+        interfaces_sheet.append(interface_headers)
+
+        # add data to interface_values
         for iface in interfaces:
             interface = benedict(iface, keyattr_dynamic=True)
-            values = benedict(keyattr_dynamic=True)
+            values = []
             for property in columns['interfaces']:
-                key = property
                 if 'ip_addresses[x].address' == property:
                     ip_addr = interface['ip_addresses']
-                    x = 0
+                    list_of_ip = []
                     for ip in ip_addr:
-                        key = f'ip_addresses[{x}].address'
-                        values[key] = ip['address']
-                        interface_headers.add(f'ip_addresses[{x}].address')
-                        x += 1
+                        list_of_ip.append(ip['address'])
+                    values.append(','.join(list_of_ip))
                 else:
-                    values[key] = interface[property]
-                    interface_headers.add(property)
-            interface_values[iface.get('name')] = values
-  
-        # now add data and sort headers
-        sorted_headers = []
-        for property in columns['interfaces']:
-            if property != 'ip_addresses[x].address':
-                sorted_headers.append(property)
-                interface_headers.remove(property)
-        for property in sorted(list(interface_headers)):
-            sorted_headers.append(property)
-
-        # now add headers to sheet
-        interfaces_sheet.append(list(sorted_headers))
-
-        # and at least the interface data
-        for iface,iface_values in interface_values.items():
-            values = []
-            for key in sorted_headers:
-                try:
-                    value = iface_values[key]
-                    values.append(value)
-                except Exception:
-                    # if the key was not found (this can happen because
-                    # not all interfaces have the same number of IP addresses)
-                    # we add a ''
-                    values.append('')
+                    values.append(interface[property])
             interfaces_sheet.append(values)
-
+  
         # and format interface sheet as table
-        interfaces_col = chr(64+len(sorted_headers))
+        interfaces_col = chr(64+len(interface_headers))
         interfaces_row = len(interfaces) + 1
         logger.debug(f'interface table: A1:{interfaces_col}{interfaces_row}')
         interface_table = Table(displayName="Interfaces", ref=f'A1:{interfaces_col}{interfaces_row}')
@@ -464,9 +458,11 @@ def set_column_width(sheet, factor=1.1):
         adjusted_width = (max_length + 2) * factor
         sheet.column_dimensions[column_letter].width = adjusted_width
 
-def run_task(args, sot, playbook, tasks, devices):
-    logger.info(f'exporting {tasks}')
+#
+# main
+#
 
+def run_task(args, sot, playbook, tasks, devices):
     for task in tasks:
         content = task.get('content')
         if 'config' in content or 'facts' in content:

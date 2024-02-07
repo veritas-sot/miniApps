@@ -1,0 +1,63 @@
+---
+jobs:
+  - job: device_to_xlsx
+    description: export devices to xlsx file
+    devices:
+      sql:
+        # the values of the select statement must correspond to the mapping
+        select: name, role, device_type, serial, asset_tag, location, rack, face, position, vrfs, status, platform, primary_ip4, custom_fields, tags, interfaces 
+        from: nb.devices
+        where: name__ic=local
+    tasks:
+      - export: 
+        - content: device_to_xlsx
+          mapping: ./playbooks/mapping.yaml
+          filename: ./export/__name__.xlsx
+          columns:
+            device:
+              - name
+              - role.name
+              - device_type.model
+              - serial
+              - asset_tag
+              - location.name
+              - location.location_type.name
+              - rack.name
+              - rack.rack_group.name
+              - face
+              - position
+              - vrfs
+              - status.name
+              - platform.name
+              - primary_ip4.interfaces[0].name
+              - custom_fields.net
+              - custom_fields.snmp_credentials
+              - tags
+            interfaces:
+              - name
+              - ip_addresses[x].address
+              - description
+              - type
+              - status.name
+          colors:
+            header: 004c81ba
+            header_font: FFFFFF
+            default: 00FFFFFF
+            name: 00FFFFFF
+            role.name: 00FFFFFF
+            device_type.model: 00D9EEFF
+            serial: 00D9EEFF
+            asset_tag: 00D9EEFF
+            location.name: 00FFFFFF
+            location.location_type.name: 00FFFFFF
+            rack.name: 00FFFFFF
+            rack.rack_group.name: 00FFFFFF
+            face: 00FFFFFF
+            position: 00FFFFFF
+            vrfs: 00D9EEFF
+            status.name: 00FFFFFF
+            platform.name: 00FFFFFF
+            primary_ip4.interfaces[0].name: 00FFFFFF
+            custom_fields.net: 00D9EEFF
+            custom_fields.snmp_credentials: 00D9EEFF
+            tags: 00D9EEFF

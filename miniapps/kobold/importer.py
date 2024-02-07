@@ -1,4 +1,5 @@
 import json
+import re
 from loguru import logger
 from benedict import benedict
 from openpyxl import load_workbook
@@ -94,8 +95,8 @@ def import_device(sot, filename, dry_run=False):
     interfaces_sheet = workbook['Interfaces']
 
     device = benedict(keyattr_dynamic=True)
-    device_columns = device_sheet.max_column
-    device_header = [None] * device_columns
+    device_rows = device_sheet.max_row
+    device_header = [None] * device_rows
 
     interface = benedict(keyattr_dynamic=True)
     list_of_interfaces = []
@@ -104,14 +105,23 @@ def import_device(sot, filename, dry_run=False):
     interfaces_header = [None] * interfaces_columns
 
     # get device headers
-    for col in range(0, device_columns):
-        device_header[col] = device_sheet.cell(row=1, column=col+1).value
+    for row in range(1, device_rows):
+        device_header[row-1] = device_sheet.cell(row=row+1, column=1).value
 
-    for col in range(0, device_columns):
-        key = device_header[col]
-        value = device_sheet.cell(row=2, column=col+1).value
+    for row in range(1, device_rows):
+        key = device_header[row-1]
+        value = device_sheet.cell(row=row+1, column=2).value
+        if 'face' == key:
+            value = value.lower()
+        elif 'vrfs' == key:
+            # value looks like vrf_name(vrf_namespace)
+            match = re.match("(.*?)\((.*?)\)", value)
+            if match:
+                vrf_name = match.groups(1)[0]
+                vrf_namespace = match.groups(1)[1]
+                value = [{'name': vrf_name, 'namespace': vrf_namespace}]
         device[key] = value
-    
+
     logger.configure(extra={"extra": device.get('name')})
     logger.info('importing device')
 
@@ -141,6 +151,13 @@ def import_device(sot, filename, dry_run=False):
             if 'type' == key:
                 value = interfaces_sheet.cell(row=row, column=col+1).value
                 value = value.lower().replace('a_','').replace('_','-')
+            elif 'ip_addresses[x].address' == key:
+                value = interfaces_sheet.cell(row=row, column=col+1).value
+                list_of_ips = value.replace(' ','').split(',')
+                x = 0
+                for ip in list_of_ips:
+                    interface[f'ip_addresses[{x}].address'] = ip
+                    x += 1
             else:
                 value = interfaces_sheet.cell(row=row, column=col+1).value
             if value:
