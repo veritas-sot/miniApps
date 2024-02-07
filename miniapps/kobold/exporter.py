@@ -2,6 +2,7 @@ import os
 import json
 import csv
 import pandas as pd
+import re
 from loguru import logger
 from dotenv import load_dotenv
 from openpyxl import Workbook
@@ -410,14 +411,26 @@ def export_device_to_xlsx(sot, playbook, task, devices):
             interface = benedict(iface, keyattr_dynamic=True)
             values = []
             for property in columns['interfaces']:
-                if 'ip_addresses[x].address' == property:
-                    ip_addr = interface['ip_addresses']
-                    list_of_ip = []
-                    for ip in ip_addr:
-                        list_of_ip.append(ip['address'])
-                    values.append(','.join(list_of_ip))
+                # some properties are lists
+                # ip_addresses[x].address or tagged_vlans[x].vid
+                # we get the values and concat them to a ','.join string
+                match = re.match("(.*?)\[x\]\.(.*)", property)
+                if match:
+                    logger.debug(f'found [x] identifier in {property}')
+                    list_item = match.groups(1)[0]
+                    sub_item = match.groups(1)[1]
+                    items = interface[list_item]
+                    list_of_values = []
+                    for item in items:
+                        list_of_values.append(str(item[sub_item]))
+                    value = ','.join(list_of_values)
                 else:
-                    values.append(interface[property])
+                    try:
+                        value = interface[property]
+                    except Exception:
+                        value = ''
+                logger.debug(f'key={property} value={value}')
+                values.append(value)
             interfaces_sheet.append(values)
   
         # and format interface sheet as table

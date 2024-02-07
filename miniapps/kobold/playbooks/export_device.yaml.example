@@ -35,10 +35,13 @@ jobs:
               - tags
             interfaces:
               - name
+              - mode
+              - status.name
+              - type
               - ip_addresses[x].address
               - description
-              - type
-              - status.name
+              - untagged_vlan.vid
+              - tagged_vlans[x].vid
           colors:
             header: 004c81ba
             header_font: FFFFFF
