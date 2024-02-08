@@ -6,20 +6,28 @@ Kobold
 
 Brief overview
 **************
-Kobold is a miniApp to export, update and transform device properties. 
+Kobold is a miniApp to export, import, update and transform device properties. 
+
+Examples of the use of this app are:
+  - import nautobot "default" values like locations, roles or device types
+  - import devices using xlsx files or json (hldm)
+  - exporting devices to json (hldm) or xlsx files
+  - updating device properties
+  - transforming device properties like location or names
 
 Let it run
 **********
 
 .. code-block:: shell
 
-      usage: kobold.py [-h] [--loglevel LOGLEVEL] [--loghandler LOGHANDLER] 
-                       [--uuid UUID] [--config CONFIG] {update,export,transform} ...
+      usage: kobold.py [-h] [--loglevel LOGLEVEL] [--loghandler LOGHANDLER] [--uuid UUID] 
+                       [--config CONFIG] [--debug-veritas] {update,export,import,transform} ...
 
       positional arguments:
-        {update,export,transform}
+        {update,export,import,transform}
           update              update devices
           export              export data of devices
+          import              import data to nautobot
           transform           transform properties of devices
 
       options:
@@ -29,18 +37,21 @@ Let it run
                               used log handler
         --uuid UUID           database logger uuid
         --config CONFIG       updater config file
-
+        --debug-veritas       enable veritas debug logging
 
 Options for all commands
 ************************
 
-You can set the loglevel, loghandler and the UUID for all the commands. The syntax is:
+You can set the loglevel, loghandler, the UUID for all the commands. If you want to see debug
+messages of the veritas lib add --debug-veritas at the beginning.
+
+The syntax is:
 
 .. code-block:: shell
 
-    >>> ./kobold --loglevel debug {update,export,transform} ....
+    >>> ./kobold --loglevel debug [--debug-veritas] {update,export,transform} ....
 
-You must therefore write these three parameters at **the beginning** of the command.
+You must write these three parameters at **the beginning** of the command.
 
 Exporter
 ********
@@ -48,18 +59,19 @@ To export device properties, configs, facts or the HLDM use the exporter.
 
 .. code-block:: shell
 
-      usage: kobold.py export [-h] --playbook PLAYBOOK 
-                               --job JOB (--profile PROFILE | --username USERNAME | --password PASSWORD)
+    usage: kobold.py export [-h] --playbook PLAYBOOK --job JOB [--profile PROFILE] 
+                            [--username USERNAME] [--password PASSWORD]
 
-      options:
-        -h, --help           show this help message and exit
-        --playbook PLAYBOOK  playbook config to use
-        --job JOB            job to run
-        --profile PROFILE    profile to get login credentials
-        --username USERNAME  login username
-        --password PASSWORD  login password
+    options:
+      -h, --help           show this help message and exit
+      --playbook PLAYBOOK  playbook config to use
+      --job JOB            job to run
+      --profile PROFILE    profile to get login credentials
+      --username USERNAME  login username
+      --password PASSWORD  login password
 
-To use the exporter you have to write a playbook. A playbook looks like this:
+To start a job, you must specify the name of the job. To use the exporter you have to write a playbook. 
+A playbook has the following structure:
 
 .. code-block:: yaml
 
@@ -69,8 +81,7 @@ To use the exporter you have to write a playbook. A playbook looks like this:
           description: export properties
           devices:
             sql:
-              # the values of the select statement must correspond must include the columns you
-              # want to export
+              # the values of the select statement must include the columns you want to export
               select: id, name, primary_ip4
               from: nb.devices
               where: name__ic=local
@@ -82,7 +93,12 @@ To use the exporter you have to write a playbook. A playbook looks like this:
                 format: excel
                 filename: ./export/properties.xlsx
 
-The parameter content specifies what to do. It is either properties, config, facts or hldm.
+The parameter 'content' specifies what to do. It is either 'properties', 'config', 'facts' or 'hldm'.
+The two jobs 'config' and 'facts' require either a profile or a username/password because these two 
+jobs have to log on to the devices.
+
+You can export a device to a xlsx file using "content: device_to_xlsx". However, the corresponding 
+playbook looks a little different and is described below.
 
 Export device properties
 ========================
@@ -93,13 +109,13 @@ Using the playbook above, the miniApp exports the **device properties**
   - name
   - primary_ip4.address (the primary IP Address)
   - primary_ip4.interfaces.name (the name of the primary interface)
+  - checksum (md5 hash of the former columns)
 
-and writes the data to a xlsx file named './export/properties.xlsx'. You must specify a job to run it.
-The result looks like this:
+and writes the data to a xlsx file named './export/properties.xlsx'. The result looks like this:
 
 .. code-block:: shell
 
-    >>> ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_properties
+    ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_properties
 
 .. image:: ./kobold_export.png
   :width: 700
@@ -130,10 +146,88 @@ And then use this command:
 
 .. code-block:: shell
 
-    >>> ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_hldm
+    ./kobold.py export --profile default --playbook playbooks/export.yaml --job export_hldm
     2024-02-04 16:40:20 | INFO | unset | starting job export_hldm / export HLDM
     2024-02-04 16:40:20 | INFO | unset | exporting [{'content': 'hldm', 'directory': 'hldm/__cf_net__/__location.name__', 'filename': '__name__.json'}]
 
+Export a device to a xlsx sheet
+===============================
+You can use the kobold to export a device to an Excel sheet.
+
+.. code-block:: shell
+
+    ./kobold.py export --playbook playbooks/export_device.yaml --job device_to_xlsx
+
+Which data is exported can be configured in the playbook.
+
+.. code-block:: shell
+
+      ---
+      jobs:
+        - job: device_to_xlsx
+          description: export devices to xlsx file
+          devices:
+            sql:
+              # the values of the select statement must correspond to the mapping
+              select: name, role, device_type, serial, asset_tag, location, rack, face, position, vrfs, status, platform, primary_ip4, custom_fields, tags, interfaces 
+              from: nb.devices
+              where: name__ic=local
+          tasks:
+            - export: 
+              - content: device_to_xlsx
+                filename: ./export/__name__.xlsx
+                columns:
+                  device:
+                    - name
+                    - role.name
+                    - device_type.model
+                    - serial
+                    - asset_tag
+                    - location.name
+                    - location.location_type.name
+                    - rack.name
+                    - rack.rack_group.name
+                    - face
+                    - position
+                    - vrfs
+                    - status.name
+                    - platform.name
+                    - primary_ip4.interfaces[0].name
+                    - custom_fields.net
+                    - custom_fields.snmp_credentials
+                    - tags
+                  interfaces:
+                    - name
+                    - status.name
+                    - type
+                    - ip_addresses[x].address
+                    - description
+                    - mode
+                    - lag.name
+                    - untagged_vlan.vid
+                    - tagged_vlans[x].vid
+                colors:
+                  header: 004c81ba
+                  header_font: FFFFFF
+                  default: 00FFFFFF
+                  name: 00FFFFFF
+                  role.name: 00FFFFFF
+                  device_type.model: 00D9EEFF
+                  serial: 00D9EEFF
+                  asset_tag: 00D9EEFF
+                  location.name: 00FFFFFF
+                  location.location_type.name: 00FFFFFF
+                  rack.name: 00FFFFFF
+                  rack.rack_group.name: 00FFFFFF
+                  face: 00FFFFFF
+                  position: 00FFFFFF
+                  vrfs: 00D9EEFF
+                  status.name: 00FFFFFF
+                  platform.name: 00FFFFFF
+                  primary_ip4.interfaces[0].name: 00FFFFFF
+                  custom_fields.net: 00D9EEFF
+                  custom_fields.snmp_credentials: 00D9EEFF
+                  tags: 00D9EEFF
 
 Updater
 *******
@@ -312,8 +406,8 @@ Another example illustrates how to transform the location.
 
 Importer
 ********
-The importer is used to import new devices (using the HLDM import or an xlsx file) 
-and IP-addresses (using xlsx file).
+The importer is used to import new devices (hldm as json or xlsx), 
+IP-addresses (xlsx) or nautobot default values like locations, roles or device types (yaml).
 
 Use
 
@@ -321,5 +415,28 @@ Use
 
       usage: kobold.py import --filename FILENAME [--dry-run]
 
-to import new devices or IP-adresses. You can find some examples in the ./kobold/imports directory.
+to import the data. You can find some examples in the ./kobold/imports directory.
 To see what the importer would do use --dry-run.
+
+A xlsx-sheet to import multiple devices looks like this:
+
+.. image:: ./import_devices.png
+  :width: 700
+  :alt: Import devices
+
+You can use a sheet to import a device including interfaces:
+
+.. image:: ./import_device_2.png
+  :width: 250
+  :alt: Import device
+
+.. image:: ./import_device_1.png
+  :width: 700
+  :alt: Import device
+
+To import a list of IP addresses you can use a sheet that looks like this:
+
+.. image:: ./import_ipaddresses.png
+  :width: 700
+  :alt: Import IP addresses
+
