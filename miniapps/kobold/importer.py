@@ -1,5 +1,6 @@
 import json
 import re
+import yaml
 from loguru import logger
 from benedict import benedict
 from openpyxl import load_workbook
@@ -30,6 +31,24 @@ def read_xlsx(filename):
             line[key] = value
         table.append(line)
     return table
+
+def read_yaml(filename):
+    logger.debug(f'reading yaml {filename}')
+    with open(filename) as f:
+        try:
+            data = yaml.safe_load(f.read())
+            response = {}
+            for root_key in data.keys():
+                response.update({root_key: []})
+                for value in data[root_key]:
+                    if isinstance(value, dict):
+                        bene_dict = benedict()
+                        for key, val in value.items():
+                            bene_dict[key] = val
+                        response[root_key].append(bene_dict)
+            return response
+        except Exception as exc:
+            raise Exception (f'could not parse yaml file {filename}; got {exc}')
 
 def import_hldm(sot, device_properties, dry_run=False):
 
@@ -120,6 +139,7 @@ def import_device(sot, filename, dry_run=False):
                 vrf_name = match.groups(1)[0]
                 vrf_namespace = match.groups(1)[1]
                 value = [{'name': vrf_name, 'namespace': vrf_namespace}]
+        logger.debug(f'(dev) key={key} value={value}')
         device[key] = value
 
     logger.configure(extra={"extra": device.get('name')})
@@ -148,19 +168,22 @@ def import_device(sot, filename, dry_run=False):
         interface = benedict(keyattr_dynamic=True)
         for col in range(0, interfaces_columns):
             key = interfaces_header[col]
+            value = interfaces_sheet.cell(row=row, column=col+1).value
             if 'type' == key:
-                value = interfaces_sheet.cell(row=row, column=col+1).value
                 value = value.lower().replace('a_','').replace('_','-')
+            elif 'mode' == key and value:
+                value = value.lower().replace('_','-')
             elif 'ip_addresses[x].address' == key:
-                value = interfaces_sheet.cell(row=row, column=col+1).value
-                list_of_ips = value.replace(' ','').split(',')
-                x = 0
-                for ip in list_of_ips:
-                    interface[f'ip_addresses[{x}].address'] = ip
-                    x += 1
-            else:
-                value = interfaces_sheet.cell(row=row, column=col+1).value
+                if value:
+                    list_of_ips = value.replace(' ','').split(',')
+                    x = 0
+                    for ip in list_of_ips:
+                        interface[f'ip_addresses[{x}].address'] = ip
+                        x += 1
+                else:
+                    continue
             if value:
+                logger.debug(f'(iface) key={key} value={value}')
                 interface[key] = value
         interface.clean()
         list_of_interfaces.append(interface)
@@ -201,12 +224,46 @@ def device_to_nautobot(sot, device_properties, list_of_interfaces, primary_inter
     else:
         sot.device(new_device.display).set_tags(list_of_tags)
 
+def import_custom_fields(sot, data):
+    set_defaults = []
+    for cf in data['custom_fields']:
+        logger.debug(f'importing {cf}')
+        if 'default' in cf:
+            logger.debug('found default value; setting default after creating cf')
+            properties = {'label': cf.get('label'), 'default': cf.get('default')}
+            set_defaults.append(properties)
+            del cf['default']
+
+    logger.debug('import custom fields')
+    sot.importer.add(properties=data['custom_fields'], endpoint='custom_fields')
+    logger.debug('import custom fields choices')
+    sot.importer.add(properties=data['custom_field_choices'], endpoint='custom_field_choices')
+
+    # set default value
+    for properties in set_defaults:
+        sot.updater.update(endpoint='custom_fields', getter={'label': properties.get('label')}, values=properties)
+
 def import_data(sot, args):
     if args.filename and 'json' in args.filename:
         data = read_json(args.filename)
         # check which data we have
         if all(k in data for k in ('name','status','device_type', 'role')):
             import_hldm(sot, data)
+    elif args.filename and 'yaml' in args.filename:
+        data = read_yaml(args.filename)
+        key = list(data.keys())[0]
+        logger.debug(f'found key={key}')
+        if key in ['location_types','locations', 'roles', 'device_types', 'platforms', 'manufacturers', 
+                   'tags', 'webhooks', 'prefixes', 'custom_links']:
+            success = sot.importer.add(properties=data[key], endpoint=key)
+            if success:
+                logger.info(f'{key} successfully imported')
+            else:
+                logger.error(f'failed to import {key}')
+        elif key in ['custom_field_choices','custom_fields']:
+            import_custom_fields(sot, data)
+        else:
+            logger.error(f'unknown key {key}')
     elif args.device:
         import_device(sot, args.device, args.dry_run)
     elif 'xlsx' in args.filename:
@@ -216,4 +273,16 @@ def import_data(sot, args):
         elif all(k in data[0] for k in ('name','status','device_type', 'role')):
             for device in data:
                 import_hldm(sot, device, args.dry_run)
-    
+        elif all(k in data[0] for k in ('name','description','parent.name','location_type.name','status.name')):
+            # this is an xlsx file containing locations
+            for item in data:
+                # we have to remove empty parents
+                # work with a copy of the dict and remove if parent == None
+                for key, value in dict(item).items():
+                    if key == 'parent' and not value['name']:
+                        del item['parent']
+            success = sot.importer.add(properties=data, endpoint='locations')
+            if success:
+                logger.info(f'{key} successfully imported')
+            else:
+                logger.error('failed to import locations')

@@ -8,12 +8,12 @@ import shutil
 from benedict import benedict
 
 
-miniapps = ['onboarding','kobold','script_bakery','updater','scan_prefixes',
+miniapps = ['onboarding','kobold','script_bakery','scan_prefixes',
             'set_latency','set_link','set_snmp', 'check_inventory',
             'sync_cmk','sync_phpipam','sync_smokeping','dispatcher',
-            'nachtwaechter', 'sot_properties','nachtwaechter']
+            'nachtwaechter', 'library_importer']
 profiles = ['onboarding','kobold','script_bakery', 'nachtwaechter']
-additional = {'updater': 'importer'}
+additional = {}
 copy_files = {'nachtwaechter': ['index.yaml','mapping.conf.example']}
 
 BASEDIR = os.path.abspath('')
