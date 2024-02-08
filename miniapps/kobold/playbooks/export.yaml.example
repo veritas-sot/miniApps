@@ -4,7 +4,7 @@ jobs:
     description: export properties
     devices:
       sql:
-        # the values of the select statement must correspond must include the columns you
+        # # the values of the select statement must include the columns you want to export
         # want to export
         select: id, name, primary_ip4
         from: nb.devices

@@ -14,6 +14,7 @@ from updater import update as update_main
 from transformer import transform as transform_main
 from importer import import_data as import_main
 
+
 def main(args_list=None):
     # to disable warning if TLS warning is written to console
     urllib3.disable_warnings()
@@ -50,19 +51,17 @@ def main(args_list=None):
     #
     # exporter
     #
-    group_exporter = parser_export.add_mutually_exclusive_group(required=True)
     parser_export.add_argument('--playbook', type=str, required=True, help="playbook config to use")
     parser_export.add_argument('--job', type=str, required=True, help="job to run")
-    group_exporter.add_argument('--profile', type=str, required=False, help="profile to get login credentials")
-    group_exporter.add_argument('--username', type=str, required=False, help="login username")
-    group_exporter.add_argument('--password', type=str, required=False, help="login password")
+    parser_export.add_argument('--profile', type=str, required=False, help="profile to get login credentials")
+    parser_export.add_argument('--username', type=str, required=False, help="login username")
+    parser_export.add_argument('--password', type=str, required=False, help="login password")
 
     #
     # importer
     #
 
     parser_import.add_argument('--filename', type=str, required=False, help="name of file to transform data")
-    parser_import.add_argument('--device', type=str, required=False, help="name of file to import device")
     parser_import.add_argument('--dry-run', action='store_true', help='print updates only')
 
     #

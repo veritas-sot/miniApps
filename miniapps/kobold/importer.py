@@ -224,7 +224,7 @@ def device_to_nautobot(sot, device_properties, list_of_interfaces, primary_inter
     else:
         sot.device(new_device.display).set_tags(list_of_tags)
 
-def import_custom_fields(sot, data):
+def import_custom_fields(sot, data, dry_run=False):
     set_defaults = []
     for cf in data['custom_fields']:
         logger.debug(f'importing {cf}')
@@ -255,6 +255,9 @@ def import_data(sot, args):
         logger.debug(f'found key={key}')
         if key in ['location_types','locations', 'roles', 'device_types', 'platforms', 'manufacturers', 
                    'tags', 'webhooks', 'prefixes', 'custom_links']:
+            if args.dry_run:
+                print(f'importing {data[key]} to {key}')
+                return
             success = sot.importer.add(properties=data[key], endpoint=key)
             if success:
                 logger.info(f'{key} successfully imported')
@@ -264,15 +267,31 @@ def import_data(sot, args):
             import_custom_fields(sot, data)
         else:
             logger.error(f'unknown key {key}')
-    elif args.device:
-        import_device(sot, args.device, args.dry_run)
     elif 'xlsx' in args.filename:
         data = read_xlsx(args.filename)
+
+        #
+        # IP addresses
+        #
         if all(k in data[0] for k in ('address','namespace', 'status')):
             import_ipaddresses(sot, data, args.dry_run)
+        
+        #
+        # import HLDM
+        #
         elif all(k in data[0] for k in ('name','status','device_type', 'role')):
             for device in data:
                 import_hldm(sot, device, args.dry_run)
+
+        #
+        # import single device
+        #
+        elif all(k in list(data[0].keys()) for k in ('Property','Value')):
+             import_device(sot, args.filename, args.dry_run)
+        
+        #
+        # import nautobot default values like roles, tags and locations
+        #
         elif all(k in data[0] for k in ('name','description','parent.name','location_type.name','status.name')):
             # this is an xlsx file containing locations
             for item in data:

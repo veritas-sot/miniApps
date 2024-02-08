@@ -135,75 +135,6 @@ def get_device_config_and_facts(sot, playbook, device_properties):
 
     return device_config, device_facts
 
-def get_device_data_to_export(sot, task, devices):
-
-    """
-    prepare data to export by scanning through ALL devices and build table
-    """
-
-    # our list of dicts that contains the data we export
-    data_to_export = []
-    # some defaults
-    calculate_checksum = False
-    header_written = False
-
-    # columns is the list of device/interface properties the user wants to export
-    columns = task.get('columns').replace(' ','').split(',')
-
-    for device in devices:
-        device_property = {}
-        for column in columns:
-            data = get_value(device, column.split('.'))
-            logger.debug(f'column={column} data={data}')
-            device_property[column] = data
-        
-        number_of_rows = get_number_of_rows(device_property)
-        if not number_of_rows:
-            logger.error('number of rows are different for some columns')
-            continue
-        logger.debug(f'number_of_rows={number_of_rows}')
-
-        # first add header if user wants it
-        if 'header' in task and not header_written:
-            header_written = True
-            row = []
-            for column in columns:
-                row.append(column)
-            data_to_export.append(row)
-
-        # loop through the number of rows
-        for n in range(number_of_rows):
-            # initialize empty row
-            row = [None] * len(columns)
-            # and set column to 0
-            number_of_column = 0
-            for column in columns:
-                # check if we have to calculate an MD5 sum
-                if 'checksum' in column:
-                    calculate_checksum = True
-                if isinstance(device_property[column], str):
-                    row[number_of_column] = device_property[column]
-                else:
-                    if device_property[column] is None:
-                        row[number_of_column] = 'null'
-                    else:
-                        dta =  device_property[column][n]
-                        if isinstance(dta, list):
-                            if len(dta) > 0:
-                                row[number_of_column] = dta[0]
-                            else:
-                                row[number_of_column] = ""
-                        else:
-                            row[number_of_column] = dta
-                number_of_column += 1
-            # calculate checksum if necessary
-            if calculate_checksum:
-                row[len(columns)-1] = tools.calculate_md5(row)
-
-            # now put row to the list of exported values
-            data_to_export.append(row)
-    return data_to_export
-
 def export_config_and_facts(sot, playbook, task, device_properties):
 
     hostname = device_properties.get('hostname')
@@ -302,15 +233,114 @@ def export_device_properties_as_xlsxl(task, data_to_export):
     filename = task.get('filename','export.xlsx')
     logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
+    # reformat data_to_export
+    # we need a list of dicts
+    # data_to_export is a list of lists to write the data with csv easily
+    data = {}
+    rows = len(data_to_export)
+    cols = len(data_to_export[0])
+    logger.debug(f'the data have {rows} rows and {cols} cols')
+    for i in range(0, cols):
+        key = data_to_export[0][i]
+        data[key] = []
+        for n in range(1, rows):
+            logger.bind(extra='reformat').debug(f'key={key} val={data_to_export[n][i]}')
+            data[key].append(data_to_export[n][i])
+
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    df = pd.DataFrame(data_to_export)
+    df = pd.DataFrame(data)
+
     writer = pd.ExcelWriter(filename, engine='xlsxwriter')
-    df.to_excel(writer, sheet_name='Export', startrow=0, header=False, index=False)
+    df.to_excel(writer, sheet_name='Properties', startrow=1, header=False, index=False)
+
+    # Get the xlsxwriter workbook and worksheet objects.
+    worksheet = writer.sheets["Properties"]
+
+    # Get the dimensions of the dataframe.
+    (max_row, max_col) = df.shape
+
+    # Create a list of column headers, to use in add_table().
+    column_settings = [{"header": column} for column in df.columns]
+
+    # Add the Excel table structure. Pandas will add the data.
+    worksheet.add_table(0, 0, max_row, max_col - 1, {"columns": column_settings})
+
+    # Make the columns wider for clarity.
+    worksheet.set_column(0, max_col - 1, 12)
     writer.close()
+
+def get_device_data_to_export(sot, task, devices):
+
+    """
+    prepare data to export by scanning through ALL devices and build table
+    """
+
+    # our list of dicts that contains the data we export
+    data_to_export = []
+    # some defaults
+    calculate_checksum = False
+    header_written = False
+
+    # columns is the list of device/interface properties the user wants to export
+    columns = task.get('columns').replace(' ','').split(',')
+
+    for device in devices:
+        device_property = {}
+        for column in columns:
+            data = get_value(device, column.split('.'))
+            logger.debug(f'column={column} data={data}')
+            device_property[column] = data
+        
+        number_of_rows = get_number_of_rows(device_property)
+        if not number_of_rows:
+            logger.error('number of rows are different for some columns')
+            continue
+        logger.debug(f'number_of_rows={number_of_rows}')
+
+        # first add header if user wants it
+        if 'header' in task and not header_written:
+            header_written = True
+            row = []
+            for column in columns:
+                row.append(column)
+            data_to_export.append(row)
+
+        # loop through the number of rows
+        for n in range(number_of_rows):
+            # initialize empty row
+            row = [None] * len(columns)
+            # and set column to 0
+            number_of_column = 0
+            for column in columns:
+                # check if we have to calculate an MD5 sum
+                if 'checksum' in column:
+                    calculate_checksum = True
+                if isinstance(device_property[column], str):
+                    row[number_of_column] = device_property[column]
+                else:
+                    if device_property[column] is None:
+                        row[number_of_column] = 'null'
+                    else:
+                        dta =  device_property[column][n]
+                        if isinstance(dta, list):
+                            if len(dta) > 0:
+                                row[number_of_column] = dta[0]
+                            else:
+                                row[number_of_column] = ""
+                        else:
+                            row[number_of_column] = dta
+                number_of_column += 1
+            # calculate checksum if necessary
+            if calculate_checksum:
+                row[len(columns)-1] = tools.calculate_md5(row)
+
+            # now put row to the list of exported values
+            data_to_export.append(row)
+    return data_to_export
 
 def export_device_properties(sot, playbook, task, devices):
     data_to_export = get_device_data_to_export(sot, task, devices)
@@ -479,6 +509,10 @@ def run_task(args, sot, playbook, tasks, devices):
     for task in tasks:
         content = task.get('content')
         if 'config' in content or 'facts' in content:
+
+            if not args.profile or not (not args.username and not args.password):
+                print(f'the playbook job {content} needs a profile or a username/password')
+                return
 
             # set username and password
             get_profile(args.profile, args.username,args.password, playbook)
