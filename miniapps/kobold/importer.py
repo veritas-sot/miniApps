@@ -1,6 +1,5 @@
 import json
 import re
-import yaml
 from loguru import logger
 from benedict import benedict
 from openpyxl import load_workbook
@@ -34,12 +33,10 @@ def read_xlsx(filename):
 
 def read_yaml(filename):
     logger.debug(f'reading yaml {filename}')
-    with open(filename) as f:
-        try:
-            data = yaml.safe_load(f.read())
-            return benedict(data, keyattr_dynamic=True)
-        except Exception as exc:
-            raise Exception (f'could not parse yaml file {filename}; got {exc}')
+    try:
+        return benedict(filename, format="yaml")
+    except Exception as exc:
+        raise Exception (f'could not parse yaml file {filename}; got {exc}')
 
 def import_hldm(sot, device_properties, dry_run=False):
 
