@@ -26,19 +26,19 @@ The table below lists all device based veritas properties.
      - | ID of the SNMP credential of the device
        | There must be a corresponding ID in 
        | your defaults/snmp_credentials.yaml
-     - | set_snmp, 
+     - | check_and_set (snmp), 
        | sync_cmk
    * - link
      - custom_field
      - How is the device connected?
-     - set_link
+     - check_and_set (link)
    * - latency
      - custom_field
      - The latency of this device
-     - set_latency
+     - check_and_set (latency)
    * - checkmk_folder
      - custom_field
-     - In which folder should the device placed.
+     - In which folder should the device be placed.
      - sync_cmk
    * - checkmk_htg
      - custom_field
