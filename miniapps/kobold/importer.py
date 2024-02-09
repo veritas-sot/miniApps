@@ -37,16 +37,7 @@ def read_yaml(filename):
     with open(filename) as f:
         try:
             data = yaml.safe_load(f.read())
-            response = {}
-            for root_key in data.keys():
-                response.update({root_key: []})
-                for value in data[root_key]:
-                    if isinstance(value, dict):
-                        bene_dict = benedict()
-                        for key, val in value.items():
-                            bene_dict[key] = val
-                        response[root_key].append(bene_dict)
-            return response
+            return benedict(data, keyattr_dynamic=True)
         except Exception as exc:
             raise Exception (f'could not parse yaml file {filename}; got {exc}')
 
@@ -106,7 +97,7 @@ def import_ipaddresses(sot, ipaddresses, dry_run=False):
     else:
         logger.error('failed to import IP-addresses')
 
-def import_device(sot, filename, dry_run=False):
+def import_device_from_xlsx(sot, filename, dry_run=False):
 
     logger.debug(f'reading workbook {filename}')
     workbook = load_workbook(filename=filename, read_only=True)
@@ -243,6 +234,10 @@ def import_custom_fields(sot, data, dry_run=False):
     for properties in set_defaults:
         sot.updater.update(endpoint='custom_fields', getter={'label': properties.get('label')}, values=properties)
 
+def import_device_from_yaml(sot, devices, dry_run=False):
+    for device in devices['devices']:
+        import_hldm(sot, device, dry_run)
+
 def import_data(sot, args):
     if args.filename and 'json' in args.filename:
         data = read_json(args.filename)
@@ -265,6 +260,8 @@ def import_data(sot, args):
                 logger.error(f'failed to import {key}')
         elif key in ['custom_field_choices','custom_fields']:
             import_custom_fields(sot, data)
+        elif key == 'devices':
+            import_device_from_yaml(sot, data, args.dry_run)
         else:
             logger.error(f'unknown key {key}')
     elif 'xlsx' in args.filename:
@@ -287,7 +284,7 @@ def import_data(sot, args):
         # import single device
         #
         elif all(k in list(data[0].keys()) for k in ('Property','Value')):
-             import_device(sot, args.filename, args.dry_run)
+             import_device_from_xlsx(sot, args.filename, args.dry_run)
         
         #
         # import nautobot default values like roles, tags and locations

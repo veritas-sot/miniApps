@@ -1,0 +1,25 @@
+---
+devices:
+  - name: lab-04.local
+    role:
+      name: network
+    device_type:
+      model: iosv
+    location:
+      name: office
+      location_type:
+        name: branch
+    status:
+      name: Active
+    platform:
+      name: ios
+    primary_ip4:
+      interfaces:
+        - name: Loopback0
+    interfaces:
+      - name: Loopback0
+        type: virtual
+        status:
+          name: Active
+        ip_addresses:
+          - address: 192.168.0.1/32
