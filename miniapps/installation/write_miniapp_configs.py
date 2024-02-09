@@ -9,7 +9,7 @@ from benedict import benedict
 
 
 miniapps = ['onboarding','kobold','script_bakery','scan_prefixes',
-            'set_latency','set_link','set_snmp', 'check_inventory',
+            'check_and_set', 'check_inventory',
             'sync_cmk','sync_phpipam','sync_smokeping','dispatcher',
             'nachtwaechter', 'library_importer']
 profiles = ['onboarding','kobold','script_bakery', 'nachtwaechter']

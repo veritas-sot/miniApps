@@ -1,20 +1,14 @@
-#!/usr/bin/env python
-
-import argparse
 import yaml
 import threading
-import urllib3
-import sys
-import os
 from loguru import logger
 from queue import Queue,  Empty
-from pysnmp.hlapi import *
+from pysnmp.hlapi import (
+    getCmd, SnmpEngine, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity, CommunityData,
+    usmHMACMD5AuthProtocol, usmHMACSHAAuthProtocol, usmAesCfb128Protocol, usmAesCfb256Protocol, UsmUserData)
 from pysnmp.smi.error import WrongValueError
 
 import veritas.logging
 import veritas.repo
-from veritas.tools import tools
-from veritas.sot import sot as veritas_sot
 
 # to install the correct python SNMP Library use these two!!!
 # pip install pysnmp
@@ -155,97 +149,53 @@ def read_snmp_credentials(sot, set_snmp_config):
     snmp_credentials_text= repo.get(filename)
     return yaml.safe_load(snmp_credentials_text)
 
-if __name__ == "__main__":
+def set_snmp_credentials(sot, set_snmp_config, exclude, where, use, threads, update=False):
 
-    # to disable warning if TLS warning is written to console
-    urllib3.disable_warnings()
-
+    # create list of devices we are looking for
+    excluded = str(exclude).split(',')
+    custom_field = set_snmp_config.get('defaults',{}).get('custom_field', 'snmp_credentials')
+    devices = sot.select('hostname', 'primary_ip4', 'platform', f'cf_{custom_field}') \
+                 .using('nb.devices') \
+                 .where(where)
+    nn_hosts = 0
+    skipped = 0
     devicelist = []
-
-    parser = argparse.ArgumentParser()
-
-    # the user can enter a different config file
-    parser.add_argument('--config', type=str, required=False, help="set_snmp config file")
-    # what devices
-    parser.add_argument('--devices', type=str, required=False, help="query to get list of devices")
-    parser.add_argument('--snmp-id', type=str, required=False, help="Overwrite SNMP config and set SNMP-ID instead")
-    parser.add_argument('--update', action='store_true', help='Update credentials even if it exists')
-    parser.add_argument('--exclude', type=str, help='Simple name filter to exclude devices')
-    parser.add_argument('--use', type=str, default='', help='Only use specific SNMP credentials')
-    # number of threads
-    parser.add_argument('--threads', type=int, default=10, help='Number of threads')
-    # set the log level and handler
-    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
-    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-    # uuid is written to the database logger
-    parser.add_argument('--uuid', type=str, required=False, help="database logging uuid")
-
-    # parse arguments
-    args = parser.parse_args()
-
-    # Get the path to the directory this file is in
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
-    # read config
-    set_snmp_config = tools.get_miniapp_config('set_snmp', BASEDIR, args.config)
-    if not set_snmp_config:
-        print('unable to read config')
-        sys.exit()
-
-    # create logger environment
-    veritas.logging.create_logger_environment(
-        config=set_snmp_config, 
-        cfg_loglevel=args.loglevel,
-        cfg_loghandler=args.loghandler,
-        app='set_snmp',
-        uuid=args.uuid)
-
-    # we need the SOT object to talk to the SOT
-    sot = veritas_sot.Sot(token=set_snmp_config['sot']['token'], 
-                          url=set_snmp_config['sot']['nautobot'],
-                          ssl_verify=set_snmp_config['sot'].get('ssl_verify', False),
-                          debug=False)
-
-    if args.devices:
-        # create list of devices we are looking for
-        excluded = str(args.exclude).split(',')
-        devices = sot.select('hostname', 'primary_ip4', 'platform', 'cf_snmp_credentials') \
-                     .using('nb.devices') \
-                     .where(args.devices)
-        nn_hosts = 0
-        skipped = 0
-        logger.debug(f'got {len(devices)} from nautobot')
-        for device in devices:
-            host = {'hostname': device.get('hostname')}
-            for e in excluded:
-                if e in host:
-                    logger.debug(f'host {device} excluded due to parameter')
-                    skipped += 1
-                    continue
-            if 'primary_ip4' in device and device['primary_ip4'] and 'address' in device['primary_ip4']:
-                host['host'] = device.get('primary_ip4').get('address').split('/')[0]
-            else:
-                logger.error(f'device {device} has no primary_ip in SOT')
+    logger.debug(f'got {len(devices)} device(s) from sot')
+    for device in devices:
+        host = {'hostname': device.get('hostname')}
+        hostname = device.get('hostname')
+        for e in excluded:
+            if e in host:
+                logger.debug(f'host {device} excluded due to parameter')
+                skipped += 1
                 continue
-            if 'platform' in device:
-                host['platform'] = device.get('platform').get('name')
-            else:
-                host['platform'] = "unknown"
-            if not args.update:
-                dev_cred = device.get('custom_field_data',{}).get('snmp_credentials')
-                if dev_cred is not None and dev_cred.lower() != 'unknown':
-                    logger.debug(f'host {device} has active SNMP credentials')
-                    skipped += 1
-                    continue
-            devicelist.append(host)
-            nn_hosts += 1
-            logger.debug(f'adding {host["hostname"]} / {host["host"]} plattform: {host["platform"]}')
-        logger.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')
+        if 'primary_ip4' in device and device['primary_ip4'] and 'address' in device['primary_ip4']:
+            host['host'] = device.get('primary_ip4').get('address').split('/')[0]
+        else:
+            logger.error(f'device {device} has no primary_ip in SOT')
+            continue
+        if 'platform' in device and device['platform']:
+            host['platform'] = device.get('platform',{}).get('name')
+        else:
+            logger.error(f'invalid platform of host {hostname}')
+            host['platform'] = "unknown"
+        if not update:
+            dev_cred = device.get('custom_field_data',{}).get('snmp_credentials')
+            if dev_cred is not None and dev_cred.lower() != 'unknown' and len(dev_cred) > 0:
+                logger.debug(f'host {hostname} has active SNMP credentials')
+                skipped += 1
+                continue
+        devicelist.append(host)
+        nn_hosts += 1
+        logger.debug(f'adding {hostname} / plattform: {host["platform"]}')
 
-    number_of_devices = len(devicelist)
+    if nn_hosts == 0:
+        logger.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')
+        print('device list is empty; we have nothing to do')
+        return
     
-    if len(args.use) > 0:
-        used = args.use.split(',')
+    if len(use) > 0:
+        used = use.split(',')
         credentials = {'snmp': []}
         for cred in read_snmp_credentials(sot, set_snmp_config)['snmp']:
             if cred['id'] in used:
@@ -257,6 +207,6 @@ if __name__ == "__main__":
     for device in devicelist:
         queue.put_nowait(device)
     
-    for i in range(args.threads):
+    for i in range(threads):
         Worker(i, sot, credentials, set_snmp_config, queue).start()
     queue.join()
