@@ -18,9 +18,12 @@ jobs:
           # columns: interfaces.name, interfaces.description
           # columns: id, name, location.name, cf_net,cf_select, checksum
           # columns: name, interfaces.id, interfaces.name, interfaces.description,checksum
+          #
+          # format can be excle, xlsx or csv
           format: excel
           # delimiter: ","
           # quotechar: "|"
+          # quoting is either minimal, all, none or nonnummeric
           # quoting: minimal
           filename: ./export/properties.xlsx
 

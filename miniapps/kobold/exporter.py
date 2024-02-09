@@ -202,50 +202,59 @@ def export_hldm(sot, playbook, task, devices):
 
 def export_device_properties_as_csv(task, data_to_export):
     logger.info(f'exporting {len(data_to_export)} entries as CSV')
-    delimiter = task.get('delimiter',',')
-    quotechar = task.get('quotechar','|')
-    quoting_cf = task.get('quoting', 'minimal')
-    filename = task.get('filename','export.csv')
 
-    if quoting_cf == "none":
-        quoting = csv.QUOTE_NONE
-    elif quoting_cf == "all":
-        quoting = csv.QUOTE_ALL
-    elif quoting_cf == "nonnumeric":
-        quoting = csv.QUOTE_NONNUMERIC
-    else:
+    separator = task.get('separator',',')
+    quotechar = task.get('quotechar')
+
+    # quoting : int, Controls whether quotes should be recognized. 
+    # Values are taken from csv.QUOTE_* values. Acceptable values are 0, 1, 2, and 3 for 
+    # QUOTE_MINIMAL, QUOTE_ALL, QUOTE_NONE, and QUOTE_NONNUMERIC,
+    # respectively.
+    quoting_txt = task.get('quoting','minimal')
+    if quoting_txt.lower() == "minimal":
         quoting = csv.QUOTE_MINIMAL
+    elif quoting_txt.lower() == "all":
+        quoting = csv.QUOTE_ALL
+    elif quoting_txt.lower() == "none":
+        quoting = csv.QUOTE_NONE
+    elif quoting_txt.lower() == "nonnummeric":
+        quoting = csv.QUOTE_NONNUMERIC
 
+    filename = task.get('filename','export.csv')
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    logger.info(f'exporting data to {filename}')
+    # reformat data_to_export
+    data = reformat_data(data_to_export)
+    df = pd.DataFrame(data)
 
-    # now write our csv file
-    with open(filename, 'w', newline='') as csvfile:
-        export_writer = csv.writer(csvfile, delimiter=delimiter, quotechar=quotechar, quoting=quoting)
-        for line in data_to_export:
-            export_writer.writerow(line)
+    logger.info(f'exporting data to {filename}')
+    df.to_csv(filename, sep=separator, index=False, quoting=quoting, quotechar=quotechar)
+
+def reformat_data(originate_data):
+    # reformat data_to_export
+    # we need a list of dicts
+    # data_to_export is a list of lists to write the data with csv easily
+    data = {}
+    rows = len(originate_data)
+    cols = len(originate_data[0])
+    logger.debug(f'the data have {rows} rows and {cols} cols')
+    for i in range(0, cols):
+        key = originate_data[0][i]
+        data[key] = []
+        for n in range(1, rows):
+            logger.bind(extra='reformat').debug(f'key={key} val={originate_data[n][i]}')
+            data[key].append(originate_data[n][i])
+    return data
 
 def export_device_properties_as_xlsxl(task, data_to_export):
     filename = task.get('filename','export.xlsx')
     logger.bind(extra='exp properties').info(f'exporting data as EXCEL to {filename}')
 
     # reformat data_to_export
-    # we need a list of dicts
-    # data_to_export is a list of lists to write the data with csv easily
-    data = {}
-    rows = len(data_to_export)
-    cols = len(data_to_export[0])
-    logger.debug(f'the data have {rows} rows and {cols} cols')
-    for i in range(0, cols):
-        key = data_to_export[0][i]
-        data[key] = []
-        for n in range(1, rows):
-            logger.bind(extra='reformat').debug(f'key={key} val={data_to_export[n][i]}')
-            data[key].append(data_to_export[n][i])
+    data = reformat_data(data_to_export)
 
     # create directory if it does not exsists
     directory = os.path.dirname(filename)
