@@ -406,7 +406,7 @@ Another example illustrates how to transform the location.
 
 Importer
 ********
-The importer is used to import new devices (hldm as json or xlsx), 
+The importer is used to import new devices (hldm as json, xlsx or YAML), 
 IP-addresses (xlsx) or nautobot default values like locations, roles or device types (yaml).
 
 Use
@@ -439,4 +439,34 @@ To import a list of IP addresses you can use a sheet that looks like this:
 .. image:: ./import_ipaddresses.png
   :width: 700
   :alt: Import IP addresses
+
+Last but not least to import a device using a YAML file use this syntax:
+
+.. code-block:: yaml
+
+      ---
+      devices:
+        - name: lab-04.local
+          role:
+            name: network
+          device_type:
+            model: iosv
+          location:
+            name: office
+            location_type:
+              name: branch
+          status:
+            name: Active
+          platform:
+            name: ios
+          primary_ip4:
+            interfaces:
+              - name: Loopback0
+          interfaces:
+            - name: Loopback0
+              type: virtual
+              status:
+                name: Active
+              ip_addresses:
+                - address: 192.168.0.1/32
 
