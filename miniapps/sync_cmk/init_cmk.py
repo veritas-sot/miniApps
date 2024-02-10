@@ -2,7 +2,6 @@
 
 import argparse
 import urllib3
-import yaml
 import os
 import sys
 from loguru import logger
@@ -53,7 +52,6 @@ def add_config_to_checkmk(checkmk_config, config, url, title):
             print(f'could not add config {title} to cmk')
 
 def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
-    simple_htg = []
     cfields = {}
 
     for htg in host_tag_groups:
@@ -66,7 +64,7 @@ def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
                     raw_data = sot.select('location') \
                         .using('nb.devices') \
                         .where()
-                    if not 'set' in cfields:
+                    if 'set' not in cfields:
                         cfields = {'location': set()}
                     for cf_data in raw_data:
                         for key, value in cf_data.items():
@@ -90,7 +88,6 @@ def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
             for tag in htg.get('tags'):
                 # each tag contains ident and title
                 ident = tag.get('ident')
-                title = tag.get('title')
                 ident = ident.replace('sot__','')
                 for tag_property in ['cf_', 'prop__']:
                     if ident.startswith(tag_property):
@@ -155,7 +152,7 @@ if __name__ == "__main__":
                   url=check_mk_config['sot']['nautobot'])
     
     if args.add_default_folders:
-        add_folders(check_mk_config)
+        add_default_folders(check_mk_config)
     
     if args.add_host_groups:
         add_config_to_checkmk(check_mk_config,

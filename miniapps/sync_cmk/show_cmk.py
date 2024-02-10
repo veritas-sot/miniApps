@@ -2,7 +2,6 @@
 
 import argparse
 import urllib3
-import yaml
 import pprint
 import json
 import os
@@ -22,7 +21,7 @@ def show(sot, checkmk_config, args):
                           username=checkmk_config.get('check_mk',{}).get('username'),
                           password=checkmk_config.get('check_mk',{}).get('password'))
     if args.discovery:
-        response = cmk.get(url=f"/objects/discovery_run/bulk_discovery")
+        response = cmk.get(url='/objects/discovery_run/bulk_discovery')
         if response.status_code == 200:
             data = response.json()
             for i in data['extensions']['logs']['progress']:
@@ -32,9 +31,9 @@ def show(sot, checkmk_config, args):
         else:
             raise RuntimeError(pprint.pformat(response.json()))
     elif args.missing_devices:
-        parameter = {'name': ''}
-        sot_devicelist = sot.get.query(values=['hostname', 'primary_ip4','site','custom_fields'],
-                                       where=parameter)
+        sot_devicelist = sot.select('hostname, primary_ip4, location, custom_fields') \
+                            .using('nb.devices') \
+                            .where()
         cmk_devicelist = cmk.get_all_hosts()
         print(f'sot: {len(sot_devicelist)} cmk {len(cmk_devicelist)}')
         for device in sot_devicelist:
@@ -63,7 +62,7 @@ def show(sot, checkmk_config, args):
             use_value = True
             rules = 'inventory_if_rules'
         params={"ruleset_name": rules}
-        response = cmk.get(url=f"/domain-types/rule/collections/all", params=params)
+        response = cmk.get(url="/domain-types/rule/collections/all", params=params)
         if response.status_code == 200:
             if use_value:
                 data = response.json()['value']
@@ -105,7 +104,7 @@ def show(sot, checkmk_config, args):
             data = response.json()
             print(f'status {response.status_code} detail: {data["detail"]}')
     elif args.htg:
-        response = cmk.get(url=f"/domain-types/host_tag_group/collections/all")
+        response = cmk.get(url="/domain-types/host_tag_group/collections/all")
         if response.status_code == 200:
             data = response.json()['value']
             for i in data:
