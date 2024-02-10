@@ -96,6 +96,26 @@ files = [
 dev = ["freezegun (>=1.0,<2.0)", "pytest (>=6.0)", "pytest-cov"]
 
 [[package]]
+name = "boolean-parser"
+version = "0.1.4"
+description = "Package for parsing strings containing conditional boolean logic"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "boolean-parser-0.1.4.tar.gz", hash = "sha256:01d998687166bef8fcf47d5df567d6b9b23ac0ce33259ef46692e166f767ad58"},
+    {file = "boolean_parser-0.1.4-py2.py3-none-any.whl", hash = "sha256:50dc47c1d74ac5615dcc43e15478f50b88605faf3a4a9ca5f74c0828ab6bb5ce"},
+]
+
+[package.dependencies]
+pyparsing = ">=2.4"
+six = ">=1.16.0"
+sqlalchemy = ">=1.4.0"
+
+[package.extras]
+dev = ["factory-boy (>=2.12.0)", "ipython (>=7.13.0)", "pytest (>=5.4)", "pytest-cov (>=2.4.0)", "pytest-factoryboy (>=2.0.3)", "pytest-sugar (>=0.8.0)"]
+docs = ["Jinja2 (<3.1)", "Sphinx (>=1.8.0)", "sphinx-bootstrap-theme (>=0.4.12)", "sphinx-issues (>=1.2.0)"]
+
+[[package]]
 name = "certifi"
 version = "2023.11.17"
 description = "Python package for providing Mozilla's CA Bundle."
@@ -1374,6 +1394,20 @@ plugins = ["importlib-metadata"]
 windows-terminal = ["colorama (>=0.4.6)"]
 
 [[package]]
+name = "pyparsing"
+version = "3.1.1"
+description = "pyparsing module - Classes and methods to define and execute parsing grammars"
+optional = false
+python-versions = ">=3.6.8"
+files = [
+    {file = "pyparsing-3.1.1-py3-none-any.whl", hash = "sha256:32c7c0b711493c72ff18a981d24f28aaf9c1fb7ed5e9667c9e84e3db623bdbfb"},
+    {file = "pyparsing-3.1.1.tar.gz", hash = "sha256:ede28a1a32462f5a9705e07aea48001a08f7cf81a021585011deba701581a0db"},
+]
+
+[package.extras]
+diagrams = ["jinja2", "railroad-diagrams"]
+
+[[package]]
 name = "pysmi"
 version = "0.3.4"
 description = "SNMP SMI/MIB Parser"
@@ -2227,4 +2261,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "2b2fa8e2fc49a4e62289d72401a26a62eb2a925e24630e5b268c9166703679bb"
+content-hash = "70641ef027990bd7b66152270c024eb2b9ee56f290acc9879e4b24560c08949e"
