@@ -33,12 +33,11 @@ processed_devices = 0
 number_of_devices = 0
 
 class Worker(threading.Thread):
-    def __init__(self, threadnumber, sot, credentials, set_snmp_config, queue, *args, **kwargs):
+    def __init__(self, threadnumber, sot, credentials, queue, *args, **kwargs):
         self.thread_number = threadnumber
         self.queue = queue
         self.sot = sot
         self.credentials = credentials
-        self.set_snmp_config = set_snmp_config
         super().__init__(*args, **kwargs)
 
     def try_to_connect(self, auth, device, community=None, port=161):
@@ -82,7 +81,7 @@ class Worker(threading.Thread):
                 # logger.debug(' = '.join([x.prettyPrint() for x in varBind]))
             return True
 
-    def check_device(self, set_snmp_config, credentials, device):
+    def check_device(self, credentials, device):
         global number_of_devices
         global processed_devices
 
@@ -133,8 +132,7 @@ class Worker(threading.Thread):
             except Empty:
                 return
             # do whatever work you have to do on work
-            self.check_device(self.set_snmp_config, 
-                              self.credentials, 
+            self.check_device(self.credentials, 
                               device)
             self.queue.task_done()
 
