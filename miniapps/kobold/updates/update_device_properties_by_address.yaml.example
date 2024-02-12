@@ -3,7 +3,7 @@ update:
   - job: update_device_property
     description: Update device property by using the device IP address
     # get the host by its IP address
-    source:
+    devices:
       select: primary_ip4_for, name
       from: nb.ipaddresses
       where: prefix="192.168.1.0/24"

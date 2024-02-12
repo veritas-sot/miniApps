@@ -2,7 +2,7 @@
 update:
   - job: update_device_property
     description: Set device property
-    source:
+    devices:
       select: name
       from: nb.devices
       where: name__ic=local

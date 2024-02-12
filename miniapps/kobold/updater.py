@@ -1,11 +1,15 @@
 import csv
 import yaml
+import importlib
+
 from benedict import benedict
 from loguru import logger
 from openpyxl import load_workbook
 
 # veritas
+import veritas.plugin
 from veritas.tools import tools
+
 
 ####  bulk update
 
@@ -278,6 +282,8 @@ def run_task(args, sot, job, select, using, where):
             device_properties(sot, task, device_list, job.get('preprocessing'))
         if 'interface_property' in task:
             interface_properties(sot, task, device_list, job.get('preprocessing'))
+        if 'mode' in task and task['mode'] == 'advanced':
+            run_advanced_task(sot, task, device_list)
 
 def tag_management(sot, todo, task, device_list, preprocessing):
     scope = task.get('scope')
@@ -360,6 +366,69 @@ def get_device_name(device, preprocessing):
     else:
         return device.get('name')
 
+def run_advanced_task(sot, task, device_list):
+    package = task.get('plugin_dir')
+    subpackage = task.get('plugin')
+    call = task.get('call')
+    method_type = task.get('type')
+
+    if not package or not subpackage or not call:
+        logger.error('no package, ubpackage or call found')
+        return
+    
+    try:
+        importlib.import_module(f'{package}.{subpackage}')
+    except Exception as exc:
+        logger.critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
+
+    plugin = veritas.plugin.Plugin()
+    if 'autonomous' == method_type:
+        logger.debug('calling autonomous method {call}')
+        autonomous = plugin.get_kobold_plugin(call)
+        autonomous(sot=sot, arguments=task.get('arguments'), devices=device_list)
+    elif 'return_value' == method_type:
+        logger.debug(f'calling return_value method {call}')
+        return_value = plugin.get_kobold_plugin(call)
+        update = task.get('update')
+
+        #
+        # loop through device list and update property
+        #
+        for device_properties in device_list:
+            value = return_value(
+                sot=sot, 
+                arguments=task.get('arguments'), 
+                device_properties=device_properties)
+
+            #
+            # update entity
+            #
+            if 'device' in update:
+                # we need the ID or the name of the device
+                id = device_properties.get('id')
+                name = device_properties.get('name', device_properties.get('hostname'))
+                if not id and not name:
+                    logger.error('failed to update data; no name or id found')
+                    return None
+                # entity is for debugging purposes
+                entity = name if name else id
+
+                update_property = update.get('device')
+                logger.debug(f'setting {update_property} to {value} on {entity}')
+                if update_property.startswith('cf_'):
+                    logger.debug('updating custom_field')
+                    success = sot.device(name).update({
+                                'custom_fields': 
+                                {update_property.replace("cf_",''): value}
+                    })
+                else:
+                    success = sot.device(name).update({update_property: value})
+                if success:
+                    logger.info(f'successfully updated {update_property} on {entity}')
+                else:
+                    logger.error(f'failed to updated {update_property} on {entity}')
+                
+
 #### main
 
 def do_jobs_from_file(args, sot, updater_config):
@@ -380,9 +449,9 @@ def do_jobs_from_file(args, sot, updater_config):
         # addresses: primary_ip4_for, name
 
         # get select, using, and where
-        select = job.get('source',{}).get('select')
-        using =  job.get('source',{}).get('from')
-        where =  args.where if args.where else job.get('source',{}).get('where')
+        select = job.get('devices',{}).get('select')
+        using =  job.get('devices',{}).get('from')
+        where =  args.where if args.where else job.get('devices',{}).get('where')
         logger.debug(f'select={select} where={where} using={using}')
 
         # we do NOT want to update all devices

@@ -2,7 +2,7 @@
 update:
   - job: update_device_property
     description: Set device property
-    source:
+    devices:
       select: name, interfaces
       from: nb.devices
       where: name=lab-01.zz and interfaces_name=Loopback0

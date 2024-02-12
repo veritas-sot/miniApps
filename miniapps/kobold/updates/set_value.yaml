@@ -1,0 +1,23 @@
+---
+update:
+  - job: example of how to set a property
+    description: example of how to set a property
+    devices:
+      select: name
+      from: nb.devices
+      where: name=lab-04.local
+    tasks:
+      - mode: advanced
+        # plugin to import
+        plugin_dir: plugins
+        plugin: set_value_example
+        # call is the name of the registered method
+        call: return_value
+        # type can be autonomous, set_value
+        type: return_value
+        # which property to update (only if call: set_value)
+        update:
+          device: cf_net
+        # all arguments are passed to your method
+        arguments:
+          key: value
