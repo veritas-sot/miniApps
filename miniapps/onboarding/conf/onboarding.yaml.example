@@ -25,6 +25,17 @@ general:
       host: __logging_zeromq_host__
       port: __logging_zeromq_port__
 
+plugins:
+  configparser:
+    plugin_dir: __onboarding_plugins_configparser_dir__
+    plugin: __onboarding_plugins_configparser_plugin__
+  business_logic_device:
+    plugin_dir: __onboarding_plugins_business_logic_device_dir__
+    plugin: __onboarding_plugins_business_logic_device_plugin__
+  business_logic_interface:
+    plugin_dir: __onboarding_plugins_business_logic_interface_dir__
+    plugin: __onboarding_plugins_business_logic_interface_plugin__
+
 git:
   defaults:
     repo: __git_defaults_repo__

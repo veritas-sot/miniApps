@@ -7,16 +7,19 @@ import sys
 import json
 import urllib3
 import yaml
+import importlib
 from loguru import logger
 from ipaddress import IPv4Network
 from dotenv import load_dotenv
 
+# veritas
 import veritas.logging
+from veritas.onboarding import plugins
 from veritas.sot import sot
 from veritas.tools import tools
 from veritas.onboarding import onboarding as onb
-from businesslogic import your_device as onboarding_bl_device
-from businesslogic import your_interfaces as onboarding_bl_interfaces
+#from businesslogic import your_device as onboarding_bl_device
+#from businesslogic import your_interfaces as onboarding_bl_interfaces
 
 
 def export_config_and_facts(device_config, device_facts, directory_name):
@@ -128,6 +131,18 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
 
     return device_config, device_facts, platform
 
+def get_business_logic(logic, platform):
+    # we use our plugin architecture to use the right module
+    plugin = plugins.Plugin()
+    if logic == 'device':
+        return plugin.get_business_logic_device(platform)
+    elif logic == 'interface':
+        return plugin.get_business_logic_interface(platform)
+    elif logic == 'config_context':
+        return plugin.get_business_logic_config_context(platform)
+    else:
+        return None
+
 def onboard_device(sot, onboarding, args, device_facts, configparser, device_defaults, dry_run=False):
     """onboard new device to nautobot"""
 
@@ -168,32 +183,33 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
 
     # now onboard the device
     if args.onboarding:
-        # call the pre-processing business logic
+        #
+        # we use the plugin mechanism to call the business logic
+        #
+        # call the pre-processing business logic for the device
         logger.info('calling device pre-processing of business logic')
-        # this method modifies the device_defaults if needed (side effect!)
-        onboarding_bl_device.device_pre_processing(
-            sot, 
-            device_defaults, 
-            configparser, 
-            onboarding.get_onboarding_config())
+        #
+        # this method modifies the device_defaults if needed (side effect!!!)
+        #
+        bl_device = get_business_logic('device', device_defaults.get('platform'))
+        bl_device_obj = bl_device(configparser, device_facts)
+        bl_device_obj.pre_processing(device_defaults)
 
-        logger.info('getting device properties')
         # now get the device properties
         # the device properties depend on the default values of the device
-        # but must no be identical
+        logger.info('getting device properties')
         device_properties = onboarding.get_device_properties()
         if not device_properties:
             logger.error('failed getting device properties')
             return
 
-        # call the pre-processing business logic
+        # call the post-processing business logic for the device
         logger.info('calling device post-processing of business logic')
-        # this method mofifies the device_defaults if needed (side effect!)
-        onboarding_bl_device.device_post_processing(
-                        sot, 
-                        device_properties, 
-                        configparser, 
-                        onboarding.get_onboarding_config())
+        #
+        # this method mofifies the device_properties if needed (side effect!)
+        #
+        bl_device_obj.post_processing(device_properties)
+
         # get vlan properties
         if args.interfaces or args.primary_only:
             logger.info('getting VLAN properties')
@@ -221,12 +237,9 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
 
         # call the post-processing business logic
         logger.info('calling interface post-processing of business logic')
-        interfaces = onboarding_bl_interfaces.interfaces_post_processing(
-                            sot,
-                            interfaces,
-                            device_properties,
-                            configparser, 
-                            onboarding.get_onboarding_config())
+        bl_interface = get_business_logic('interface', device_defaults.get('platform'))
+        bl_interface_obj = bl_interface(device_properties, configparser)
+        interfaces = bl_interface_obj.post_processing(interfaces)
 
         # we have some internal attributes we have to remove
         if 'ip' in device_properties:
@@ -252,13 +265,26 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         # debugging output of all values
         logger.bind(extra='overview').debug(device_properties)
 
+        if dry_run:
+            print(f'summary of {device_fqdn}')
+            if not device_facts['is_in_sot']:
+                print(f'{device_fqdn} is a new host')
+            else:
+                print(f'{device_fqdn} found in SOT')
+            print('device_properties:')
+            print(json.dumps(device_properties, indent=4))
+            print('interfaces')
+            print(json.dumps(interfaces, indent=4))
+            print(f'The primary interface is {primary_interface.get("name")}')
+            return
+
         # we have all data we need to onboard the device
         # at this point the new device was NOT added to our SOT yet
         # we have either the primary interface or all interfaces and all vlans
         # now add device or update it
         # if the device is alredy in our SOT and arg.update is not set, the main
         # script has skipped this device
-        if not device_facts['is_in_sot'] and not dry_run:
+        if not device_facts['is_in_sot']:
             logger.debug('device not found in SOT; adding it')
             # add new device to SOT
             new_device = sot.onboarding \
@@ -313,8 +339,8 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                     if not found:
                         logger.info(f'adding new interface {interface_name}')                        
                         new_interfaces.append(interface)
-                # update device if not dry run
-                if len(new_interfaces) > 0 and not dry_run:
+                # update device 
+                if len(new_interfaces) > 0:
                     sot.onboarding.add_prefix(False) \
                                   .assign_ip(True) \
                                   .add_interfaces(device=new_device, interfaces=new_interfaces)
@@ -334,25 +360,21 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                     for nb_interface in all_interfaces:
                         if interface_name == nb_interface.display:
                             primary_interface_found = True
-                            if dry_run:
-                                logger.info(f'updated primary interface {interface_name}')
-                            else:
-                                sot.onboarding.add_prefix(False) \
-                                            .assign_ip(True) \
-                                            .update_interfaces(device=new_device, interfaces=interfaces)
-                                result = {'app': 'onboarding',
-                                'details': {
-                                    'entity': device_fqdn,
-                                    'message': f'updated primary interface {interface_name}'}
-                                }
-                                logger.bind(result=result).journal(f'updated primary interface {interface_name}')
-
-                    if not primary_interface_found and not dry_run:
-                        logger.info('no primary inteface found; seems to be a new one; adding it')
-                        if not dry_run:
                             sot.onboarding.add_prefix(False) \
-                                          .assign_ip(True) \
-                                          .add_interfaces(device=new_device, interfaces=interfaces)
+                                        .assign_ip(True) \
+                                        .update_interfaces(device=new_device, interfaces=interfaces)
+                            result = {'app': 'onboarding',
+                            'details': {
+                                'entity': device_fqdn,
+                                'message': f'updated primary interface {interface_name}'}
+                            }
+                            logger.bind(result=result).journal(f'updated primary interface {interface_name}')
+
+                    if not primary_interface_found:
+                        logger.info('no primary inteface found; seems to be a new one; adding it')
+                        sot.onboarding.add_prefix(False) \
+                                        .assign_ip(True) \
+                                        .add_interfaces(device=new_device, interfaces=interfaces)
 
             # maybe the primary IP has changed. Check it and update if necessary
             if new_device.primary_ip4:
@@ -363,8 +385,7 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
                 logger.info(f'the device {new_device.display} has no primary IP configured; setting it now')
             if current_primary_ip != primary_address:
                 logger.info(f'updating primary IP of device {new_device.display} from {current_primary_ip} to {primary_address}')
-                if not dry_run:
-                    sot.onboarding.set_primary_address(primary_address, new_device)
+                sot.onboarding.set_primary_address(primary_address, new_device)
 
     if args.tags:
         # if the onboarding part did not run we need the device_properties
@@ -394,6 +415,18 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
     #                                           configparser,
     #                                           device_defaults,
     #                                           onboarding_config)
+
+def import_plugins(onboarding_config):
+    # import plugins
+    plugins = onboarding_config.get('plugins')
+    for plugin in plugins:
+        package = plugins.get(plugin).get('plugin_dir')
+        subpackage = plugins.get(plugin).get('plugin')
+        logger.bind(extra='plugins').debug(f'importing {package}.{subpackage}')
+        try:
+            importlib.import_module(f'{package}.{subpackage}')
+        except Exception as exc:
+            logger.bind(extra='plugins').critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
 
 if __name__ == "__main__":
 
@@ -468,14 +501,11 @@ if __name__ == "__main__":
         os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
-    # create onboarding instance
-    onboarding = onb.Onboarding(profile=args.profile, 
-                                username=args.username, 
-                                password=args.password,
-                                tcp_port=args.port)
-
-    # get onboarding_config
-    onboarding_config = onboarding.get_onboarding_config()
+    # read config
+    onboarding_config = tools.get_miniapp_config('onboarding', BASEDIR, args.config)
+    if not onboarding_config:
+        print('unable to read config')
+        sys.exit()
 
     # create logger environment
     veritas.logging.create_logger_environment(
@@ -485,11 +515,43 @@ if __name__ == "__main__":
         app='onboarding',
         uuid=args.uuid)
 
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug('reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug('no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
+
+    # load profiles
+    profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
+
+    # get username and password either from profile
+    username, password = tools.get_username_and_password(
+        profile_config,
+        args.profile,
+        args.username,
+        args.password)
+
+    # import onboarding plugins
+    import_plugins(onboarding_config)
+
     # we need the SOT object to talk to it
     sot = sot.Sot(url=onboarding_config['sot']['nautobot'],
                   token=onboarding_config['sot']['token'],
                   ssl_verify=onboarding_config['sot'].get('ssl_verify', False),
                   debug=args.debug_veritas)
+
+    # create onboarding instance
+    onboarding = onb.Onboarding(
+        sot=sot,
+        onboarding_config=onboarding_config,
+        username=username, 
+        password=password,
+        tcp_port=args.port)
 
     # get defaults
     if args.defaults:
@@ -559,13 +621,19 @@ if __name__ == "__main__":
         export_directory = directory = "%s/%s" % (BASEDIR, onboarding_config.get('directories', {}).get('export','./export'))
         logger.info(f'processing host: {host_or_ip} hostname: {hostname} runs: {devices_processed}/{devices_overall}')
 
-        # we first check if the file exists (and the user wants to export the config/facts)
+        # first we check if the file exists (and the user wants to export the config/facts)
         # this makes the export faster
         if args.export:
             export_file = "%s/%s.conf" % (export_directory, hostname)
             if os.path.exists(export_file) and not args.update:
                 logger.debug(f'config for host {hostname} already exists in export directory')
                 continue
+
+        #
+        # get the hostname of the device
+        # we need the device name to import the config from a file
+        #
+
         try:
             # maybe the user has set a hostname instead of an address
             device_ip = socket.gethostbyname(host_or_ip)
@@ -593,7 +661,6 @@ if __name__ == "__main__":
         device_defaults = onboarding.get_device_defaults(host_or_ip, device_dict)
 
         # now we have all the device defaults
-        # logger.debug(f'device_defaults: {device_defaults}')
         # If 'ignore' is set, the device will not be processed.
         if device_defaults.get('ignore', False):
             logger.info(f'ignore set to true on {hostname}; skipping device')

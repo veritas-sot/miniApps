@@ -1,0 +1,12 @@
+{
+    "manufacturer": "cisco",
+    "os_version": "15.9(3)M6",
+    "software_image": "VIOS-ADVENTERPRISEK9-M",
+    "serial_number": [
+        "97VGL9IRBO8PNM491E8XX"
+    ],
+    "model": "IOSv",
+    "hostname": "lab",
+    "fqdn": "lab.local",
+    "args.device": "192.168.0.1"
+}
