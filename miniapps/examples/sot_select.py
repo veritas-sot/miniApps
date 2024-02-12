@@ -1,12 +1,26 @@
 #!/usr/bin/env python
 
-import logging
 import json
+import sys
+import veritas.logging
 from veritas.sot import sot as sot
 
 
-my_sot = sot.Sot(token="your_token", 
-                 url="http://ip_or_name:port")
+veritas.logging.create_logger_environment(
+    config={}, 
+    cfg_loglevel="TRACE",
+    cfg_loghandler=sys.stdout,
+    app='example',
+    uuid=None)
+
+my_sot = sot.Sot(token="__token__", 
+                 url="http://127.0.0.1:8080",
+                 ssl_verify=False,
+                 debug=True)
+
+# res = boolean_parser("x=1 and y=3")
+# res.logicop
+# print(res)
 
 # get id and hostname of a host
 # devices = my_sot.select('id, hostname') \
@@ -23,7 +37,12 @@ my_sot = sot.Sot(token="your_token",
 # get id and hostname of a list of hosts
 # devices = my_sot.select('id, hostname') \
 #                 .using('nb.devices') \
-#                 .where('name=["lab.local","switch.local"]')
+#                 .where('name=lab-02.local or name=lab-04.local')
+# print(devices)
+
+# devices = my_sot.select('id, hostname') \
+#              .using('nb.devices') \
+#              .where(name=['lab-02.local', 'lab-04.local'])
 # print(devices)
 
 # get all hosts of a location
@@ -35,7 +54,7 @@ my_sot = sot.Sot(token="your_token",
 # get all hosts of two locations
 # devices = my_sot.select('hostname') \
 #                 .using('nb.devices') \
-#                 .where('location=default-site or location=site_1')
+#                 .where('location=office or location=office')
 # print(devices)
 
 # get all hosts with a specific role
@@ -77,7 +96,13 @@ my_sot = sot.Sot(token="your_token",
 # get all prefixes within a specififc range
 # prefixes = my_sot.select(['prefix','description','vlan', 'location']) \
 #                 .using('nb.prefixes') \
-#                 .where('within_include=192.168.0.0/16')
+#                 .where('within_include=172.16.0.0/16')
+# print(prefixes)
+
+# get all prefixes within a specififc range and with a specific role
+# prefixes = my_sot.select(['prefix','description','vlan', 'location']) \
+#                 .using('nb.prefixes') \
+#                 .where('within_include="172.16.0.0/16" and role=prefix_role')
 # print(prefixes)
 
 # get ALL prefixes with description, vlan and location
@@ -86,8 +111,8 @@ my_sot = sot.Sot(token="your_token",
 #                 .where()
 # print(all_prefixe)
 
-# get id, hostname, and primary_ip of the host with IP=192.168.0.1
-# devices = my_sot.select('id, hostname, primary_ip4') \
+# get hostname, and primary_ip of the host with IP=192.168.0.1
+# devices = my_sot.select('address, primary_ip4_for') \
 #                 .using('nb.ipaddresses') \
 #                 .where('address=192.168.0.1')
 # print(json.dumps(devices, indent=4))
@@ -96,6 +121,12 @@ my_sot = sot.Sot(token="your_token",
 # devices = my_sot.select('id, hostname, primary_ip4') \
 #                 .using('nb.ipaddresses') \
 #                 .where('type__ic=host')
+# print(json.dumps(devices, indent=4))
+
+# get hostname, device_type, role and primary_ip of hosts within prefix 192.168.0.0/24
+# devices = my_sot.select('hostname, address, device_type, role, primary_ip4_for') \
+#                 .using('nb.ipaddresses') \
+#                 .where('prefix=192.168.0.0/24')
 # print(json.dumps(devices, indent=4))
 
 # get ALL vlans
