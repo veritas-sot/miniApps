@@ -2,27 +2,31 @@
 
 import sys
 import argparse
-from loguru import logger
 
 # veritas
 from veritas.journal import journal
 from veritas.tools import tools
 from veritas.logging import minimal_logger
+from veritas.cron import schedule
 
 # set import path to our script_bakery
 sys.path.append('../script_bakery')
 # and now import the backup script
 import compare_configs as compare
 
-
-def main():
+@schedule('every(1).days.at("22:06")', args={'args_list': ['--profile','default','--id','daily_compare']})
+def main(args_list=None):
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--id', type=str, default="daily_jobs", required=False, help="the key to get the uuid")
     parser.add_argument('--profile', type=str, required=True, help="profile to get login credentials")
     parser.add_argument('--loglevel', type=str, required=False, default="INFO", help="used loglevel")
 
-    args = parser.parse_args()
+    # parse arguments
+    if args_list:
+        args = parser.parse_args(args_list)
+    else:
+        args = parser.parse_args()
 
     minimal_logger(args.loglevel)
 
@@ -41,5 +45,5 @@ def main():
     compare_config(args=args)
 
 if __name__ == "__main__":
-    main()
+    main(['--profile','default'])
 
