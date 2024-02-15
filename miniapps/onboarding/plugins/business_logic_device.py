@@ -10,21 +10,20 @@ class BusinessLogic_Device(abc_bl_device.BusinessLogic_Device):
         logger.debug('initialiting interface business logic object')
 
     def pre_processing(sot, device_defaults):
-        #modify device_defaults
         logger.debug('pre_processing device business logic')
-        # device_fqdn = device_defaults.get('name')
 
+        #
         # example code to illustrate how to modify the device properties
+        #
 
-        # location has three digits like 001
-        # name = device_defaults.get('location',{}).get('name')
-        # if name is not None:
-        #     p = re.compile("^(?P<alpha>(k|K))(?P<digits>\d+)")
-        #     m = p.search(slug)
-        #     if m and len(m.group('digits')) < 3:
-        #         device_defaults['location']['name'] = "%s%03d" % (m.group('alpha'),
-        #                                                         int(m.group('digits')))
-
+        location has three digits like 001
+        name = device_defaults.get('location',{}).get('name')
+        if name is not None:
+            p = re.compile("^(?P<alpha>(k|K))(?P<digits>\d+)")
+            m = p.search(slug)
+            if m and len(m.group('digits')) < 3:
+                device_defaults['location']['name'] = "%s%03d" % (m.group('alpha'),
+                                                                int(m.group('digits')))
 
     def post_processing(sot, device_properties):
         logger.debug('post_processing device business logic')

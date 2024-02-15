@@ -86,7 +86,7 @@ def offline_onboarding(device_ip, device_defaults, onboarding_config):
         "serial_number": serial,
         "hostname": hostname,
         "fqdn": hostname,
-        "args.device": device_ip
+        "device_ip": device_ip
     }
 
     for key, value in offline_primary_interface.items():
@@ -177,8 +177,8 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         logger.info(f'primary address is {primary_address}')
     else:
         # no primary interface found. Get IP of the device
-        primary_address = socket.gethostbyname(device_facts['args.device'])
-        logger.info("no primary ip found using %s" % device_facts['args.device'])
+        primary_address = socket.gethostbyname(device_facts['device_ip'])
+        logger.info("no primary ip found using %s" % device_facts['device_ip'])
 
     # now onboard the device
     if args.onboarding:
