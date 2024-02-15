@@ -6,7 +6,6 @@ Onboarding
 
 Brief overview
 **************
-
 Using the onboarding app, you can onboard devices to nautobot fully automatically. 
 There are different ways to define the “inventory” to onboard. If you want to add 
 several devices - for example if you want to migrate from a commercial solution to an 
@@ -16,7 +15,6 @@ using the --device ip_address parameter.
 
 Basic Configuration
 *******************
-
 Before using the onboarding app, you have to configure it. veritas tries to find the onboarding.yaml 
 config file in this order:
 
@@ -30,12 +28,10 @@ Once it finds a configuration, the app reads the config and doesn't look any fur
 
 onboarding.yaml
 ===============
-
 At least you have to configure the sot (how to access nautobot), logging and where to find additional configs.
 
 nautobot access
 ---------------
-
 To access nautobot you have to configure the URL, the token and - if you want to - enable ssl_verify
 
 .. code-block:: yaml
@@ -97,7 +93,6 @@ where to find these configs.
 
 onboarding default values
 -------------------------
-
 When onboarding a device the app tries to determine the 'primary' interface. This does not 
 necessarily have to be the interface you used to log in. You can configure a list of 
 interfaces used by the app to determine the primary interface. It is important to note that 
@@ -133,7 +128,6 @@ If the inventory is a csv file you can configure how to read the content.
 
 offline onboarding
 ^^^^^^^^^^^^^^^^^^
-
 It is not always possible to login to a device. Onboarding still requires some default values, 
 which can be set in the 'offline_config' section. The devices are imported using these values.
 
@@ -152,7 +146,6 @@ which can be set in the 'offline_config' section. The devices are imported using
 
 miniApp config
 ==============
-
 In order to set further properties of the device during onboarding, several configurations are 
 read and processed.
 
@@ -168,7 +161,6 @@ Typically the structure of a directory tree looks something like this:
 
 additional values
 -----------------
-
 To add additional values add YAML-based configs to this directory. The onboarding app loads 
 these files and adds additional values.
 
@@ -176,7 +168,6 @@ Take a look at `add additional values`_ to find out what the exact configuration
 
 mappings
 --------
-
 If an Excel sheet is used as inventory, it may be that the column names do not match the names that need 
 to be used in nautobot. For this reason a mapping can be configured. The mapping is explained below. This
 config is about where to find the mapping file.
@@ -195,19 +186,28 @@ xxxx
 
 profile.yaml
 ============
-
-To login to your device you need a username and a password. This is called a profile. You can save your profile
-in your personal directory (./veritas/miniapps/onboarding/profile.yaml).
+To login to your device you need either a username and password or a public key. This data is stored in a profile.
+You can save your profile in your personal directory (./veritas/miniapps/onboarding/profile.yaml).
 
 .. code-block:: yaml
 
     ---
     profiles:
       default:
-          # username to login to devices
-          username: your_username
-          # encrypted and base64 encoded password
-          password: xxxxxxx==
+        # username to login to devices
+        username: your_username
+        # encrypted and base64 encoded password
+        password: xxxxxxx==
+      keylogin:
+        username: your_username
+        # the SSH key to use
+        ssh_key: _path_to_your_key_
+        # encrypted and base64 encoded passphrase
+        ssh_key_passphrase: _your_encrypted_sshkey_password_
+
+.. note::
+  'default' and 'keylogin' are both names that are used to identify the login!
+
 
 salt.yaml
 =========
@@ -225,7 +225,7 @@ To decrpt your password, we need the encryption key, mthe salt and the iteration
 
 .. note::
 
-    Do not use this method for your production system. 
+    Do not use this method for your production system. The salt is used to encryot the password and the sshkey passphrase!
 
 How to migrate
 **************
@@ -269,12 +269,10 @@ The onboarding process is as follows:
 
 Preparing the data
 ==================
-
 First we have to prepare the inventory data.
 
 Customize the inventory
 -----------------------
-
 If you have exported the inventory from the legacy system, it may still need to be customized. This can be done 
 with the help of a mapping. There are two main options.
 
@@ -308,7 +306,6 @@ The column mapping is done first. Then the value mapping is used.
 
 Setting the default values
 --------------------------
-
 The onboarding app reads the 'default values' from a file (see config in onboarding.yaml) to gather the 
 default values of a device. You can configure the default values as follows:
 
@@ -358,7 +355,6 @@ the device type 'firewall'.
 
 Add additional values (optional)
 --------------------------------
-
 You can add any additional values to the device. To do this, you must create a YAML cofig in 
 './additional_values/' (see `miniApp config`_.)
 
@@ -443,30 +439,82 @@ overwritten with the value 12345 and the custom field "net" is given the value "
 
 Customize Business Logic (Optional)
 -----------------------------------
+By writing a plugin, you can implement your own business logic. Have a look at the plugin directory 
+of the app. There you will find three files to serve as examples.
 
-The 'Business Logic' makes it possible to execute your own Python code. Put your code in the following directory:
+- business_logic_config_context.py
+- business_logic_device.py
+- business_logic_interface.py
+
+You can implement your own class or just use a single method to modify device data. To tell
+the onboarding app to use your business logic use a decorator.
+
+The following example shows how to implement the "Interface Business Logic". 
 
 .. code-block:: python
 
-    ./miniApps/
-      ./onboarding/
-        ./businesslogic/
+      from veritas.onboarding import plugins
 
+      class BusinessLogic_Interface(abc_bl_interface.BusinessLogic_Interface):
+          def __init__(self, device_properties, configparser):
+              logger.debug('initialiting interface business logic object')
 
-You can find three files there. Use these files as template to implement your business logic.
+          def post_processing(self, interfaces):
+              logger.debug('post processing interface business logic')
+              return interfaces
 
-* your_config_context.py
-* your_device.py
-* your_interfaces.py
+      @plugins.interface_business_logic('ios')
+      def post_processing(device_properties, configparser):
+          return BusinessLogic_Interface(device_properties, configparser)
 
-When a device is imported, these files are executed.
+To implement your "Device Business Logic" use 
+
+.. code-block:: python
+
+      from veritas.onboarding import plugins
+
+      class BusinessLogic_Device(abc_bl_device.BusinessLogic_Device):
+          def __init__(self, configparser, device_facts):
+              logger.debug('initialiting interface business logic object')
+
+          def pre_processing(sot, device_defaults):
+              logger.debug('pre_processing device business logic')
+              pass
+
+          def post_processing(sot, device_properties):
+              logger.debug('post_processing device business logic')
+              pass
+
+      @plugins.device_business_logic('ios')
+      def device_business_logic(configparser, device_facts):
+          return BusinessLogic_Device(configparser, device_facts)
+
+to implement the "Config Context Business Logic"
+
+.. code-block:: python
+
+      from veritas.onboarding import plugins
+
+      class BusinessLogic_ConfigContext(abc_bl_config_context.BusinessLogic_ConfigContext):
+          def __init__(self, device_properties, device_facts, interfaces, configparser):
+              logger.debug('initialiting config context business logic object')
+
+          def post_processing(self, config_context):
+              logger.debug('post processing config context business logic')
+
+      @plugins.config_context_business_logic('ios')
+      def post_processing(device_properties, device_facts, interfaces, configparser):
+          return BusinessLogic_ConfigContext(device_properties, device_facts, interfaces, configparser)
+
+.. note::
+
+    Each platform can have its own business logic. The three examples above refer to the "ios" platform.
 
 Onboarding
 ==========
 
 Export device configurations (optional)
 ---------------------------------------
-
 Depending on how often you have to run the "onboarding process" to import all devices, you should 
 export the configurations of the devices beforehand. This saves time because the app only has to 
 read the configurations from the hard disk in this case.
@@ -479,12 +527,10 @@ This command runs through the inventory list and exports the running config as w
 
 Adding devices to nautobot
 --------------------------
-
 There a several options to onboard devices:
 
 Onboarding using a file
 ^^^^^^^^^^^^^^^^^^^^^^^
-
 The onboarding app supports three different file types:
 
 - Excel (xlsx)
@@ -532,7 +578,6 @@ start the onboarding process for this device.
 
 Sarting the onboarding
 ^^^^^^^^^^^^^^^^^^^^^^
-
 The following output shows the possible arguments of the onboarding app:
 
 .. code-block:: shell
@@ -615,4 +660,57 @@ To onboard such devices use the inventory and set 'offline' to 'true'. You can e
 offline config or use 'none'. In this case a minimal coonfig is used to onboard the device.
 Of course you can add additional values to configure the devices.
 
+Extending onboarding - The plugin architecture
+**********************************************
+The onboarding plugin architecture allows you to extend the functionality of the app.
+To implement your own "get config and facts" method use the "@plugins.config_and_facts('platform')" decorator.
 
+.. code-block:: python
+
+    from veritas.onboarding import plugins
+
+    @plugins.config_and_facts('linux')
+    def get_device_config_and_facts(device_ip, device_defaults, profile, tcp_port=22, scrapli_loglevel='none'):
+        logger.debug('your code here')
+    
+        return device_config, device_facts
+
+To implement your own configuration parser use "@plugins.configparser('platform')". The 'platform' parameter 
+reflects the device's platform. Onboarding checks if the configured platform attribute of the device matches 
+your parameter.
+
+.. code-block:: python
+
+      from veritas.onboarding import plugins
+
+      class Linux(abstract_configparser.Configparser):
+
+          def __init__(self, config, platform):
+              # The configuration was retrieved from the "config_and_facst" plugin.
+              self._config = config
+              self._platform = platform
+
+              logger.debug('initialized config parser for platform linux')
+
+          def get_interface_ipaddress(self, interface):
+              pass
+
+          def get_interface_name_by_address(self, address):
+              pass
+
+          def get_interface(self, interface):
+              pass
+
+          def find_in_global(self, properties):
+              pass
+
+          def find_in_interfaces(self, properties):
+              pass
+
+          def get_fqdn(self):
+              pass
+
+      @plugins.configparser('linux')
+      def get_configparser(config, platform):
+          parser = Linux(config=config, platform=platform)
+          return parser
