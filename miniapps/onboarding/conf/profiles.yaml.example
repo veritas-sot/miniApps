@@ -10,3 +10,7 @@ profiles:
       username: __profile_username__
       # encrypted and base64 encoded password
       password: __profile_password__
+      # the SSH key to use
+      ssh_keyfile: __profile_ssh_keyfile__
+      # encrypted and base64 encoded passphrase
+      ssh_key_passphrase: __profile_ssh_passphrase__

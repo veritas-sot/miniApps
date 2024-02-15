@@ -14,12 +14,11 @@ from dotenv import load_dotenv
 
 # veritas
 import veritas.logging
+import veritas.profile
 from veritas.onboarding import plugins
 from veritas.sot import sot
 from veritas.tools import tools
 from veritas.onboarding import onboarding as onb
-#from businesslogic import your_device as onboarding_bl_device
-#from businesslogic import your_interfaces as onboarding_bl_interfaces
 
 
 def export_config_and_facts(device_config, device_facts, directory_name):
@@ -527,14 +526,14 @@ if __name__ == "__main__":
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # load profiles
-    profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
-
-    # get username and password either from profile
-    username, password = tools.get_username_and_password(
-        profile_config,
-        args.profile,
-        args.username,
-        args.password)
+    profile_config = tools.get_miniapp_config('onboarding', BASEDIR, 'profiles.yaml')
+    # save profile for later use
+    profile = veritas.profile.Profile(
+        profile_config=profile_config, 
+        profile_name=args.profile,
+        username=args.username,
+        password=args.password,
+        ssh_key=None)
 
     # import onboarding plugins
     import_plugins(onboarding_config)
@@ -549,8 +548,7 @@ if __name__ == "__main__":
     onboarding = onb.Onboarding(
         sot=sot,
         onboarding_config=onboarding_config,
-        username=username, 
-        password=password,
+        profile=profile,
         tcp_port=args.port)
 
     # get defaults
