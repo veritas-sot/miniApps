@@ -2,7 +2,6 @@
 
 import sys
 import argparse
-from loguru import logger
 
 # veritas
 from veritas.journal import journal
