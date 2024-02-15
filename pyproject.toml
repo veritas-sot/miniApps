@@ -17,6 +17,7 @@ pysnmp = "^4.4.12"
 xlsxwriter = "^3.1.9"
 icmplib = "^3.0.4"
 boolean-parser = "^0.1.4"
+python-crontab = "^3.0.0"
 
 [tool.poetry.group.dev.dependencies]
 myst-nb = "^1.0.0"
