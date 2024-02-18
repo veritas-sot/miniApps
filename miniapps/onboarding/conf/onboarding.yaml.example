@@ -36,9 +36,12 @@ plugins:
     plugin_dir: __onboarding_plugins_business_logic_interface_dir__
     plugin: __onboarding_plugins_business_logic_interface_plugin__
   # here you can add your own plugins
-  #linuxserver:
+  #linuxserver_get:
   #  plugin_dir: plugins
   #  plugin: linuxserver_config_and_facts
+  #linuxserver_parse:
+  #  plugin_dir: plugins
+  #  plugin: linuxserver_configparser
 
 git:
   defaults:
