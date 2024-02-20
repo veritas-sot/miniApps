@@ -344,6 +344,57 @@ To update an interface, look at this example:
 
 This sets the status of all interfaces to 'Active' whose device has the word local in its name.
 
+Write your own plugins to update device properties
+==================================================
+You can write your own plugins to update device properties. The plugin must be in the ./kobold/plugins directory.
+To use your plugin you have to add the path and the name of the plugin to the configuration file. 
+The configuration have the following structure:
+
+.. code-block:: yaml
+
+    ---
+    update:
+      - job: update_snmp_credentials
+        description: Checks whether the SNMP credentials are working and updates the snmp_credentials field.
+        devices:
+          select: name, primary_ip4, platform, cf_snmp_credentials
+          from: nb.devices
+          where: name=lab-04.local
+        tasks:
+          - mode: advanced
+            # plugin to import
+            plugin_dir: plugins
+            plugin: check_snmp
+            # call is the name of the registered method
+            call: check_snmp_credentials
+            # type can be autonomous, set_value
+            type: autonomous
+            # all arguments are passed to your method
+            arguments:
+              threads: 5
+              update: true
+              use: None
+              repo_name: sot_data
+              repo_apth: /Users/marc/Programming/veritas/veritasData/
+              repo_filename: defaults/credentials.yaml
+
+There are two types of plugins: autonomous and set_value. The first type is used when you want full control
+of your code. The second type is used when you want the kobold app to set a value to a property. In this case
+you have to return the value.
+
+To add the method part of the kobold app you have to add the following code to your plugin:
+
+.. code-block:: python
+
+    from veritas.plugin import kobold
+
+    @kobold("your_name_of_the_plugin") # check_snmp_credentials in the above example
+    def your_method(self, **kwargs):
+        # your code
+
+        # in case of type set_value
+        return "your_new_value"
+
 Transformer
 ***********
 To transform some device properties use the transform command.
@@ -361,7 +412,7 @@ To transform some device properties use the transform command.
         --template TEMPLATE  template to use to update value
         --dry-run            print updates only
         
-If you do not specify a job, all jobs in the file will be executed. The directory
+If you do not specify a job, all jobs will be executed. The directory
 ./kobold/transforms contains some examples. The structure of the configuration is 
 similar to that of the update.
 
@@ -377,14 +428,14 @@ similar to that of the update.
           named_groups:
             name: ^(?P<name>(.*))
         destination:
-          name: "__name@upper__"
+          name: "__name|upper__"
 
 To transform a property you have to specify a 'source' and a 'destination'. 
-On the one hand, the source specifies which devices are to be processed. On the other hand 
-the source contains a regular expression, to be more precise a named group. This named group is 
+Firstly, the source specifies which devices are to be processed. Furthermore the source contains a regular 
+expression, to be more precise a named group. This named group is 
 used to transform the destination value. In the example above the named group catches the device name and 
 saves this value in the variable 'name'. This variable and a modifier (eg. upper) is then used to 
-transform the property.
+transform the property. The variable and the modifier are separated by a pipe (|).
 
 Another example illustrates how to transform the location.
 

@@ -663,7 +663,41 @@ Of course you can add additional values to configure the devices.
 Extending onboarding - The plugin architecture
 **********************************************
 The onboarding plugin architecture allows you to extend the functionality of the app.
-To implement your own "get config and facts" method use the "@plugins.config_and_facts('platform')" decorator.
+
+.. list-table:: Onboarding Plugins and Decorators
+    :widths: 25 25 40
+    :header-rows: 1
+
+    * - Type
+      - Decorator
+      - Description
+    * - device configs and facts
+      - @plugins.config_and_facts('platform')
+      - Get the device configuration and facts
+    * - config parser
+      - @plugins.configparser('platform')
+      - Get the device configuration parser
+    * - offlline importer
+      - @plugins.offline_importer
+      - Import offline devices
+    * - device business logic
+      - @plugins.device_business_logic('platform')
+      - Modify device properties
+    * - interface business logic
+      - @plugins.interface_business_logic('platform')
+      - Modify interface properties
+    * - config context business logic
+      - @plugins.config_context_business_logic('platform')
+      - Modify config context properties
+    * - device properties
+      - @plugins.device_properties('platform')
+      - Add device properties to the device
+    * - interface properties
+      - @plugins.interface_properties('platform')
+      - Add interface properties to the device
+
+Thera re several abstract classed implemented. You can use these classes to implement your own logic.
+The following example illustrates how to implement your own "get config and facts" method.
 
 .. code-block:: python
 
@@ -714,3 +748,7 @@ your parameter.
       def get_configparser(config, platform):
           parser = Linux(config=config, platform=platform)
           return parser
+
+Whenever you have another platform you must implement your own logic. Even getting the dveice and interface
+properties may vary from platform to platform. So you have to implement your own "device_properties" and 
+"interface_properties" method.

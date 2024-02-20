@@ -11,3 +11,5 @@ The toolkit includes some Jupyter Notebooks
    jupyter_fast_onboarding.rst
    jupyter_argon.rst
    jupyter_authentication.rst
+   jupyter_examples.rst
+
