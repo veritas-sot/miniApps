@@ -230,8 +230,7 @@ def add_to_cron(args):
     job = cron.new(command=cmd, comment='added by veritas.scheduler')
 
     # set schedule
-    schedules = args.schedule.split(';')
-    for sched in schedules:
+    for sched in args.schedule:
         match = hour_every.match(sched)
         if match:
             every = match.group(1)
@@ -301,7 +300,7 @@ def main():
     parser_register.add_argument('--module', type=str, required=False, help="module of the job")
     parser_register.add_argument('--function', type=str, required=False, help="function of job to call")
     parser_register.add_argument('--args', type=str, required=False, help="additional arguments")
-    parser_register.add_argument('--schedule', type=str, required=False, help="when to schedule the job")
+    parser_register.add_argument('--schedule', type=str, required=False, nargs="*", help="when to schedule the job")
 
     # crontab
     parser_cron.add_argument('--job', type=str, required=True, help="filename of the job")
