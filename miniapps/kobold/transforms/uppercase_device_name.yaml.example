@@ -8,4 +8,4 @@ transform:
       named_groups:
         name: ^(?P<name>(.*))
     destination:
-      name: "__name@upper__"
+      name: "__name|upper__"

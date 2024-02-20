@@ -383,12 +383,18 @@ def run_advanced_task(sot, task, device_list):
 
     plugin = veritas.plugin.Plugin()
     if 'autonomous' == method_type:
-        logger.debug('calling autonomous method {call}')
+        logger.debug(f'calling autonomous method {call}')
         autonomous = plugin.get_kobold_plugin(call)
-        autonomous(sot=sot, arguments=task.get('arguments'), devices=device_list)
+        if callable(autonomous):
+            autonomous(sot=sot, arguments=task.get('arguments'), devices=device_list)
+        else:
+            logger.error(f'could not call autonomous method {call}')
     elif 'return_value' == method_type:
         logger.debug(f'calling return_value method {call}')
         return_value = plugin.get_kobold_plugin(call)
+        if not callable(return_value):
+            logger.error(f'could not call return_value method {call}')
+            return
         update = task.get('update')
 
         #

@@ -8,4 +8,4 @@ transform:
       named_groups:
         hostname: ^(?P<name>(.*))
     destination:
-      name: "__name@lower__"
+      name: "__name|lower__"

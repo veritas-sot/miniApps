@@ -1,0 +1,25 @@
+---
+update:
+  - job: set link of device
+    description: set link of device depending on the latency
+    devices:
+      select: name, primary_ip4, custom_field_data
+      from: nb.devices
+      where: name=lab-01.local
+    tasks:
+      - mode: advanced
+        # plugin to import
+        plugin_dir: plugins
+        plugin: set_link
+        # call is the name of the registered method
+        call: set_link
+        # type can be autonomous, set_value
+        type: autonomous
+        # all arguments are passed to your method
+        arguments:
+          custom_field: latency
+          update: true
+          latency:
+            lan: 10
+            wan: 20
+            sat: 100

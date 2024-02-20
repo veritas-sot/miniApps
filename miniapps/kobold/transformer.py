@@ -27,8 +27,8 @@ def run_simple_update(sot, config, template,
     """read config from file and update items depending on this config"""
 
     # the left part is the item the right part a modifier like upper or lower
-    modifier = re.compile("__(.*?)@(.*?)__")
-    zfill = re.compile("__(.*?)@zfill\((\d+)\)__")
+    modifier = re.compile("__(.*?)\|(.*?)__")
+    zfill = re.compile("__(.*?)\|zfill\((\d+)\)__")
     match_any_host = '^(?P<name>(.*))'
 
     # init vars
@@ -134,7 +134,7 @@ def run_simple_update(sot, config, template,
                 if match:
                     item = match.group(1)
                     fill = match.group(2)
-                    new_value = new_value.replace(f'__{group}@zfill({fill})__', group_val.zfill(int(fill)))
+                    new_value = new_value.replace(f'__{group}|zfill({fill})__', group_val.zfill(int(fill)))
 
                 match = modifier.match(new_value)
                 # at first check if we have to use a emplate
@@ -147,15 +147,15 @@ def run_simple_update(sot, config, template,
                     mod = match.group(2)
                     logger.bind(extra=extra).debug(f'item={item} modifier={mod}')
                     if 'upper' == mod:
-                        new_value = new_value.replace(f'__{group}@upper__', group_val.upper())
+                        new_value = new_value.replace(f'__{group}|upper__', group_val.upper())
                     elif 'lower' == mod:
-                        new_value = new_value.replace(f'__{group}@lower__', group_val.lower())
+                        new_value = new_value.replace(f'__{group}|lower__', group_val.lower())
                     elif 'title' == mod:
-                        new_value = new_value.replace(f'__{group}@title__', group_val.title())
+                        new_value = new_value.replace(f'__{group}|title__', group_val.title())
                     elif 'capwords' == mod:
-                        new_value = new_value.replace(f'__{group}@capwords__', group_val.capwords())
+                        new_value = new_value.replace(f'__{group}|capwords__', group_val.capwords())
                     elif 'camel':
-                        new_value = new_value.replace(f'__{group}@cammel__', camel(group_val))
+                        new_value = new_value.replace(f'__{group}|cammel__', camel(group_val))
                     else:
                         logger.error(f'unknown mod value {mod}')
                 # otherwise replace named groups in new_value
