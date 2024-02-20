@@ -26,6 +26,11 @@ general:
       port: __logging_zeromq_port__
 
 plugins:
+  # there is a default offline offline_importer
+  # you can implement your own and add the name to the list of plugins
+  offline_importer:
+    plugin_dir: plugins
+    plugin: offline_importer
   configparser:
     plugin_dir: __onboarding_plugins_configparser_dir__
     plugin: __onboarding_plugins_configparser_plugin__
