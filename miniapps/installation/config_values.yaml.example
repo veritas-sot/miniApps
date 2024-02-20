@@ -58,14 +58,14 @@ onboarding:
   default:
     interfaces: '["Loopback0", "Loopback100", "mgmt0"]'
   plugins:
-    configparser_dir: plugins
-    configparser_plugin: firewall_configparser
-    business_logic_device_dir: plugins
-    business_logic_device_plugin: business_logic_device
-    business_logic_interface_dir: plugins
-    business_logic_interface_plugin: business_logic_interface
-    business_logic_config_context_dir: plugins
-    business_logic_config_context_plugin: business_logic_config_context
+    configparser_dir: __your_plugin_dir__
+    configparser_plugin: __your_configparser__
+    business_logic_device_dir: __your_plugin_dir__
+    business_logic_device_plugin: __your_business_logic_device__
+    business_logic_interface_dir: __your_plugin_dir__
+    business_logic_interface_plugin: __your_business_logic_interface__
+    business_logic_config_context_dir: __your_plugin_dir__
+    business_logic_config_context_plugin: __your_business_logic_config_context__
 script_bakery:
   backup_dir: /tmp/backups
   git:
