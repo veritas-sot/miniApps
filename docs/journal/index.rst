@@ -168,13 +168,11 @@ be queried by any app.
 
 How to collect logs
 *******************
-
 Collecting logs is simple. The miniApp enables the messagebus which send the logs via rabbitmq to a dispatcher.
 The dispatcher collects the logs and writes them to the database.
 
 How to send logs
 """"""""""""""""
-
 There are two cases how to send logs to the dispacther. You can either enable the feature 'log_to_rabbitmq' in 
 your config or you can set 'log_uuid_to' to rabbitmq. The first option enables sending all logs to the dispatcher 
 whereas the second option enables the messagebus if a uuid was specified when starting the miniApp.
@@ -228,25 +226,24 @@ dispatcher and then written to the database.
 
 How to receive logs
 """""""""""""""""""
-
 The task of the 'dispatcher' is to receive the logs and write them to the database. A simple rabbitmq base 
-dispatcher can be found in './dispatcher/dispatcher_rabbitmq.py'
+dispatcher can be found in './dispatcher/dispatcher.py' precisely in the plugins subdirectory of the dispatcher file.
 
 .. code-block:: python
 
-    usage: dispatcher_rabbitmq.py [-h] [--config CONFIG] [--loglevel LOGLEVEL] 
-                                  [--loghandler LOGHANDLER] [--binding-keys BINDING_KEYS]
+    usage: dispatcher.py [-h] [--loglevel LOGLEVEL] [--loghandler LOGHANDLER] 
+                         [--binding-keys [BINDING_KEYS ...]] [--stdout]
 
     options:
     -h, --help            show this help message and exit
-    --config CONFIG       used config file
     --loglevel LOGLEVEL   used loglevel
     --loghandler LOGHANDLER
                             used log handler
-    --binding-keys BINDING_KEYS
+    --binding-keys [BINDING_KEYS ...]
                             which logs to dispatch
+    --stdout              write to stdout instead to database
 
-Bindingkeys is use to collect all (use '#') or only a part of the logs (eg. ). Look at the rbbitmq 
+The parameter binding-keys is used to collect all (use '#') or only a part of the logs (eg. "#.journal"). Look at the rbbitmq 
 documentation on how to configure binding keys.
 
 .. tip::
@@ -259,13 +256,12 @@ documentation on how to configure binding keys.
 
     .. code-block:: python
 
-        ./dispatcher_rabbitmq.py --binding-keys "#.journal"
+        ./dispatcher.py --binding-keys "#.journal"
 
     collects all logs with the log level 'journal'.
 
 How to visualize logs
 *********************
-
 Use the miniApp ./journal.py to habve a look at your journals
 
 .. code-block:: shell
