@@ -10,7 +10,10 @@ profiles:
       username: __profile_username__
       # encrypted and base64 encoded password
       password: __profile_password__
+  server:
+      # username to login to devices
+      username: __profile_server_username__
       # the SSH key to use
-      ssh_keyfile: __profile_ssh_keyfile__
+      ssh_keyfile: __profile_server_ssh_keyfile__
       # encrypted and base64 encoded passphrase
-      ssh_key_passphrase: __profile_ssh_passphrase__
+      ssh_key_passphrase: __profile_server_ssh_passphrase__
