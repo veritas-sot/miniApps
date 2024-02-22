@@ -12,6 +12,7 @@ from nornir_utils.plugins.tasks.files import write_file
 # veritas
 import veritas.logging
 import veritas.repo
+import veritas.profile
 from veritas.sot import sot as veritas_sot
 from veritas.tools import tools
 
@@ -20,7 +21,8 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
 
     dt = ""
     hostname = str(task.host)
-    # Task 1. get configs
+
+    # Task 1. get configs from device
     logger.bind(extra=hostname).info('getting config')
     response = task.run(
         name="get_config",
@@ -47,7 +49,7 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
     if startup_config.startswith('Using '):
         startup_config = startup_config.split('\n',1)[1]
 
-    # Task 2. Write startup config
+    # Task 2. Write startup config to file
     logger.bind(extra=hostname).info(f'writing startup_config to {path}')
     task.run(
         name="write_startup_config",
@@ -56,7 +58,7 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
         filename=f'{prefix}.startup.cfg'
     )
 
-    # Task 3. Write running config
+    # Task 3. Write running config to file
     logger.bind(extra=hostname).info(f'writing running_config to {path}')
     task.run(
         name="write_running_config",
@@ -66,9 +68,6 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
     )
 
 def main(args_list=None):
-
-    username = None
-    password = None
 
     parser = argparse.ArgumentParser()
 
@@ -131,26 +130,29 @@ def main(args_list=None):
         load_dotenv(os.path.join(BASEDIR, '.env'))
     else:
         logger.debug('no .env file found; trying to read local crypto parameter')
-        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        crypt_parameter = tools.get_miniapp_config('script_bakery', BASEDIR, "salt.yaml")
+        if not crypt_parameter:
+            logger.error('no .env file found and no salt.yaml file found')
+            return
         os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
         os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # load profiles
     profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
-
-    # get username and password either from profile
-    username, password = tools.get_username_and_password(
-        profile_config,
-        args.profile,
-        args.username,
-        args.password)
+    # save profile for later use
+    profile = veritas.profile.Profile(
+        profile_config=profile_config, 
+        profile_name=args.profile,
+        username=args.username,
+        password=args.password,
+        ssh_key=None)
 
     if args.backup_dir:
         backup_dir = args.backup_dir
         path_to_repo = backup_dir
     else:
-        path_to_repo = local_config_file.get('git',{}).get('backups',{}).get('path',{})
+        path_to_repo = local_config_file.get('git',{}).get('backup',{}).get('path',{})
         backup_dir = f'{path_to_repo}'
 
     logger.debug(f'backup_dir={backup_dir}')
@@ -158,10 +160,10 @@ def main(args_list=None):
     if not os.path.exists(backup_dir):
         logger.error(f'backup directory {backup_dir} does not exsists')
         return
-    
+
     # init nornir
     nr = sot.job.on(args.devices) \
-        .set(username=username, password=password, result='result', parse=False) \
+        .set(profile=profile, result='result', parse=False) \
         .init_nornir()
 
     result = nr.run(
@@ -182,7 +184,7 @@ def main(args_list=None):
         }
         logger.bind(extra=host, result=result).journal(f'backup of {host} failed: {overall_failed}')
 
-    if args.no_git or not local_config_file.get('git',{}).get('backups',{}).get('enabled', True):
+    if args.no_git or not local_config_file.get('git',{}).get('backup',{}).get('enabled', True):
         result={'app': 'backup_configs',
                 'details': {
                   'entity': 'git',
@@ -192,17 +194,27 @@ def main(args_list=None):
         return
 
     # now add all files to git staging
-    name_of_repo = local_config_file.get('git',{}).get('backups',{}).get('repo',{})
-    remote = local_config_file.get('git',{}).get('backups',{}).get('remote',{})
-    logger.bind(extra="git").debug(f'add files to repo {name_of_repo} / {path_to_repo}')
+    name_of_repo = local_config_file.get('git',{}).get('backup',{}).get('repo',{})
+    remote = local_config_file.get('git',{}).get('backup',{}).get('remote',{})
+    logger.bind(extra="git").debug(f'add files to repo={name_of_repo} path={path_to_repo}')
     logger.bind(extra="git").debug(f'remote is set to {remote}')
-    repo = veritas.repo.Repository(repo=name_of_repo, path=path_to_repo)
+    try:
+        repo = veritas.repo.Repository(repo=name_of_repo, path=path_to_repo)
+    except Exception as exc:
+        logger.error(f'could not initialize git repo; got exception {exc}')
+        result = {'app': 'backup_configs',
+                  'details': {
+                    'entity': 'git',
+                    'message': 'could not initialize git repo'}
+                 }
+        logger.bind(extra="git", result=result).journal('could not initialize git repo')
+        return
 
     # check that the origin matches
     if repo.remotes.origin.url != remote:
         logger.error('configured origin does not match')
         logger.error(f'{repo.remotes.origin.url} (configured)')
-        logger.error(f'{remote} (should be)')
+        logger.error(f'{remote} (configured in your YAML config)')
         return
 
     logger.debug(f'using origin url {remote}')
