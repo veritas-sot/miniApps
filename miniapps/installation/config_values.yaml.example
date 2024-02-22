@@ -84,3 +84,6 @@ sync_cmk:
   checkmk_username: automation
 smokeping:
   config_path: __your_smokeping_config_path__
+dispatcher:
+  plugin_dir: plugins
+  plugin: dispatcher_rabbitmq
