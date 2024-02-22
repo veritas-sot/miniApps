@@ -29,9 +29,10 @@ credentials:
     path: __git_snmp_credentials_path__
     filename: __git_snmp_credentials_filename__
 git:
-  backups:
+  backup:
     enabled: __git_backup_enabled__
     repo: __git_backup_repo__
+    remote: __git_backup_remote__
     path: __git_backup_path__
 
 # the next sections contain example values only
