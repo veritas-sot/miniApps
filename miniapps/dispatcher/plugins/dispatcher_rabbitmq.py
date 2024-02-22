@@ -1,26 +1,57 @@
-#!/usr/bin/env python
-
-import sys
-import pika
 import json
 import psycopg2
+import pika
 from psycopg2.extensions import AsIs
-import argparse
-import os
 from loguru import logger
-from veritas.tools import tools
+
+# veritas
+from veritas import plugin
+from . import abstract_dispatcher
 
 
-class Dispatcher():
+class Dispatcher(abstract_dispatcher.Dispatcher):
 
-    def __init__(self, database=None):
-        """init veritas dispatcher"""
+    def __init__(self, config):
+        """init dispatcher"""
 
-        # database
-        self._database = database
+        # set config for later use
+        self._config = config
+
+        # set database
+        self._database = config.get('database', {})
         self._db_connection = None
         self._cursor = None
+
+    def set_args(self, parser):
+        parser.add_argument('--binding-keys', type=str, default="#", nargs="*", required=False, help="which logs to dispatch")
+        parser.add_argument('--stdout', action='store_true', required=False, help="write to stdout instead to database")
+
+    def start(self, args):
+        """start dispatcher"""
+        self._to_stdout = args.stdout
+
+        logger.debug('connecting to database')
         self._connect_to_db()
+
+        logger.debug('connecting to rabbitmq')
+        self._binding_keys = args.binding_keys if args.binding_keys else ['#']
+
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        channel = connection.channel()
+
+        channel.exchange_declare(exchange='veritas_logs', exchange_type='topic')
+        result = channel.queue_declare('', exclusive=True)
+        queue_name = result.method.queue
+
+        for binding_key in self._binding_keys:
+            logger.debug(f'binding channel on {binding_key}')
+            channel.queue_bind(exchange='veritas_logs', queue=queue_name, routing_key=binding_key)
+
+        logger.info('starting rabbitmq consumer')
+        channel.basic_consume(
+            queue=queue_name, on_message_callback=self.get_message, auto_ack=True)
+
+        channel.start_consuming()
 
     def _connect_to_db(self):
         """connet to database"""
@@ -103,49 +134,15 @@ class Dispatcher():
         except Exception as exc:
             logger.error(f'failed to load {body}; got exception {exc}')
             return
-        self.record_to_database(routing_key, record)
+        if self._to_stdout:
+            print(json.dumps(record, indent=4))
+        else:
+            self.record_to_database(routing_key, record)
 
+@plugin.register('dispatcher')
+def dispatch(config):
+    """dispatch logs to database"""
 
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-
-    # the user can enter a different config file
-    parser.add_argument('--config', type=str, default='dispatcher.yaml', required=False, help="used config file")
-    # set the log level and handler
-    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
-    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-    parser.add_argument('--binding-keys', type=str, default="#", required=False, help="which logs to dispatch")
-
-    # parse arguments
-    args = parser.parse_args()
-
-    # Get the path to the directory this file is in
-    BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
-    # read config
-    dispatcher_config = tools.get_miniapp_config('dispatcher', BASEDIR, args.config)
-    if not dispatcher_config:
-        print('unable to read config')
-        sys.exit()
-
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-    channel = connection.channel()
-
-    channel.exchange_declare(exchange='veritas_logs', exchange_type='topic')
-    result = channel.queue_declare('', exclusive=True)
-    queue_name = result.method.queue
-
-    binding_keys = args.binding_keys.split(',')
-
-    for binding_key in binding_keys:
-        logger.debug(f'binding channel on {binding_key}')
-        channel.queue_bind(exchange='veritas_logs', queue=queue_name, routing_key=binding_key)
-
-    dispatcher = Dispatcher(database=dispatcher_config.get('database'))
-
-    logger.info('starting rabbitmq consumer')
-    channel.basic_consume(
-        queue=queue_name, on_message_callback=dispatcher.get_message, auto_ack=True)
-
-    channel.start_consuming()
+    logger.info('dispatching logs to database or stdout')
+    dispatcher = Dispatcher(config)
+    return dispatcher

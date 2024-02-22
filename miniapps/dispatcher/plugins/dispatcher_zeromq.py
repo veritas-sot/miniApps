@@ -8,20 +8,56 @@ import argparse
 import os
 import json
 from loguru import logger
+
+# veritas
 from veritas.tools import tools
+from . import abstract_dispatcher
+
+# veritas
+from veritas import plugin
 
 
-class Dispatcher():
+class Dispatcher(abstract_dispatcher.Dispatcher):
 
-    def __init__(self, database=None):
+    def __init__(self, config):
         """init veritas dispatcher"""
 
+        self._config = config
+
         # database
-        self._database = database
+        self._database = config.get('database', {})
         self._db_connection = None
         self._cursor = None
+        logger.debug('connecting to database')
         self._connect_to_db()
 
+    def set_args(self, parser):
+        pass
+
+    def start(self, args):
+        zmq_protocol = self._config.get('zeromq',{}).get('protocol','tcp')
+        zmq_host = self._config.get('zeromq',{}).get('host','127.0.0.1')
+        zmq_port = self._config.get('zeromq',{}).get('port','12345')
+
+        zmq_bind = f'{zmq_protocol}://{zmq_host}:{zmq_port}'
+        socket = zmq.Context().socket(zmq.SUB)
+        socket.bind(zmq_bind)
+        socket.subscribe("")
+
+        logger.info(f'starting zeromq consumer on {zmq_bind}')
+        while True:
+            _, message = socket.recv_multipart()
+            print(message)
+            # logger.debug(f'got message')
+            # try:
+            #     msg_decoded = message.decode("utf8").strip()
+            #     msg_json = json.loads(msg_decoded)
+            #     record = msg_json.get('record')
+            #     dispatcher.record_to_database(record=record)
+            # except Exception as exc:
+            #     print('error')
+            #     # logger.error(f'could not decode messagr {message}')
+            
     def _connect_to_db(self):
         """connet to database"""
         logger.debug('connect to database')
@@ -119,25 +155,10 @@ if __name__ == "__main__":
         print('unable to read config')
         sys.exit()
 
-    zmq_protocol = dispatcher_config.get('zeromq',{}).get('protocol','tcp')
-    zmq_host = dispatcher_config.get('zeromq',{}).get('host','127.0.0.1')
-    zmq_port = dispatcher_config.get('zeromq',{}).get('port','12345')
+@plugin.register('dispatcher')
+def dispatch(config):
+    """dispatch logs to database"""
 
-    zmq_bind = f'{zmq_protocol}://{zmq_host}:{zmq_port}'
-    socket = zmq.Context().socket(zmq.SUB)
-    socket.bind(zmq_bind)
-    socket.subscribe("")
-    dispatcher = Dispatcher(database=dispatcher_config.get('database'))
-
-    while True:
-        _, message = socket.recv_multipart()
-        print(message)
-        # logger.debug(f'got message')
-        # try:
-        #     msg_decoded = message.decode("utf8").strip()
-        #     msg_json = json.loads(msg_decoded)
-        #     record = msg_json.get('record')
-        #     dispatcher.record_to_database(record=record)
-        # except Exception as exc:
-        #     print('error')
-        #     # logger.error(f'could not decode messagr {message}')
+    logger.info('dispatching logs to database')
+    dispatcher = Dispatcher(config)
+    return dispatcher

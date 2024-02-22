@@ -19,6 +19,9 @@ general:
       protocol: __logging_zeromq_protocol__
       host: __logging_zeromq_host__
       port: __logging_zeromq_port__
+dispatcher:
+  plugin_dir: __dispatcher_plugin_dir__
+  plugin: __dispatcher_plugin__
 database:
   # these values almost always match the 'logging' values.
   host: __logging_database_host__
