@@ -9,6 +9,11 @@ profile:
   encryptionkey: __encryptionkey__
   salt: __secretsalt__
   iterations: 400000
+  # server is a profile name!!!
+  server:
+    username: __your_username_for_profile_server__
+    ssh_keyfile: __your_keyfile_for_profile_server__
+    ssh_passphrase: __your_keyfile_passphrase_for_profile_server__
 git:
   app_config:
     repo: sot_data
@@ -71,6 +76,7 @@ script_bakery:
   git:
     backup:
       enabled: True
+      remote: __your_remote__
 sync_cmk:
   checkmk_password: __your_password__
   checkmk_site: cmk

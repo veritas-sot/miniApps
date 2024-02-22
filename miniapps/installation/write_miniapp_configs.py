@@ -9,7 +9,7 @@ from benedict import benedict
 
 
 miniapps = ['onboarding','kobold','script_bakery','scan_prefixes',
-            'check_and_set', 'check_inventory', 'scheduler',
+            'check_inventory', 'scheduler',
             'sync_cmk','sync_phpipam','sync_smokeping','dispatcher',
             'nachtwaechter', 'library_importer']
 profiles = ['onboarding','kobold','script_bakery', 'nachtwaechter']
@@ -24,7 +24,6 @@ veritas_config_basepath = f'{HOMEDIR}/.veritas/miniapps/'
 def replace_placeholders(app, app_config, config):
     app_config = app_config.replace('__username__', config['profile']['username'])
     app_config = app_config.replace('__password__', config['profile']['password'])
-    
     # app specific config
     if app in config:
         flatten_config = config[app].flatten(separator="_")
