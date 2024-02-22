@@ -11,7 +11,6 @@ There are two versions: a runnable python script and a jupyter notebook.
 
 Basic configuration of the apps
 *******************************
-
 To create the config, you first have to add your values to config_values.yaml
 
 .. code-block:: yaml
