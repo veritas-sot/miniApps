@@ -30,7 +30,7 @@ def add_new_hosts(args, sot, checkmk_config):
                           password=checkmk_config.get('check_mk',{}).get('password'))
 
     all_cmk_devices = cmk.get_all_hosts()
-    all_sot_devices = sot.select('hostname', 'primary_ip4','location','custom_field_data') \
+    all_sot_devices = sot.select('hostname, primary_ip4, location, custom_field_data') \
                          .using('nb.devices') \
                          .where(args.devices)
 
@@ -88,7 +88,7 @@ def remove_hosts(args, sot, checkmk_config):
                           password=checkmk_config.get('check_mk',{}).get('password'))
 
     all_cmk_devices = cmk.get_all_hosts()
-    all_sot_devices = sot.select('hostname', 'primary_ip4','location','custom_field_data') \
+    all_sot_devices = sot.select('hostname, primary_ip4, location, custom_field_data') \
                          .using('nb.devices') \
                          .where(args.devices)
 
@@ -120,7 +120,7 @@ def update_hosts(args, sot, checkmk_config):
                           password=checkmk_config.get('check_mk',{}).get('password'))
 
     all_cmk_devices = cmk.get_all_hosts()
-    all_sot_devices = sot.select('hostname', 'primary_ip4','location','custom_field_data') \
+    all_sot_devices = sot.select('hostname, primary_ip4, location, custom_field_data') \
                          .using('nb.devices') \
                          .where(args.devices)
 

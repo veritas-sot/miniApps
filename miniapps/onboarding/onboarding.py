@@ -405,6 +405,9 @@ if __name__ == "__main__":
     else:
         logger.debug('no .env file found; trying to read local crypto parameter')
         crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        if not crypt_parameter:
+            logger.error('no .env file and no salt.yaml file found')
+            sys.exit()
         os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
         os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
@@ -462,7 +465,7 @@ if __name__ == "__main__":
 
     # add inventory from SOT
     if args.sot:
-        sot_devicelist = sot.select('id', 'name', 'primary_ip4', 'platform') \
+        sot_devicelist = sot.select('id, name, primary_ip4, platform') \
                             .using('nb.devices') \
                             .where(args.sot)
 

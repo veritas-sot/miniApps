@@ -71,7 +71,7 @@ def add_host_tag_groups(sot, checkmk_config, host_tag_groups):
                             if key == 'name':
                                 cfields['location'].add(value)
                 if ident.startswith('cf_'):
-                    raw_data = sot.select('hostname', 'custom_fields') \
+                    raw_data = sot.select('hostname, custom_fields') \
                         .using('nb.devices') \
                         .where()
                     for cf_data in raw_data:

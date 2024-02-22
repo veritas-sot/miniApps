@@ -139,7 +139,7 @@ def main(args_list=None):
         username = None
         password = None
 
-    sot_devicelist = sot.select('name', 'primary_ip4', 'device_type', 'platform') \
+    sot_devicelist = sot.select('name, primary_ip4, device_type, platform') \
                         .using('nb.devices') \
                         .where(args.devices)
     
@@ -150,7 +150,15 @@ def main(args_list=None):
 
     for device in sot_devicelist:
         hostname = device.get('name')
-        ip = device.get('primary_ip4',{}).get('address').split('/')[0]
+        primary_ip4 = device.get('primary_ip4',{})
+        if not primary_ip4:
+            logger.bind(extra=hostname).warning(f'no ip address for {hostname}')
+            continue
+        else:
+            ip = primary_ip4.get('address').split('/')[0]
+        if 'platform' in device and device['platform'] is None:
+            logger.bind(extra=hostname).warning(f'no platform for {hostname}')
+            continue
         platform = device.get('platform',{}).get('name')
         manufacturer = device.get('device_type',{}).get('manufacturer',{}).get('name','cisco')
 
