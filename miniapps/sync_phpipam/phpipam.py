@@ -1,7 +1,5 @@
-import json
 import phpypam
 from loguru import logger
-from pynautobot import api
 from phpypam.core.exceptions import PHPyPAMEntityNotFoundException, PHPyPAMException
 from ipaddress import IPv4Network
 
@@ -59,7 +57,7 @@ class Phpipam(object):
     def get_section(self, name):
         try:
             return self._pi.get_entity(controller=f'sections/{name}', controller_path='/')
-        except Exception as exc:
+        except Exception:
             return None
 
     def get_prefixe(self, prefix):
@@ -80,7 +78,7 @@ class Phpipam(object):
                                  'description': subnet['description'],
                                  'section_id': subnet['sectionId'],
                                  'master_subnet_id': subnet['masterSubnetId']}
-        except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+        except (PHPyPAMEntityNotFoundException, PHPyPAMException):
             logger.info(f'no subnets for prefix {prefix} found; looking into details now')
             supernet = IPv4Network(prefix, strict=False)
             try:
@@ -96,7 +94,7 @@ class Phpipam(object):
                                          'description': subnet['description'],
                                          'section_id': subnet['sectionId'],
                                          'master_subnet_id': subnet['masterSubnetId']}
-            except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+            except (PHPyPAMEntityNotFoundException, PHPyPAMException):
                 logger.info("no subnets found for %s" % prefix)
         return subnets
 
@@ -108,7 +106,7 @@ class Phpipam(object):
         # get all sections
         try:
             all_folders = self._pi.get_entity(controller='folders', controller_path='/')
-        except Exception as exc:
+        except Exception:
             return {}, {}, {}
         if all_folders is not None:
             for folder in all_folders:
@@ -185,7 +183,7 @@ class Phpipam(object):
             network_id = network[0]['id']
             logger.debug(f'found network; id {network_id}')
             return network_id
-        except PHPyPAMEntityNotFoundException as exc:
+        except PHPyPAMEntityNotFoundException:
             return None
 
     def add_section(self, name, description, parent, permissions):
@@ -272,7 +270,7 @@ class Phpipam(object):
                 # subnet and mask cannnot be 'updated'
                 del my_subnet['subnet']
                 del my_subnet['mask']
-                response = self._pi.update_entity(controller='subnets', controller_path=id, data=my_subnet)
+                self._pi.update_entity(controller='subnets', controller_path=id, data=my_subnet)
                 return True
         except PHPyPAMEntityNotFoundException:
             try:
@@ -330,7 +328,7 @@ class Phpipam(object):
         try:
             entity = self._pi.get_entity(controller='subnets', controller_path=f'/cidr/{prefix}')
             subnet_id = int(entity[0]['id'])
-        except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+        except (PHPyPAMEntityNotFoundException, PHPyPAMException):
             logger.error(f'unknown prefix {prefix}')
             return False
 
@@ -351,7 +349,7 @@ class Phpipam(object):
                 del my_addr['subnetId']
                 self._pi.update_entity(controller='addresses', controller_path=id, data=my_addr)
                 return True
-        except (PHPyPAMEntityNotFoundException, PHPyPAMException) as exc:
+        except (PHPyPAMEntityNotFoundException, PHPyPAMException):
             logger.debug(f'address {addr} not found')
 
         # new address; add it to phpipam
