@@ -1,0 +1,22 @@
+---
+general:
+  # we need the cf_snmp_credential value
+  sot:
+    select: cf_snmp_credentials
+  load:
+    files:
+      # load the list of SNMP credentials
+      # the credentials can be accessed by the task.host['credentials']
+      credentials: ./host_vars/snmp_credentials.yaml
+    # load the running config
+    running_config:
+      load: true
+      sections:
+        - snmp-server
+  hooks:
+    plugins:
+      - snmp_handling
+    # we add variables to the list of host_vars
+    preprocessing: preprocessing
+    # and we add commands to remove the old global SNMP configuration
+    postprocessing: postprocessing

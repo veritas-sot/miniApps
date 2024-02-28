@@ -1,0 +1,3 @@
+snmp-server group {{ snmp["security_group"] }} v3 auth
+snmp-server group {{ snmp["security_group"] }} v3 auth context vlan- match prefix
+snmp-server user {{ snmp["security_name"] }} {{ snmp["security_group"] }} v3 auth {{ snmp["auth_protocol"] }} {{ snmp["auth_password"] }} priv {{ snmp["privacy_protocol"]}} {{ snmp["privacy_password"]}}

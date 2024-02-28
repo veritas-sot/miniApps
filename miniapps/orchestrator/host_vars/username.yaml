@@ -1,0 +1,20 @@
+---
+general:
+  load:
+    running_config:
+      load: true
+      sections:
+        - username
+  hooks:
+    plugins:
+      - username_handling
+    # we add no username commands to the list of commands to be executed
+    postprocessing: postprocessing
+aaa: 
+  users:
+    - username: lab
+      privilege: 15
+      secret: lab
+    - username: user
+      privilege: 15
+      secret: xxx
