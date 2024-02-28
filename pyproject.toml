@@ -18,6 +18,8 @@ xlsxwriter = "^3.1.9"
 icmplib = "^3.0.4"
 boolean-parser = "^0.1.4"
 python-crontab = "^3.0.0"
+nornir-scrapli = "^2024.1.30"
+nornir-jinja2 = "^0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 myst-nb = "^1.0.0"
