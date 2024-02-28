@@ -147,11 +147,12 @@ class Orchestrator():
     def load_hooks(self, task:Task):
         host_vars = task.host['vars']
         hooks = host_vars.get('general',{}).get('hooks')
-        plugins = hooks.get('plugins',[])
-        # load all plugins
-        for plugin in plugins:
-            logger.bind(extra="hooks").debug(f'loading plugin plugins.{plugin}')
-            self.load_plugin('plugins',plugin)
+        if hooks:
+            plugins = hooks.get('plugins',[])
+            # load all plugins
+            for plugin in plugins:
+                logger.bind(extra="hooks").debug(f'loading plugin plugins.{plugin}')
+                self.load_plugin('plugins',plugin)
 
     def run_preprocessing(self, task:Task):
         host_vars = task.host['vars']
@@ -159,7 +160,7 @@ class Orchestrator():
         # run preprocessing plugin
         # the user can mofify the host_vars eg. scanning the running config and set
         # additional host_vars
-        hooks = host_vars.get('general',{}).get('hooks')
+        hooks = host_vars.get('general',{}).get('hooks',{})
         if hooks.get('preprocessing',False):
             call = hooks.get('preprocessing')
             logger.bind(extra="cfg device").debug(f'running plugin {call}')
@@ -168,18 +169,24 @@ class Orchestrator():
             host_vars = task.host['vars']
 
     def render_template(self, task:Task, template, path):
-        host_vars = task.host['vars']
+        host_vars = task.host.get('vars',{})
         logger.bind(extra="render tmpl").debug(f'rendering template {template} for {task.host}')
-        config_template = task.run(task=template_file, template=template, path=path, **host_vars)
-        rendered_config = config_template.result
-        task.host['commands'] = rendered_config.split('\n')
+        variables = dict(host_vars)
+        variables.update(task.host.data)
+        try:
+            config_template = task.run(task=template_file, template=template, path=path, **variables)
+            rendered_config = config_template.result
+            task.host['commands'] = rendered_config.split('\n')
+        except Exception as exc:
+            logger.bind(extra="render tmpl").error(f'could not render template {template} for {task.host}; got exception {exc}')
+            task.host['commands'] = []
 
     def run_postprocessing(self, task:Task):
         host_vars = task.host['vars']
 
         # run postprocessing plugin
         # the user can mofify the the commands
-        hooks = host_vars.get('general',{}).get('hooks')
+        hooks = host_vars.get('general',{}).get('hooks',{})
         if hooks.get('postprocessing',False):
             call = hooks.get('postprocessing')
             logger.bind(extra="cfg device").debug(f'running plugin {call}')
@@ -188,11 +195,10 @@ class Orchestrator():
 
     def configure_device(self, task:Task, dry_run=False):
         commands = task.host['commands']
-        
         if dry_run:
             logger.bind(extra="cfg device").info('dry run, no changes will be made')
             logger.bind(extra="cfg device").info(f'commands: {commands}')
-        else:
+        elif len(commands) > 0:
             logger.bind(extra="cfg device").info(f'configuring {task.host}')
             task.run(task=self.send_commands_to_device, commands=commands, configure_device=True)
 

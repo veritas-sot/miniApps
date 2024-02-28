@@ -14,28 +14,25 @@ from veritas.sot import sot as veritas_sot
 from veritas.tools import tools
 import orchestrator_class as orchestrator
 
-def show_hosts(task, oc):
-    task.run(
-        name="show_hosts",
-        task=oc.show_hosts
-    )
 
 def configure_device(task, oc, host_vars, template, path, dry_run):
-    task.run(
-        name="load_vars",
-        task=oc.load_vars,
-        host_vars=host_vars,
-    )
 
-    task.run(
-        name="load_hooks",
-        task=oc.load_hooks,
-    )
+    if host_vars:
+        task.run(
+            name="load_vars",
+            task=oc.load_vars,
+            host_vars=host_vars,
+        )
 
-    task.run(
-        name="run_preprocessing",
-        task=oc.run_preprocessing,
-    )
+        task.run(
+            name="load_hooks",
+            task=oc.load_hooks,
+        )
+
+        task.run(
+            name="run_preprocessing",
+            task=oc.run_preprocessing,
+        )
 
     task.run(
         name="render_template",
@@ -44,10 +41,11 @@ def configure_device(task, oc, host_vars, template, path, dry_run):
         path=path,
     )
 
-    task.run(
-        name="run_postprocessing",
-        task=oc.run_postprocessing,
-    )
+    if host_vars:
+        task.run(
+            name="run_postprocessing",
+            task=oc.run_postprocessing,
+        )
 
     task.run(
         name="configure_device",
@@ -65,6 +63,7 @@ def main(args_list=None):
 
     # init variables
     additional_select = []
+    host_vars = None
 
     parser = argparse.ArgumentParser()
 
@@ -105,7 +104,7 @@ def main(args_list=None):
                                  help="directory to save config to")
 
     # configure devices using templates
-    parser_configure.add_argument('--vars', type=str, required=True, help="host variables to use")
+    parser_configure.add_argument('--vars', type=str, required=False, help="host variables to use")
     parser_configure.add_argument('--path', type=str, default="./templates", required=False, 
                                   help="path where to find templates")
     parser_configure.add_argument('--template', type=str, required=True, help="template to use")
@@ -177,13 +176,15 @@ def main(args_list=None):
     oc = orchestrator.Orchestrator()
 
     # load host variables
-    if 'vars' in args:
+    if 'vars' in args and args.vars:
         logger.debug(f'loading host variables from {args.vars}')
         host_vars = oc.load_yaml_file(args.vars)
 
         # check if we have to add some select variable to the host_vars
         if host_vars.get('general',{}).get('sot',{}).get('select',[]):
             additional_select = host_vars['general']['sot']['select']
+            if isinstance(additional_select, str):
+                additional_select = [additional_select]
             logger.debug(f'additional select: {additional_select}')
 
     groups = {'net': {'data': {'key': 'value'} }}
@@ -196,9 +197,6 @@ def main(args_list=None):
     # debug inventory
     logger.debug(f'inventory: {nr.inventory.hosts}')
     logger.debug(f'groups: {nr.inventory.groups}')
-
-    # print(nr.inventory.hosts['lab.local'].dict())
-    # print(nr.inventory.groups['net'].items())
 
     if args.command == "download":
         results = nr.run(

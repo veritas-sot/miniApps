@@ -1,0 +1,5 @@
+---
+general:
+  # we need the config_context to configure the NTP servers
+  sot:
+    select: config_context
