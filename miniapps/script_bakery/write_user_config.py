@@ -2,23 +2,21 @@
 
 import argparse
 import os
-import yaml
 import sys
-import json
 import re
-import time
-import getpass
 from loguru import logger
-from dotenv import load_dotenv, dotenv_values
-from nornir_inspect import nornir_inspect
+from dotenv import load_dotenv
 from nornir.core.task import Task, Result
+from nornir_inspect import nornir_inspect
 from nornir_napalm.plugins.tasks import napalm_get
-from nornir_scrapli.tasks import send_configs
-from nornir_netmiko.tasks import netmiko_save_config, netmiko_send_config
+from nornir_netmiko.tasks import netmiko_save_config
 
+# veritas
 import veritas.logging
+import veritas.profile
 from veritas.sot import sot as veritas_sot
 from veritas.tools import tools
+from veritas.configparser import cisco_configparser as veritas_configparser
 
 
 def netmiko_remove_and_add_user(task, new_users, removed_users):
@@ -34,7 +32,8 @@ def netmiko_remove_and_add_user(task, new_users, removed_users):
     output += net_connect.exit_config_mode()
     return output
 
-def write_user_config(task: Task) -> Result:
+def write_user_config(task: Task, sot:veritas_sot.Sot, remove_old_config:bool=False, 
+                      new_users:list=[], dry_run:bool=False) -> Result:
 
     hostname = task.host
     # first of all: get current running config
@@ -45,17 +44,15 @@ def write_user_config(task: Task) -> Result:
     device_config = response[0].result.get('config',{}).get('running')
     
     # now parse the config
-    configparser = sot.configparser(config=device_config, platform='ios')
-    if configparser.could_not_parse():
-        return None
+    configparser = veritas_configparser.Configparser(config=device_config, platform='ios')
 
-    running_config_raw = configparser.get(output_format='json')
-    running_config = json.loads(running_config_raw)
+    #running_config_raw = configparser.get(output_format='json')
+    #running_config = json.loads(running_config_raw)
     new_config = []
     removed_users = []
 
     # do we have to remove the old config
-    if args.remove_old_config:
+    if remove_old_config:
         for cmd in configparser.get_section('username '):
             # we are removing all users BUT those we have to add
             match = re.search('username (\w+) .*', cmd)
@@ -64,23 +61,23 @@ def write_user_config(task: Task) -> Result:
             if any(d['username'] ==  existing_username for d in new_users):
                 logger.debug(f'user {existing_username} found in config')
             else:
-                if args.dry_run:
+                if not dry_run:
                     removed_users.append('no ' + cmd)
-        if len(removed_users) > 0 and not args.dry_run:
+        if len(removed_users) > 0 and not dry_run:
             logger.info(f'removing old User config of {hostname}')
-        elif args.dry_run:
-            print(f'removing old user config')
-            print(f'sending {removed_users}')
+        elif dry_run:
+            print('removing old user config')
+            print('sending {removed_users}')
 
     # now add new users
     for user in new_users:
         new_config.append(f'username {user["username"]} privilege {user["privilege"]} secret {user["secret"]}')
 
-    if args.dry_run:
+    if dry_run:
         print(f'sending new user config to {hostname}')
         for line in new_config:
             print(line)
-    elif len(new_config) > 0 and not args.dry_run:
+    elif len(new_config) > 0 and not dry_run:
         logger.debug(f'sending {new_config}')
         response = task.run(
             task=netmiko_remove_and_add_user, 
@@ -88,7 +85,7 @@ def write_user_config(task: Task) -> Result:
             removed_users=removed_users
         )
 
-    if (args.remove_old_config) and not args.dry_run:
+    if remove_old_config and not dry_run:
         logger.debug(f'saving config on device {hostname}')
         # write config
         response = task.run(
@@ -97,10 +94,6 @@ def write_user_config(task: Task) -> Result:
         )
 
 def main(args_list=None):
-
-    devices = []
-    username = None
-    password = None
 
     parser = argparse.ArgumentParser()
 
@@ -111,14 +104,19 @@ def main(args_list=None):
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
-
     parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
-    # which config and what to do
-    parser.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
-    parser.add_argument('--remove-old-config', action='store_true', help="Remove old User config")
-    parser.add_argument('--force', action='store_true', help="Add config even if problem may occure")
+
     # what devices
     parser.add_argument('--devices', type=str, required=True, help="query to get list of devices")
+    # which users
+    parser.add_argument('--new-users', type=str, required=True, help="filename that comtains new users")
+    
+    # which config and what to do
+    parser.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
+    parser.add_argument('--show-inspect', action='store_true', help="show nornir inspection")
+    parser.add_argument('--remove-old-config', action='store_true', help="Remove old User config")
+    parser.add_argument('--force', action='store_true', help="Add config even if problem may occure")
+
     # we need username and password if the config is retrieved by the device
     # credentials can be configured using a profile
     # have a look at the config file
@@ -134,65 +132,83 @@ def main(args_list=None):
     else:
         args = parser.parse_args()
 
+    if not args.profile and not args.username:
+        sys.exit('no profile or username given')
+
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
-
-    # check if .env file exists and read it
-    if os.path.isfile(os.path.join(BASEDIR, '.env')):
-        logger.debug(f'reading .env file')
-        load_dotenv(os.path.join(BASEDIR, '.env'))
-    else:
-        logger.debug(f'no .env file found; trying to read local crypto parameter')
-        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
-        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
-        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
-        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # read config
     local_config_file = tools.get_miniapp_config('script_bakery', BASEDIR, args.config)
     if not local_config_file:
         print('unable to read config')
-        sys.exit()
+        return
 
     # create logger environment
     veritas.logging.create_logger_environment(
         config=local_config_file, 
         cfg_loglevel=args.loglevel,
         cfg_loghandler=args.loghandler,
-        app='write_user_config',
+        app='backup_configs',
         uuid=args.uuid)
 
     # we need the SOT object to talk to the SOT
+    # if you want to see more debug messages of the lib set 
+    # debug to True
     sot = veritas_sot.Sot(token=local_config_file['sot']['token'], 
                           url=local_config_file['sot']['nautobot'],
-                          ssl_verify=local_config_file['sot'].get('ssl_verify', False))
+                          ssl_verify=local_config_file['sot'].get('ssl_verify', False),
+                          debug=False)
+
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug('reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug('no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('script_bakery', BASEDIR, "salt.yaml")
+        if not crypt_parameter:
+            logger.error('no .env file found and no salt.yaml file found')
+            return
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # load profiles
     profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
+    # save profile for later use
+    profile = veritas.profile.Profile(
+        profile_config=profile_config, 
+        profile_name=args.profile,
+        username=args.username,
+        password=args.password,
+        ssh_key=None)
 
-    # get username and password either from profile
-    username, password = tools.get_username_and_password(
-        profile_config,
-        args.profile,
-        args.username,
-        args.password)
-
-    # read new user config
-    new_users = local_config_file.get('users')
-    if not new_users:
-        logger.error(f'found no users, giving up')
-        sys.exit()
+    # read new user config from file
+    new_users = []
+    with open(args.new_users) as f:
+        for line in f:
+            if line.startswith('#') or len(line) == 0:
+                continue
+            (username, privilege, secret) = line.split()
+            new_users.append({'username': username, 'privilege': privilege, 'secret': secret})
 
     # init nornir
     nr = sot.job.on(args.devices) \
-        .set(username=username, password=password, result='result', parse=False) \
+        .set(profile=profile, result='result', parse=False) \
         .init_nornir()
 
     result = nr.run(
-            name="write_user_config", task=write_user_config
+            name="write_user_config", 
+            task=write_user_config,
+            sot=sot,
+            dry_run=args.dry_run,
+            new_users=new_users,
+            remove_old_config=args.remove_old_config
     )
 
-    #nornir_inspect(result)
+    if args.show_inspect:
+        nornir_inspect(result)
 
 if __name__ == "__main__":
     """main entry point
