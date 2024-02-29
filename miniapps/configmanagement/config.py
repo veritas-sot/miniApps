@@ -3,40 +3,42 @@
 import argparse
 import os
 import sys
+import json
 from loguru import logger
 from dotenv import load_dotenv
 from nornir_utils.plugins.functions import print_result
+from nornir_salt.plugins.functions import TabulateFormatter, ResultSerializer
 
 # veritas
 import veritas.logging
 import veritas.profile
 from veritas.sot import sot as veritas_sot
 from veritas.tools import tools
-import orchestrator_class as orchestrator
+import configmanagement_class as configmanagement
 
 
-def configure_device(task, oc, host_vars, template, path, dry_run):
+def deploy_configs(task, cm, host_vars, template, path, dry_run):
 
     if host_vars:
         task.run(
             name="load_vars",
-            task=oc.load_vars,
+            task=cm.load_vars,
             host_vars=host_vars,
         )
 
         task.run(
             name="load_hooks",
-            task=oc.load_hooks,
+            task=cm.load_hooks,
         )
 
         task.run(
             name="run_preprocessing",
-            task=oc.run_preprocessing,
+            task=cm.run_preprocessing,
         )
 
     task.run(
         name="render_template",
-        task=oc.render_template,
+        task=cm.render_template,
         template=template,
         path=path,
     )
@@ -44,19 +46,19 @@ def configure_device(task, oc, host_vars, template, path, dry_run):
     if host_vars:
         task.run(
             name="run_postprocessing",
-            task=oc.run_postprocessing,
+            task=cm.run_postprocessing,
         )
 
     task.run(
         name="configure_device",
-        task=oc.configure_device,
+        task=cm.configure_device,
         dry_run=dry_run
     )
 
     if not dry_run:
         task.run(
             name="write_config",
-            task=oc.write_config
+            task=cm.write_config
         )
 
 def main(args_list=None):
@@ -93,22 +95,23 @@ def main(args_list=None):
 
     # add subparsers
     subparsers = parser.add_subparsers(dest='command')
-    parser_download = subparsers.add_parser('download', help='download device configs')
-    parser_configure = subparsers.add_parser('configure', help='configure devices using templates')
+    parser_get = subparsers.add_parser('get', help='download device configs')
+    parser_deploy = subparsers.add_parser('deploy', help='configure devices using templates')
     parser_replace = subparsers.add_parser('replace', help='replace existing config on device with new config')
 
-    # download device configs
-    parser_download.add_argument('--type', type=str, default="running", required=False, 
-                                 help="which type of config to download")
-    parser_download.add_argument('--directory', type=str, default="configs", required=False, 
+    # get configs
+    parser_get.add_argument('--running', action='store_true', help="get running config")
+    parser_get.add_argument('--startup', action='store_true', help="get startup config")
+    parser_get.add_argument('--set-timestamp', action='store_true', help="set timestamp in filename")
+    parser_get.add_argument('--directory', type=str, default="configs", required=False, 
                                  help="directory to save config to")
 
-    # configure devices using templates
-    parser_configure.add_argument('--vars', type=str, required=False, help="host variables to use")
-    parser_configure.add_argument('--path', type=str, default="./templates", required=False, 
+    # deploy devices using templates
+    parser_deploy.add_argument('--vars', type=str, required=False, help="host variables to use")
+    parser_deploy.add_argument('--path', type=str, default="./templates", required=False, 
                                   help="path where to find templates")
-    parser_configure.add_argument('--template', type=str, required=True, help="template to use")
-    parser_configure.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
+    parser_deploy.add_argument('--template', type=str, required=True, help="template to use")
+    parser_deploy.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
 
     # replace existing config on device with new config
     parser_replace.add_argument('--directory', type=str, default="configs", required=False, 
@@ -173,12 +176,12 @@ def main(args_list=None):
         ssh_key=None)
 
     # the orchestrator object to start the tasks
-    oc = orchestrator.Orchestrator()
+    cm = configmanagement.ConfigManagement()
 
     # load host variables
     if 'vars' in args and args.vars:
         logger.debug(f'loading host variables from {args.vars}')
-        host_vars = oc.load_yaml_file(args.vars)
+        host_vars = cm.load_yaml_file(args.vars)
 
         # check if we have to add some select variable to the host_vars
         if host_vars.get('general',{}).get('sot',{}).get('select',[]):
@@ -198,31 +201,42 @@ def main(args_list=None):
     logger.debug(f'inventory: {nr.inventory.hosts}')
     logger.debug(f'groups: {nr.inventory.groups}')
 
-    if args.command == "download":
+    if args.command == "get":
+        config_type = []
+        if args.running:
+            config_type.append('running')
+        if args.startup:
+            config_type.append('startup')
         results = nr.run(
             name="download_config", 
-            task=oc.download_config,
+            task=cm.download_config,
             path=args.directory,
-            config_type=args.type, 
+            config_type=",".join(config_type),
+            set_timestamp=args.set_timestamp
         )
+        result_dictionary = ResultSerializer(results, add_details=True)
+        print(json.dumps(result_dictionary, indent=4))
     elif args.command == "replace":
         results = nr.run(
                 name="replace_config", 
-                task=oc.replace_config,
+                task=cm.replace_config,
                 path=args.directory 
         )
         print_result(results)
-    elif args.command == "configure":
+    elif args.command == "deploy":
         results = nr.run(
-            name="configure_device", 
-            task=configure_device,
-            oc=oc,
+            name="deploy_configs", 
+            task=deploy_configs,
+            cm=cm,
             host_vars=host_vars,
             template=args.template,
             path=args.path,
             dry_run=args.dry_run
         )
-        #print_result(results)
+        # print_result(results)
+        print(TabulateFormatter(results))
+        # result_dictionary = ResultSerializer(results, add_details=True)
+        # print(json.dumps(result_dictionary, indent=4))
 
 if __name__ == "__main__":
     """main entry point

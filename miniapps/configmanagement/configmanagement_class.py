@@ -1,8 +1,8 @@
 from loguru import logger
 import importlib
 import veritas.plugin
-import datetime
 import yaml
+from datetime import datetime
 from nornir.core.task import Task, Result
 from nornir_utils.plugins.tasks.data import load_yaml
 from nornir_utils.plugins.tasks.files import write_file
@@ -15,7 +15,7 @@ from nornir_netmiko.tasks import netmiko_save_config
 from veritas.configparser import cisco_configparser as configparser
 
 
-class Orchestrator():
+class ConfigManagement():
     def __init__(self):
         pass
 
@@ -48,7 +48,8 @@ class Orchestrator():
 
     # tasks
 
-    def download_config(self, task:Task, path, config_type, set_timestamp=False):
+    def download_config(self, task:Task, path:str, config_type:str = "running", 
+                        set_timestamp:bool=False):
 
         dt = ""
         hostname = str(task.host)
@@ -59,7 +60,8 @@ class Orchestrator():
             name="get_config",
             task=napalm_get, getters=['config'], retrieve="all"
         )
-        config = response[0].result.get('config',{}).get(config_type)
+        running_config = response[0].result.get('config',{}).get('running')
+        startup_config = response[0].result.get('config',{}).get('startup')
 
         # get current date and time
         if set_timestamp:
@@ -71,20 +73,30 @@ class Orchestrator():
 
         # modify startup config
         # on some cisco switches the startup config begins with Using xx out of yy bytes
-        if config_type == "startup" and config.startswith('Using '):
-            config = config.split('\n',1)[1]
+        if startup_config and startup_config.startswith('Using '):
+            startup_config = startup_config.split('\n',1)[1]
 
         # replace ^C with etx(03)
-        config = config.replace('^C', "\x03")
+        running_config = running_config.replace('^C', "\x03")
+        startup_config = startup_config.replace('^C', "\x03")
 
         # Task 2. Write running config to file
-        logger.bind(extra=hostname).info(f'writing config to {path}')
-        task.run(
-            name="write_config",
-            task=write_file,
-            content=config,
-            filename=f'{prefix}.cfg'
-        )
+        if 'running' in config_type:
+            logger.bind(extra=hostname).info(f'writing running config to {path}')
+            task.run(
+                name="write_running_config",
+                task=write_file,
+                content=running_config,
+                filename=f'{prefix}.running.cfg'
+            )
+        if 'startup' in config_type:
+            logger.bind(extra=hostname).info(f'writing startup config to {path}')
+            task.run(
+                name="write_startup_config",
+                task=write_file,
+                content=startup_config,
+                filename=f'{prefix}.startup.cfg'
+            )
 
     def send_commands_to_device(self, task:Task, commands, configure_device=False):
         result = []
@@ -143,6 +155,8 @@ class Orchestrator():
             for section in load.get('sections',[]):
                 cfg = parsed_config.get_section(section)
                 task.host['vars']['current_config'][section] = cfg
+
+        return Result(host=task.host, changed=False, failed=False, result="loaded")
 
     def load_hooks(self, task:Task):
         host_vars = task.host['vars']
