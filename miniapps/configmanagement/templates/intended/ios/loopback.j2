@@ -1,0 +1,4 @@
+{% import "./ios/helper/description.j2" as description -%}
+{% import "./ios/helper/ipaddr.j2" as ipaddr -%}
+{{ description.description(interface,config_context) }}
+{{ ipaddr.address(interface,config_context) }}

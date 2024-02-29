@@ -1,0 +1,37 @@
+{% include './ios/services.j2' %}
+
+{% include './ios/hostname.j2' %}
+
+{% include './ios/secrets.j2' %}
+
+{% include './ios/aaa.j2' %}
+
+no coap http enable
+
+no ip source-route
+ip routing
+ip multicast-routing
+
+no ip domain lookup
+ip domain name DOMAIN
+
+vtp mode transparent
+udld enable
+
+{% include './ios/netflow_device_config.j2' %}
+
+{% include './ios/stp.j2' %}
+
+{% include './ios/ip_services.j2' %}
+
+{% include './ios/ntp.j2' %}
+
+{% include './ios/interfaces.j2' %}
+
+{% include './ios/ospf.j2' %}
+
+{% if 'additional' in config_context %}
+{% for config in config_context["additional"] %}
+ {{ config["config"] }}
+{% endfor %}
+{% endif %}

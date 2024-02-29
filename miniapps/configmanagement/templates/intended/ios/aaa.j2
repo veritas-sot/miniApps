@@ -1,0 +1,21 @@
+{% if "aaa" in config_context -%}
+aaa new-model
+
+aaa group server tacacs+ {{ config_context["aaa"]["tacgroup"] }}
+  server name {{ config_context["aaa"]["server"] }}
+  ip tacacs source-interface {{ config_context["aaa"]["source"] }}
+
+aaa authentication password-prompt {{ config_context["aaa"]["passwordprompt"] }}
+aaa authentication username-prompt {{ config_context["aaa"]["usernameprompt"] }}
+aaa authentication login default group {{ config_context["aaa"]["tacgroup"] }} local
+aaa authentication enable default group {{ config_context["aaa"]["tacgroup"] }} enable
+aaa authorization console
+aaa authorization exec default group {{ config_context["aaa"]["tacgroup"] }}local
+aaa authorization commands 15 default group {{ config_context["aaa"]["tacgroup"] }} local
+aaa accounting exec default start-stop group {{ config_context["aaa"]["tacgroup"] }}
+aaa accounting commands 1 default start-stop group {{ config_context["aaa"]["tacgroup"] }}
+aaa accounting commands 3 default start-stop group {{ config_context["aaa"]["tacgroup"] }}
+aaa accounting commands 15 default start-stop group {{ config_context["aaa"]["tacgroup"] }}
+
+aaa session-id common
+{%- endif %}

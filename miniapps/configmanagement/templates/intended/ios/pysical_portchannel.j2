@@ -1,0 +1,20 @@
+{% import "./ios/helper/description.j2" as description %}
+{% import "./ios/helper/ipaddr.j2" as ipaddr %}
+{% import "./ios/helper/tagged_port.j2" as tagged %}
+{% import "./ios/helper/access_port.j2" as access %}
+{% import "./ios/helper/l3_port.j2" as l3 %}
+{% import "./ios/helper/channel_group.j2" as channel %}
+{% import "./ios/helper/netflow_interface_config.j2" as netflow %}
+{% import "./ios/helper/ospf.j2" as ospf %}
+{{ description.description(interface,config_context) }}
+{% if interface.mode == 'TAGGED' or interface.mode == 'TAGGED_ALL'%}
+{{ tagged.switchport(interface,config_context) }}
+{%- elif interface.mode == 'ACCESS' %}
+{{ access.switchport(interface,config_context) }}
+{%- else %}
+{{ l3.port(interface,config_context) }}
+{%- endif %}
+{{ ipaddr.address(interface,config_context) }}
+{{ netflow.configure(interface,config_context) }}
+{{- ospf.configure_interface(interface, config_context) }}
+{%- if interface.lag is not none %}{{ channel.set(interface,config_context) }}{% endif %}

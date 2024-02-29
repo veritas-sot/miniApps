@@ -1,11 +1,11 @@
 from loguru import logger
 
 # veritas
-from veritas.plugin import orchestrator
+from veritas.plugin import configmanagement
 from veritas.tools import tools
 
 
-@orchestrator("preprocessing")
+@configmanagement("preprocessing")
 def preprocessing(*args, **kwargs):
     logger.debug('preprocessing called...')
     properties = tools.convert_arguments_to_properties(args, kwargs)
@@ -22,7 +22,7 @@ def preprocessing(*args, **kwargs):
 
     return host_vars
 
-@orchestrator("postprocessing")
+@configmanagement("postprocessing")
 def postprocessing(*args, **kwargs):
     logger.debug('postprocessing called...')
     properties = tools.convert_arguments_to_properties(args, kwargs)

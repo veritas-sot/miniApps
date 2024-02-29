@@ -1,0 +1,41 @@
+{% if config_context.ipservices is defined -%}
+{%   if config_context.ipservices.tcp is defined -%}
+{%     if config_context.ipservices.tcp.pmtud is defined -%}
+{%       if config_context.ipservices.tcp.pmtud  == true -%}
+ip tcp path-mtu-discovery
+{%       endif -%}
+{%     endif -%}
+{%   endif -%}
+{%   if config_context.ipservices.ftp is defined -%}
+{%     if config_context.ipservices.ftp.passive is defined -%}
+{%       if config_context.ipservices.ftp.passive == true -%}
+ip ftp passive
+{%       else -%}
+no ip ftp passive
+{%       endif -%}
+{%     endif -%}
+{%     if config_context.ipservices.ftp.source is defined -%}
+ip ftp source-interface {{ config_context.ipservices.ftp.source }}
+{%     endif -%}
+{%     if config_context.ipservices.ftp.username is defined -%}
+ip ftp username {{ config_context.ipservices.ftp.username }}
+{%     endif -%}
+{%     if config_context.ipservices.ftp.password is defined -%}
+ip ftp password {{ config_context.ipservices.ftp.password }}
+{%     endif -%}
+{%   endif -%}
+{%   if config_context.ipservices.ssh is defined -%}
+{%     if config_context.ipservices.ssh.source is defined -%}
+ip ssh source-interface {{ config_context.ipservices.ssh.source }}
+{%     endif -%}
+{%     if config_context.ipservices.ssh.logging is defined -%}
+ip ssh logging {{ config_context.ipservices.ssh.logging }}
+{%     endif -%}
+{%     if config_context.ipservices.ssh.version is defined -%}
+ip ssh version {{ config_context.ipservices.ssh.version }}
+{%     endif -%}
+{%     if config_context.ipservices.ssh.scp == true -%}
+ip scp enable
+{%     endif -%}
+{%   endif -%}
+{% endif -%}

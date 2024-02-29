@@ -1,0 +1,35 @@
+{% if "netflow" in config_context -%}
+{% for flowrecord in config_context["netflow"]["flowrecord"] %}
+
+flow record {{ flowrecord["name"] }}
+ description {{ flowrecord["description"] }}
+{% for match in flowrecord["match"] %}
+ match {{ match }}
+{% endfor %}
+{% for collect in flowrecord["collect"] %}
+ collect {{ collect }}
+{% endfor %}
+{% endfor %}
+
+{% for flowexporter in config_context["netflow"]["flowexporter"] %}
+flow exporter {{ flowexporter["name"] }}
+ description {{ flowexporter["description"] }}
+ destination {{ flowexporter["destination"] }}
+ source {{ flowexporter["source"] }}
+ transport {{ flowexporter["transport"] }}
+{% for config in flowexporter["config"] %}
+ {{ config }}
+{% endfor %}
+{% endfor %}
+
+{% for flowmonitor in config_context["netflow"]["flowmonitor"] %}
+flow monitor {{ flowmonitor["name"] }}
+ description {{ flowmonitor["description"] }}
+ exporter {{ flowmonitor["exporter"] }}
+ record {{ flowmonitor["record"] }}
+{% for config in flowmonitor["config"] %}
+ {{ config }}
+{% endfor %}
+
+{% endfor -%}
+{%- endif -%}

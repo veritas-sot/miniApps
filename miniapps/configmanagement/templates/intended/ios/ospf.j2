@@ -1,0 +1,23 @@
+{% if config_context.ospf is defined -%}
+{%   if config_context.ospf.pid is defined -%}
+router ospf {{ config_context.ospf.pid }}
+{%   else -%}
+router ospf {{ config_context.default.ospf_pid }}
+{%   endif -%}
+{%   if config_context.ospf.logadjchanges is defined %}
+ log-adjacency-changes {{ config_context.ospf.logadjchanges }}
+{%   endif -%}
+{%   if config_context.ospf.autocost is defined %}
+ auto-cost reference-bandwidth {{ config_context.ospf.autocost }}
+{%   else %}
+ auto-cost reference-bandwidth 10000
+{%   endif -%}
+{%   if config_context.ospf.nsf is defined %}
+ nsf {{ config_context.ospf.nsf }}
+{%   endif -%}
+{%   if config_context.ospf.timers is defined -%}
+{%     for timer in config_context.ospf.timers %}
+ timers {{ timer }}
+{%      endfor -%}
+{%   endif -%}
+{% endif -%}

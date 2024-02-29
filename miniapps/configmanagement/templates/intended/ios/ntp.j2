@@ -1,0 +1,9 @@
+{% if "ntp" in config_context -%}
+{% for server in config_context['ntp'] %}
+{% if 'prefer' in server  %}
+ntp server {{ server['ip'] }} prefer
+{% else %}
+ntp server {{ server['ip'] }}
+{% endif %}
+{% endfor %}
+{% endif %}

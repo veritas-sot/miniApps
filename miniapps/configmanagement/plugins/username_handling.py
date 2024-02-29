@@ -2,11 +2,11 @@ import re
 from loguru import logger
 
 # veritas
-from veritas.plugin import orchestrator
+from veritas.plugin import configmanagement
 from veritas.tools import tools
 
 
-@orchestrator("postprocessing")
+@configmanagement("postprocessing")
 def postprocessing(*args, **kwargs):
     new_config = []
     removed_users = []

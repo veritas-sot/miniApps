@@ -1,0 +1,14 @@
+{%- macro configure(interface, config_context) -%}
+{%- for tag in interface.tags -%}
+{%-   if 'netflow' in tag.slug -%}
+{%-     for flowmonitor in config_context.netflow.flowmonitor -%}
+{%-       if flowmonitor.type == "input" %}
+ ip flow monitor {{ flowmonitor.name }} input
+{%       endif -%}
+{%-       if flowmonitor.type == "output" %}
+ ip flow monitor {{ flowmonitor.name }} output
+{%       endif -%}
+{%-     endfor -%}
+{%-   endif -%}
+{%- endfor -%}
+{%- endmacro -%}

@@ -1,0 +1,4 @@
+{% macro switchport(interface,config_context) %}
+ switchport
+ switchport access vlan {{ interface.untagged_vlan.vid }}
+{% endmacro %}

@@ -1,0 +1,7 @@
+{% macro set(config_context,interfacename) %}
+{%   if config_context.acl.interfaces is defined %}
+{%     if config_context.acl.interfaces.interfacename is defined %}
+ ip access-group {{ config_context.acl.interfaces.interfacename.acl }} {{ config_context.acl.interfaces.interfacename.direction }}
+{%     endif %}
+{%   endif %}
+{% endmacro %}
