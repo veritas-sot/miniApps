@@ -87,3 +87,13 @@ smokeping:
 dispatcher:
   plugin_dir: plugins
   plugin: dispatcher_rabbitmq
+configmanagement:
+  defaults:
+    configs: __configs_dir__
+    templates:
+      jobs: __templates_jobs_dir__
+      intended:
+        ios:  __templates_intended_ios_dir__
+    host_vars: __host_vars_dir__
+    config_context:
+      ios: __config_context_ios__
