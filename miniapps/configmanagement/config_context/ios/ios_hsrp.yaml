@@ -1,0 +1,26 @@
+---
+active: False
+name: hsrp
+platform: ios
+source:
+  section: interfaces
+remove_empty: True
+template: |2
+  <macro>
+  def to_bool(captured_data):
+      represent_as_bools = ["preempt" ]
+      if captured_data in represent_as_bools:
+        return captured_data, {captured_data: True}
+  </macro>
+  <group name="interfaces.{{interface}}">
+  interface {{ interface | _start_ }}
+   <group name="hsrp.{{ standbygroup }}">
+   standby version {{ version | record(version) }}
+   standby {{ standbygroup | DIGIT }} ip {{ ip | _start_ }}
+   standby {{ standbygroup | DIGIT }} priority {{ priority }}
+   standby {{ standbygroup | DIGIT }} authentication {{ authentication }}
+   standby {{ standbygroup | DIGIT }} {{ preempt | macro("to_bool") }}
+   {{ version | set(version)}}
+   {{ additional_hsrp_cfg | _line_ | contains("standby ") | joinmatches }}
+   </group>
+  </group>

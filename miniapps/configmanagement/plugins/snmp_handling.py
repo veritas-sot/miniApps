@@ -2,18 +2,17 @@ from loguru import logger
 
 # veritas
 from veritas.plugin import configmanagement
-from veritas.tools import tools
 
 
 @configmanagement("preprocessing")
-def preprocessing(*args, **kwargs):
+def preprocessing(task):
     logger.debug('preprocessing called...')
-    properties = tools.convert_arguments_to_properties(args, kwargs)
-    host_vars = properties.get('host_vars', {})
+
+    host_vars = task.host['vars']
 
     snmp = {}
-    snmp_credentials = properties.get('host', {}).get('snmp_credentials',[])
-    for cred in properties.get('host', {}).get('credentials',{}).get('snmp',[]):
+    snmp_credentials = task.host.get('snmp_credentials',[])
+    for cred in task.host.get('credentials',{}).get('snmp',[]):
         if cred.get('id') == snmp_credentials:
             snmp = dict(cred)
     if snmp:
@@ -23,10 +22,10 @@ def preprocessing(*args, **kwargs):
     return host_vars
 
 @configmanagement("postprocessing")
-def postprocessing(*args, **kwargs):
+def postprocessing(task, commands:list=[]):
     logger.debug('postprocessing called...')
-    properties = tools.convert_arguments_to_properties(args, kwargs)
-    host_vars = properties.get('host_vars', {})
+
+    host_vars = task.host['vars']
 
     old_config = host_vars.get('current_config', {}).get('snmp-server',[])
     remove = []
@@ -35,7 +34,6 @@ def postprocessing(*args, **kwargs):
     if len(remove) > 0:
         logger.info('removing old SNMP config')
         logger.debug(f'sending {remove}')
-        commands = remove + properties.get('commands', [])
+        return remove + commands
     else:
-        commands = properties.get('commands', [])
-    return commands
+        return commands

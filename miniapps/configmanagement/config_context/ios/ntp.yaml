@@ -1,0 +1,12 @@
+---
+active: True
+name: ntp
+platform: ios
+source:
+  fullconfig: True
+remove_empty: True
+template: |2
+  <group name="ntp">
+  ntp server {{ ip | _start_ }} {{ prefer | let("prefer", True) }}
+  ntp server {{ ip | _start_ }}
+  </group>

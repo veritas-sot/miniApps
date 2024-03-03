@@ -23,14 +23,12 @@ general:
       protocol: __logging_zeromq_protocol__
       host: __logging_zeromq_host__
       port: __logging_zeromq_port__
-credentials:
-  snmp: 
-    repo: __git_snmp_credentials_repo__
-    path: __git_snmp_credentials_path__
-    filename: __git_snmp_credentials_filename__
-git:
-  backup:
-    enabled: __git_backup_enabled__
-    repo: __git_backup_repo__
-    remote: __git_backup_remote__
-    path: __git_backup_path__
+configmanagement:
+  defaults:
+    configs: __configmanagement_defaults_configs__
+    templates:
+      jobs: __configmanagement_defaults_templates_jobs__
+      intended:
+        ios: __configmanagement_defaults_templates_intended_ios__
+    host_vars: __configmanagement_defaults_host_vars__
+    config_context: __configmanagement_defaults_config_context__

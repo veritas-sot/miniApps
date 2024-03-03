@@ -3,18 +3,18 @@ from loguru import logger
 
 # veritas
 from veritas.plugin import configmanagement
-from veritas.tools import tools
 
 
 @configmanagement("postprocessing")
-def postprocessing(*args, **kwargs):
+def postprocessing(task, commands:list=[]):
     new_config = []
     removed_users = []
     logger.debug('postprocessing called...')
-    properties = tools.convert_arguments_to_properties(args, kwargs)
-    host_vars = properties.get('host_vars', {})
+
+    host_vars = task.host['vars']
     old_config = host_vars.get('current_config', {}).get('username',[])
     new_users = host_vars.get('aaa', {}).get('users', {})
+
     for config in old_config:
         match = re.search('username (\w+) .*', config)
         if match:

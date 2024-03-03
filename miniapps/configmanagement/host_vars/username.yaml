@@ -15,6 +15,6 @@ aaa:
     - username: lab
       privilege: 15
       secret: lab
-    - username: user
+    - username: anotheruser
       privilege: 15
-      secret: xxx
+      secret: anotherpassword

@@ -14,46 +14,11 @@ from nornir.core.task import Task
 # veritas
 import veritas.logging
 import veritas.profile
+import configmanagement_class as configmanagement
+import config_context as cc
 from veritas.sot import sot as veritas_sot
 from veritas.tools import tools
-import configmanagement_class as configmanagement
 
-
-def get_section(content:str, section:str) -> list:
-    """return section of the device configuration by name
-
-    Parameters
-    ----------
-    content : str
-        device configuration
-    section : str
-        name of the section
-
-    Returns
-    -------
-    section : list
-        section of the device configuration
-    """        
-    response = []
-    if section == "interfaces":
-        found = False
-        for line in content.splitlines():
-            # find first occurence of the word interface at the beginning of the line
-            if line.lower().startswith('interface '):
-                found = True
-                response.append(line)
-                continue
-            if found and line.startswith(' '):
-                response.append(line)
-            else:
-                found = False
-    else:
-        for line in content.splitlines():
-            # check if line begins with 'section'
-            if line.lower().startswith(section):
-                response.append(line)
-
-    return response
 
 def deploy_configs(task, cm, host_vars, template, path, dry_run):
 
@@ -145,9 +110,9 @@ def get_device_config(task:Task, cm:configmanagement, config_type:str, directory
     if section and len(section) > 0:
         for sct in section:
             if 'running' in config_type:
-                running_section += get_section(running_config, sct)
+                running_section += cm.get_section(running_config, sct)
             if 'startup' in config_type:
-                startup_section += get_section(startup_config, sct)
+                startup_section += cm.get_section(startup_config, sct)
 
     #
     # set section to config lines
@@ -178,6 +143,43 @@ def get_device_config(task:Task, cm:configmanagement, config_type:str, directory
             filename = f'{directory}/{task.host}{dt}.startup.config'
             cm.write_content_to_disk(task, startup_config, hostname, filename)
 
+def config_context(task:Task, cm:configmanagement, sot:veritas_sot, 
+                   get_context:bool, set_context:bool, update_context:bool,
+                   use_config:bool=False, device_configs:str="./device_configs", 
+                   template_dir:str="./config_context"):
+
+    if use_config:
+        try:
+            filename = f'{device_configs}/{task.host}.running.config'
+            logger.debug(f'reading config from file {filename}')
+            with open(filename, 'r') as f:
+                device_config = f.read()
+        except Exception as exc:
+            logger.error(f'could not read file {use_config}; got exception {exc}')
+            return
+    else:
+        device_config = cm.get_config_from_device(task, config_type="running")
+
+    device_context = task.run(
+        name="get_config_context",
+        task=cc.get_config_context,
+        cm=cm,
+        device_config=device_config,
+        template_dir=template_dir
+    )
+
+    if get_context:
+        print(json.dumps(device_context.result, indent=4))
+    if set_context or update_context:
+        task.run(
+            name="set_config_context",
+            task=cc.set_device_config_context,
+            cm=cm,
+            sot=sot,
+            update_context=update_context,
+            device_context=device_context.result
+        )
+
 def main(args_list=None):
 
     # init variables
@@ -191,7 +193,6 @@ def main(args_list=None):
     # set the log level and handler
     parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
     parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-    parser.add_argument('--scrapli-loglevel', type=str, required=False, default="error", help="Scrapli loglevel")
     # uuid is written to the database logger
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
 
@@ -212,32 +213,50 @@ def main(args_list=None):
 
     # add subparsers
     subparsers = parser.add_subparsers(dest='command')
-    parser_get = subparsers.add_parser('get', help='download device configs')
+    parser_get = subparsers.add_parser('get', help='download device configs or render intended config')
     parser_deploy = subparsers.add_parser('deploy', help='configure devices using templates')
     parser_replace = subparsers.add_parser('replace', help='replace existing config on device with new config')
+    parser_config_context = subparsers.add_parser('context', help='get and set config context')
 
+    #
     # get configs
+    #
     parser_get.add_argument('--running', action='store_true', help="get running config")
     parser_get.add_argument('--startup', action='store_true', help="get startup config")
     parser_get.add_argument('--intended', action='store_true', help="render intended config")
     parser_get.add_argument('--set-timestamp', action='store_true', help="set timestamp in filename")
-    parser_get.add_argument('--directory', type=str, default="./configs", required=False, 
-                            help="directory to save config to")
+    parser_get.add_argument('--config-dir', type=str, required=False, help="directory to save configs to")
     parser_get.add_argument('--section', type=str, nargs="*", required=False, 
                             help="get specific section of config")
     parser_get.add_argument('--output', type=str, default="write_file", required=False, 
-                            help="print or write to file")                 
+                            choices=['stdout', 'write_file'], help="print or write to file")                 
 
+    #
     # deploy devices using templates
+    #
     parser_deploy.add_argument('--vars', type=str, required=False, help="host variables to use")
-    parser_deploy.add_argument('--path', type=str, default="./templates", required=False, 
-                                help="path where to find templates")
+    parser_deploy.add_argument('--template-dir', type=str, required=False, help="path where to find templates")
     parser_deploy.add_argument('--template', type=str, required=True, help="template to use")
     parser_deploy.add_argument('--dry-run', action='store_true', help="Make no changes, just print")
 
+    #
     # replace existing config on device with new config
-    parser_replace.add_argument('--directory', type=str, default="configs", required=False, 
-                                help="directory to load config from")
+    #
+    parser_replace.add_argument('--config-dir', type=str, default="configs", required=False, 
+                                help="directory to load configs from")
+
+    #
+    # get and set config context
+    #
+    parser_config_context.add_argument('--get', action='store_true', help="show config context")
+    parser_config_context.add_argument('--set', action='store_true', help="set config context in SOT")
+    parser_config_context.add_argument('--update', action='store_true', help="update config context in SOT")
+    parser_config_context.add_argument('--config-from-disk', action='store_true', 
+                                       help="use file instead of getting config from device")
+    parser_config_context.add_argument('--config-dir', type=str, required=False, 
+                                       help="directory to load configs from")
+    parser_config_context.add_argument('--template-dir', type=str, default="./config_context", 
+                                       required=False, help="directory to get config context from")
 
     # parse arguments
     if args_list:
@@ -318,6 +337,8 @@ def main(args_list=None):
     if args.command == "get" and args.intended:
         additional_select.append('config_context')
         additional_select.append('interfaces')
+    if args.command == "context":
+        additional_select.append('config_context')
 
     # example group....
     groups = {'net': {'data': {'key': 'value'} }}
@@ -332,8 +353,12 @@ def main(args_list=None):
     logger.debug(f'groups: {nr.inventory.groups}')
 
     if args.command == "get":
+        # Directory from which we read the configurations or to which we write the configurations
+        device_configs = args.config_dir if args.config_dir else \
+            local_config_file.get('configmanagement',{}).get('defaults',{}).get('configs')
+
         if args.intended:
-            intended_config(cm, nr, args.directory, args.set_timestamp, args.section, args.output)
+            intended_config(cm, nr, args.config_dir, args.set_timestamp, args.section, args.output)
         if args.running or args.startup:
             config_type = []
             if args.running:
@@ -348,7 +373,7 @@ def main(args_list=None):
                 task=get_device_config,
                 cm=cm,
                 config_type=config_type,
-                directory=args.directory,
+                directory=device_configs,
                 set_timestamp=args.set_timestamp,
                 section=args.section,
                 output=args.output
@@ -357,23 +382,50 @@ def main(args_list=None):
         results = nr.run(
                 name="replace_config", 
                 task=cm.replace_config,
-                path=args.directory 
+                path=args.config_dir 
         )
         print_result(results)
     elif args.command == "deploy":
+        # Directory from which we read the configurations or to which we write the configurations
+        template_dir = args.template_dir if args.template_dir else \
+            local_config_file.get('configmanagement',{}).get('defaults',{}).get('templates',{}).get('jobs')
+
         results = nr.run(
             name="deploy_configs", 
             task=deploy_configs,
             cm=cm,
             host_vars=host_vars,
             template=args.template,
-            path=args.path,
+            path=template_dir,
             dry_run=args.dry_run
         )
         # print_result(results)
         print(TabulateFormatter(results))
         # result_dictionary = ResultSerializer(results, add_details=True)
         # print(json.dumps(result_dictionary, indent=4))
+    elif args.command == "context":
+
+        # Directory from which we read the configurations or to which we write the configurations
+        device_configs = args.config_dir if args.config_dir else \
+            local_config_file.get('configmanagement',{}).get('defaults',{}).get('configs')
+
+        template_dir = args.template_dir if args.template_dir else \
+            local_config_file.get('configmanagement',{}).get('defaults',{}).get('config_context')
+
+        results = nr.run(
+                name="workflow_config_context", 
+                task=config_context,
+                cm=cm,
+                sot=sot,
+                get_context=args.get,
+                set_context=args.set,
+                update_context=args.update,
+                use_config=args.config_from_disk,
+                device_configs=device_configs,
+                template_dir=args.template_dir
+        )
+        #serialized_result = ResultSerializer(results, add_details=True)
+        #print(serialized_result)
 
 if __name__ == "__main__":
     """main entry point

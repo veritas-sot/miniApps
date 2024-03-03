@@ -1,0 +1,22 @@
+---
+active: False
+name: access_list
+platform: ios
+source:
+  fullconfig: True
+template: |2
+  <group name="security.access_lists">
+   {{ src | set(None) }}
+   {{ dest | set(None) }}
+   {{ type | set(None) }}
+   {{ src_proto | set(None) }}
+   {{ dest_proto | set(None) }}
+   {{ src_wildcard | set(None) }}
+   {{ dest_wildcard | set(None) }}
+   access-list {{id | _start_}} {{type}} {{src_proto }} host {{src}} eq {{dest_proto }} {{dest}}
+   access-list {{id | _start_}} {{type}} {{src_proto }} host {{src}} {{dest}} eq {{dest_proto }}
+   access-list {{id | _start_}} {{type}} {{src_proto }} host {{src}} {{dest}}
+   access-list {{id | _start_}} {{type}} {{src_proto }} host {{src}} eq {{dest_proto }} {{dest}}
+   access-list {{id | _start_}} {{type}} {{src_proto }} {{src}} {{dest}}
+   access-list {{id | _start_}} {{type}} ip {{src}} {{src_wildcard}} {{dest}} {{dest_wildcard}}
+  </group>

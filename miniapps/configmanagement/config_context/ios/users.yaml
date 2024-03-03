@@ -1,0 +1,13 @@
+---
+active: False
+name: users
+platform: ios
+source:
+  fullconfig: True
+remove_empty: True
+template: |2
+  <group name="users">
+  username {{ username | _start_ }} privilege {{ priv_level | DIGIT }} role {{ user_role }} secret {{ encr_level | DIGIT }} {{ encr_secret }}
+  username {{ username | _start_ }} privilege {{ priv_level | DIGIT }} secret {{ encr_level | DIGIT }} {{ encr_secret }}
+  username {{ username | _start_ }} secret {{ encr_level | DIGIT }} {{ encr_secret }}
+  </group>

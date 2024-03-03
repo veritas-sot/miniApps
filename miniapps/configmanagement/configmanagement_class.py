@@ -82,6 +82,42 @@ class ConfigManagement():
             logger.error(f'{call} is not callable')
             return None
 
+    def get_section(self, content:str, section:str) -> list:
+        """return section of the device configuration by name
+
+        Parameters
+        ----------
+        content : str
+            device configuration
+        section : str
+            name of the section
+
+        Returns
+        -------
+        section : list
+            section of the device configuration
+        """        
+        response = []
+        if section == "interfaces":
+            found = False
+            for line in content.splitlines():
+                # find first occurence of the word interface at the beginning of the line
+                if line.lower().startswith('interface '):
+                    found = True
+                    response.append(line)
+                    continue
+                if found and line.startswith(' '):
+                    response.append(line)
+                else:
+                    found = False
+        else:
+            for line in content.splitlines():
+                # check if line begins with 'section'
+                if line.lower().startswith(section):
+                    response.append(line)
+
+        return response
+
     # tasks
 
     def write_content_to_disk(self, task:Task, content:str, extra, filename:str) -> None:
@@ -337,7 +373,7 @@ class ConfigManagement():
             call = hooks.get('preprocessing')
             logger.bind(extra="cfg device").debug(f'running plugin {call}')
             func = self.get_function_to_call(call)
-            task.host['vars'] = func(host_vars=host_vars, host=task.host)
+            task.host['vars'] = func(task)
             host_vars = task.host['vars']
 
     def render_template(self, task:Task, template:str, path:str) -> None:
@@ -384,7 +420,7 @@ class ConfigManagement():
             call = hooks.get('postprocessing')
             logger.bind(extra="cfg device").debug(f'running plugin {call}')
             func = self.get_function_to_call(call)
-            task.host['commands'] = func(host_vars=host_vars, host=task.host, commands=task.host['commands'])
+            task.host['commands'] = func(task, commands=task.host['commands'])
 
     def configure_device(self, task:Task, dry_run=False):
         """configure device using the list of commands

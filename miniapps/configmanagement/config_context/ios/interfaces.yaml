@@ -1,0 +1,13 @@
+---
+active: False
+name: interfaces
+platform: ios
+source:
+  fullconfig: True
+remove_empty: True
+template: |2
+  <group name="interfaces">
+  interface {{ name }}
+   description {{ description | ORPHRASE }}
+   ip address {{ ip }} {{ mask }}
+  </group>

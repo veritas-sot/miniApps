@@ -1,0 +1,27 @@
+---
+active: False
+name: bgp
+platform: ios
+source:
+  fullconfig: True
+template: |2
+  <group name="routing.bgp">
+   router bgp {{ asn | record(asn) }}
+   neighbor {{ neighbor_ip }} remote-as {{ remote_as }}
+   neighbor {{ neighbor_ip }} update-source {{ update_source }}
+    {{ auto_summary_enabled | set(True) }}
+    no auto-summary{{ auto_summary_enabled | set(False) }}
+    <group name="vrfs.{{ vrf_name }}" record="vrf_name">
+    vrf {{ vrf_name }}
+    <group name="peers" chain="chain_1">
+    neighbor {{ peer_ip }}
+    {{ local_asn | set(asn) }}
+    {{ hostname | set(hostname) }}
+    remote-as {{ remote_as }}
+    description {{ description }}
+    address-family {{ afi }} unicast
+      route-map {{ rpl_in }} in
+      route-map {{ rpl_out }} out
+    </group>
+    </group>
+  </group>
