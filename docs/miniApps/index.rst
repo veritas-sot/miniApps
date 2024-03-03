@@ -11,6 +11,7 @@ The toolkit includes the following miniApps
    installation.rst
    onboarding.rst
    kobold.rst
+   configmanagement.rst
    dispatcher.rst
    
 Quickstart Guide
