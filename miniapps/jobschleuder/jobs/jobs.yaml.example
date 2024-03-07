@@ -1,0 +1,10 @@
+---
+jobs:
+  - id: backup all devices
+    job: backup
+    schedule: every('monday').at('10:00')
+     
+    arguments:
+      devices: name=lab.local
+      profile: default
+    
