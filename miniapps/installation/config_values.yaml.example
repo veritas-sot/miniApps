@@ -97,3 +97,8 @@ configmanagement:
     host_vars: __host_vars_dir__
     config_context:
       ios: __config_context_ios__
+jobschleuder:
+  rabbitmq:
+    host: __rabbitmq_host__
+    port: __rabbitmq_port__
+    queue: __rabbitmq_queue__

@@ -9,10 +9,10 @@ from benedict import benedict
 
 
 miniapps = ['onboarding','kobold','script_bakery','scan_prefixes',
-            'check_inventory', 'scheduler', 'configmanagement',
+            'check_inventory', 'scheduler', 'configmanagement', 'jobschleuder',
             'sync_cmk','sync_phpipam','sync_smokeping','dispatcher',
             'nachtwaechter', 'library_importer']
-profiles = ['configmanagement', 'onboarding','kobold','script_bakery', 'nachtwaechter']
+profiles = ['configmanagement', 'onboarding','kobold','script_bakery', 'nachtwaechter', 'jobschleuder']
 additional = {}
 copy_files = {'nachtwaechter': ['index.yaml','mapping.conf.example']}
 
