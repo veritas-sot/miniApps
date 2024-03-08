@@ -31,11 +31,11 @@ general:
       port: __logging_zeromq_port__
 
 plugins:
-  # there is a default offline offline_importer
+  # there is a dummy hello world plugin to illustrate how to use plugins
   # you can implement your own and add the name to the list of plugins
-  backup:
+  hello_world:
     plugin_dir: plugins
-    plugin: backup
+    plugin: hello_world
 
 git:
   backup:

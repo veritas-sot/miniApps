@@ -5,18 +5,23 @@ import urllib3
 import os
 import sys
 import importlib
+import pika
+import time
+import json
 from loguru import logger
 from dotenv import load_dotenv
 
 # veritas
 from veritas import sot
-from veritas import tools
+from veritas.tools import tools
+import veritas.profile
 import veritas.logging
+import veritas.plugin
 
 
-def import_plugins(onboarding_config):
+def import_plugins(jobschleuder_config):
     # import plugins
-    plugins = onboarding_config.get('plugins')
+    plugins = jobschleuder_config.get('plugins')
     for plugin in plugins:
         package = plugins.get(plugin).get('plugin_dir')
         subpackage = plugins.get(plugin).get('plugin')
@@ -26,6 +31,22 @@ def import_plugins(onboarding_config):
         except Exception as exc:
             logger.bind(extra='plugins').critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
 
+def call_plugin(ch, method, properties, body):
+    try:
+        job = json.loads(body.decode())
+    except Exception as exc:
+        logger.bind(extra="plugin").error(f'failed to decode message {body.decode}')
+    
+    cmd = job.get('cmd')
+    args = job.get('args',{})
+    plugin = veritas.plugin.Plugin()
+    plugin_func = plugin.get_jobschleuder_plugin(cmd)
+    if callable(plugin_func):
+        plugin_func(**args)
+    else:
+        logger.error(f'could not call plugin command {cmd}')
+    
+    ch.basic_ack(delivery_tag=method.delivery_tag)
 
 def main(args_list=None):
 
@@ -37,16 +58,17 @@ def main(args_list=None):
 
     parser = argparse.ArgumentParser()
     # what to do
-    parser.add_argument('--config', help='config file', default='config.yaml')
-    parser.add_argument('--loglevel', help='loglevel', default='INFO')
-    parser.add_argument('--loghandler', help='loghandler', default='console')
-    parser.add_argument('--uuid', help='uuid', default='onboarding')
+    # what to do
+    parser.add_argument('--config', help='config file', default='jobschleuder.yaml')
+    # set the log level and handler
+    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
+    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
+    # uuid is written to the database logger
+    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
     parser.add_argument('--debug-veritas', help='debug veritas', action='store_true')
     parser.add_argument('--profile', help='profile', default='default')
     parser.add_argument('--username', help='username', default=None)
     parser.add_argument('--password', help='password', default=None)
-
-    parser.add_argument('--jobs', help='filename of jobs to schedule', default='./jobs/jons.yaml', required=False)
 
     # parse arguments
     args = parser.parse_args()
@@ -60,7 +82,7 @@ def main(args_list=None):
         load_dotenv(os.path.join(BASEDIR, '.env'))
     else:
         logger.debug('no .env file found; trying to read local crypto parameter')
-        crypt_parameter = tools.get_miniapp_config('onboarding', BASEDIR, "salt.yaml")
+        crypt_parameter = tools.get_miniapp_config('jobschleuder', BASEDIR, "salt.yaml")
         if not crypt_parameter:
             logger.error('no .env file and no salt.yaml file found')
             sys.exit()
@@ -69,7 +91,7 @@ def main(args_list=None):
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
 
     # read config
-    jobschleuder_config = tools.get_miniapp_config('onboarding', BASEDIR, args.config)
+    jobschleuder_config = tools.get_miniapp_config('jobschleuder', BASEDIR, args.config)
     if not jobschleuder_config:
         print('unable to read config')
         sys.exit()
@@ -79,11 +101,11 @@ def main(args_list=None):
         config=jobschleuder_config, 
         cfg_loglevel=args.loglevel,
         cfg_loghandler=args.loghandler,
-        app='onboarding',
+        app='jobschleuder',
         uuid=args.uuid)
 
     # load profiles
-    profile_config = tools.get_miniapp_config('onboarding', BASEDIR, 'profiles.yaml')
+    profile_config = tools.get_miniapp_config('jobschleuder', BASEDIR, 'profiles.yaml')
     # save profile for later use
     profile = veritas.profile.Profile(
         profile_config=profile_config, 
@@ -92,14 +114,39 @@ def main(args_list=None):
         password=args.password,
         ssh_key=None)
 
-    # import onboarding plugins
+    # import jobschleuder plugins
     import_plugins(jobschleuder_config)
 
-    # we need the SOT object to talk to it
-    sot = sot.Sot(url=jobschleuder_config['sot']['nautobot'],
-                  token=jobschleuder_config['sot']['token'],
-                  ssl_verify=jobschleuder_config['sot'].get('ssl_verify', False),
-                  debug=args.debug_veritas)
+    # # we need the SOT object to talk to it
+    # sot = sot.Sot(url=jobschleuder_config['sot']['nautobot'],
+    #               token=jobschleuder_config['sot']['token'],
+    #               ssl_verify=jobschleuder_config['sot'].get('ssl_verify', False),
+    #               debug=args.debug_veritas)
+
+    # rabbit 
+    rabbitmq_config = jobschleuder_config.get('rabbitmq',{})
+    rabbitmq_host = rabbitmq_config.get('host', 'localhost')
+    rabbitmq_port = rabbitmq_config.get('port', 5672)
+    rabbitmq_queue = rabbitmq_config.get('queue')
+
+    logger.bind(extra="rabbitmq").info(f'rabbit: {rabbitmq_host}:{rabbitmq_port} queue: {rabbitmq_queue}')
+
+    credentials = pika.PlainCredentials('admin','admin')
+    connection = pika.BlockingConnection(
+        pika.ConnectionParameters(
+            host=rabbitmq_host,
+            port=rabbitmq_port,
+            credentials=pika.PlainCredentials('admin','admin')
+        )
+    )
+    channel = connection.channel()
+    channel.queue_declare(queue=rabbitmq_queue, durable=True)
+    print(' [*] Waiting for messages. To exit press CTRL+C')
+
+    channel.basic_qos(prefetch_count=1)
+    channel.basic_consume(queue=rabbitmq_queue, on_message_callback=call_plugin)
+
+    channel.start_consuming()
 
 if __name__ == "__main__":
     main()

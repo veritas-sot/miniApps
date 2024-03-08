@@ -1,10 +1,9 @@
 ---
 jobs:
-  - id: backup all devices
-    job: backup
-    schedule: every('monday').at('10:00')
+  - id: say hello to the world
+    job: hello_world
+    schedule: every(2).seconds
      
     arguments:
-      devices: name=lab.local
-      profile: default
+      say: hello
     
