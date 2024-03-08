@@ -19,10 +19,13 @@ general:
     rabbitmq:
       host: __logging_rabbitmq_host__
       port: __logging_rabbitmq_port__
+      user: __logging_rabbitmq_user__
+      password: __logging_rabbitmq_password__
     zeromq:
       protocol: __logging_zeromq_protocol__
       host: __logging_zeromq_host__
       port: __logging_zeromq_port__
+
 credentials:
   snmp: 
     repo: __git_snmp_credentials_repo__

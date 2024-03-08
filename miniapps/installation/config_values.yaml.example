@@ -46,6 +46,9 @@ logging:
   rabbitmq:
     host: 127.0.0.1
     port: 5672
+    # set username and password if you need authentication
+    user: guest
+    password: guest
   zeromq:
     host: 127.0.0.1
     port: 12345
