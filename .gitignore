@@ -189,3 +189,4 @@ miniapps/kobold/playbooks/export.yaml
 miniapps/kobold/export
 miniapps/kobold/hldm
 miniapps/kobold/playbooks/export_device.yaml
+miniapps/jobschleuder/conf/simple_config_backup.yaml
