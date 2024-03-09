@@ -1,0 +1,10 @@
+---
+backup_dir: _path_to_your_device_configs_
+username: username
+password: password
+database:
+  host: 127.0.0.1
+  database: operating
+  port: 5432
+  user: username
+  password: password

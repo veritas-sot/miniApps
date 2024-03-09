@@ -5,15 +5,13 @@ import urllib3
 import os
 import sys
 import importlib
-import pika
-import time
 import json
 from loguru import logger
 from dotenv import load_dotenv
 
 # veritas
-from veritas import sot
 from veritas.tools import tools
+import rabbitmq
 import veritas.profile
 import veritas.logging
 import veritas.plugin
@@ -31,15 +29,20 @@ def import_plugins(jobschleuder_config):
         except Exception as exc:
             logger.bind(extra='plugins').critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
 
-def call_plugin(ch, method, properties, body):
+def call_plugin(ch, method, properties, body, additional_args):
+    
+    # we need the plugin that we got from our additional args
+    plugin = additional_args.get('plugin')
+
     try:
         job = json.loads(body.decode())
     except Exception as exc:
-        logger.bind(extra="plugin").error(f'failed to decode message {body.decode}')
-    
+        logger.bind(extra="plugin").error(f'failed to decode message {body.decode}; got {exc}')
+
     cmd = job.get('cmd')
     args = job.get('args',{})
-    plugin = veritas.plugin.Plugin()
+    if cmd in additional_args.get('configs',{}):
+        args.update(additional_args.get('configs').get(cmd))
     plugin_func = plugin.get_jobschleuder_plugin(cmd)
     if callable(plugin_func):
         plugin_func(**args)
@@ -52,9 +55,6 @@ def main(args_list=None):
 
     # to disable warning if TLS warning is written to console
     urllib3.disable_warnings()
-
-    # devicelist is the list of devices we are processing
-    devicelist = []
 
     parser = argparse.ArgumentParser()
     # what to do
@@ -104,48 +104,32 @@ def main(args_list=None):
         app='jobschleuder',
         uuid=args.uuid)
 
-    # load profiles
-    profile_config = tools.get_miniapp_config('jobschleuder', BASEDIR, 'profiles.yaml')
-    # save profile for later use
-    profile = veritas.profile.Profile(
-        profile_config=profile_config, 
-        profile_name=args.profile,
-        username=args.username,
-        password=args.password,
-        ssh_key=None)
-
     # import jobschleuder plugins
     import_plugins(jobschleuder_config)
 
-    # # we need the SOT object to talk to it
-    # sot = sot.Sot(url=jobschleuder_config['sot']['nautobot'],
-    #               token=jobschleuder_config['sot']['token'],
-    #               ssl_verify=jobschleuder_config['sot'].get('ssl_verify', False),
-    #               debug=args.debug_veritas)
+    # init plugin
+    plugin = veritas.plugin.Plugin()
 
-    # rabbit 
-    rabbitmq_config = jobschleuder_config.get('rabbitmq',{})
-    rabbitmq_host = rabbitmq_config.get('host', 'localhost')
-    rabbitmq_port = rabbitmq_config.get('port', 5672)
-    rabbitmq_queue = rabbitmq_config.get('queue')
+    # additional args
+    additional_args = {'plugin': plugin, 'configs': {}}
 
-    logger.bind(extra="rabbitmq").info(f'rabbit: {rabbitmq_host}:{rabbitmq_port} queue: {rabbitmq_queue}')
+    # load plugin configs
+    all_plugins = plugin.get_registry('jobschleuder')
+    for plgn in all_plugins:
+        plugin_func = plugin.get_jobschleuder_plugin(f'{plgn}:on_startup')
+        if callable(plugin_func):
+            config = plugin_func()
+            additional_args['configs'].update({plgn:config})
 
-    credentials = pika.PlainCredentials('admin','admin')
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(
-            host=rabbitmq_host,
-            port=rabbitmq_port,
-            credentials=pika.PlainCredentials('admin','admin')
-        )
-    )
-    channel = connection.channel()
-    channel.queue_declare(queue=rabbitmq_queue, durable=True)
+    # open rabbitmq
+    channel, rabbitmq_queue = rabbitmq.open_rabbitmq(jobschleuder_config.get('rabbitmq'))
     print(' [*] Waiting for messages. To exit press CTRL+C')
 
     channel.basic_qos(prefetch_count=1)
-    channel.basic_consume(queue=rabbitmq_queue, on_message_callback=call_plugin)
-
+    channel.basic_consume(
+        queue=rabbitmq_queue, 
+        on_message_callback=lambda ch, method, properties, body: call_plugin(ch, method, properties, body, additional_args)
+    )
     channel.start_consuming()
 
 if __name__ == "__main__":

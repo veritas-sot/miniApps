@@ -39,6 +39,12 @@ plugins:
     plugin_dir: plugins
     plugin: hello_world
 
+preprocessing:
+  # preprcocessing to preprocess a job before the job is queued
+  backup:
+    plugin_dir: plugins
+    plugin: preprocessing_backup
+
 git:
   backup:
     repo: __git_backup_repo__

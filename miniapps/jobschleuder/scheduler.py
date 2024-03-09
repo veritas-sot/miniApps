@@ -10,26 +10,63 @@ import pika
 import schedule
 import re
 import time
+import importlib
 from datetime import datetime
 from loguru import logger
 
 # veritas
-from veritas.tools import tools
+import rabbitmq
 import veritas.logging
+from veritas.tools import tools
 from veritas.sot import sot as veritas_sot
 
 
-def call_job(channel, queue, cmd, args):
-    message = {'cmd': cmd, 'args': args}
-    channel.basic_publish(
-        exchange='',
-        routing_key=queue,
-        body=json.dumps(message),
-        properties=pika.BasicProperties(
-            delivery_mode=pika.DeliveryMode.Persistent
-        )
-    )
+def import_plugins(jobschleuder_config):
+    # import plugins
+    plugins = jobschleuder_config.get('preprocessing',{})
+    print(plugins)
+    for plugin in plugins:
+        package = plugins.get(plugin).get('plugin_dir')
+        subpackage = plugins.get(plugin).get('plugin')
+        logger.bind(extra='plugins').info(f'importing {package}.{subpackage}')
+        try:
+            importlib.import_module(f'{package}.{subpackage}')
+        except Exception as exc:
+            logger.bind(extra='plugins').critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
 
+def call_job(channel, queue, preprocessing, cmd, args):
+
+    jobs = None
+    if preprocessing:
+        logger.bind(extra="preprocessing").debug(f'calling preprocessing {preprocessing}')
+        try:
+            plugin = veritas.plugin.Plugin()
+            plugin_func = plugin.get_jobschleuder_plugin(preprocessing)
+            if callable(plugin_func):
+                jobs = plugin_func(**args)
+            else:
+                logger.error(f'could not call plugin command {cmd}')
+        except Exception as exc:
+            logger.bind(extra="preprocessing").error(f'failed to call preprocessing {preprocessing}; got exception {exc}')
+            raise exc
+    elif not jobs:
+        jobs = [{'cmd': cmd, 'args': args}]
+
+    if len(jobs) == 0:
+        logger.info('got an empty list of jobs')
+        return
+
+    for job in jobs:
+        message = {'cmd': job.get('cmd'), 'args': job.get('args')}
+        logger.debug(f'calling job {job.get("cmd")} with args {job.get("args")}')
+        channel.basic_publish(
+            exchange='',
+            routing_key=queue,
+            body=json.dumps(message),
+            properties=pika.BasicProperties(
+                delivery_mode=pika.DeliveryMode.Persistent
+            )
+        )
 
 def main(args_list=None):
 
@@ -71,6 +108,9 @@ def main(args_list=None):
         app='jobschleuder',
         uuid=args.uuid)
 
+    # import jobschleuder plugins
+    import_plugins(jobschleuder_config)
+
     # we need the SOT object to talk to the SOT
     # if you want to see more debug messages of the lib set 
     # debug to True
@@ -79,32 +119,21 @@ def main(args_list=None):
                           ssl_verify=jobschleuder_config['sot'].get('ssl_verify', False),
                           debug=False)
 
-    rabbitmq_config = jobschleuder_config.get('rabbitmq',{})
-    rabbitmq_host = rabbitmq_config.get('host', 'localhost')
-    rabbitmq_port = rabbitmq_config.get('port', 5672)
-    rabbitmq_queue = rabbitmq_config.get('queue')
-
-    logger.bind(extra="rabbitmq").info(f'rabbit: {rabbitmq_host}:{rabbitmq_port} queue: {rabbitmq_queue}')
-
-    credentials = pika.PlainCredentials('admin','admin')
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(
-            host=rabbitmq_host,
-            port=rabbitmq_port,
-            credentials=pika.PlainCredentials('admin','admin')
-        )
-    )
-    channel = connection.channel()
-    channel.queue_declare(queue=rabbitmq_queue, durable=True)
+    # open rabbitmq
+    channel, rabbitmq_queue = rabbitmq.open_rabbitmq(jobschleuder_config.get('rabbitmq'))
 
     with open(args.jobs) as f:
         jobs = yaml.safe_load(f.read())
-    
+
     for job_description in jobs.get('jobs'):
         job_id = job_description.get('id')
         job_schedule = job_description.get('schedule')
         job_cmd = job_description.get('job')
         job_arguments = job_description.get('arguments')
+        job_preprocessing = job_description.get('preprocessing')
+
+        if job_arguments.get('sot',False):
+            job_arguments['sot'] = sot
 
         logger.bind(extra="schedule").debug(f'job_id: {job_id} schedule: {job_schedule}')
 
@@ -133,6 +162,7 @@ def main(args_list=None):
                 job.do(call_job, 
                        channel=channel,
                        queue=rabbitmq_queue,
+                       preprocessing=job_preprocessing,
                        cmd=job_cmd,
                        args=job_arguments)
             else:
@@ -160,13 +190,13 @@ def main(args_list=None):
                 job.do(call_job, 
                        channel=channel,
                        queue=rabbitmq_queue,
+                       preprocessing=job_preprocessing,
                        cmd=job_cmd,
                        args=job_arguments)
 
     while True:
         schedule.run_pending()
-        all_jobs = schedule.get_jobs()
-        print(all_jobs)
+        schedule.get_jobs()
         time.sleep(1)
 
 if __name__ == "__main__":
