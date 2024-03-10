@@ -3,10 +3,13 @@ from loguru import logger
 import os
 import psycopg2
 import psycopg2.extras
+from dotenv import load_dotenv
 
 # veritas
 from veritas.plugin import jobschleuder
 from veritas.devicemanagement import napalm as dm
+from veritas.tools import tools
+import veritas.profile
 
 
 @jobschleuder("simple_config_backup")
@@ -18,11 +21,15 @@ def simple_config_backup(*args, **kwargs):
     platform = kwargs.get('platform','ios')
     manufacturer = kwargs.get('manufacturer','cisco')
     tcp_port = kwargs.get('tcp_port', 22)
-    username = kwargs.get('username')
-    password = kwargs.get('password')
-    ssh_keyfile = kwargs.get('ssh_keyfile', None)
     backup_dir = kwargs.get('backup_dir')
 
+    # get profile
+    profile = kwargs.get('profile')
+    if profile:
+        username =  profile.username
+        password = profile.password
+        ssh_keyfile = profile.ssh_key
+    
     # we need at least a username or a ssh_keyfile
     if not username and not ssh_keyfile:
         logger.critical('job failed; no username or ssh_keyfile specified')
@@ -100,10 +107,24 @@ def init():
     if os.path.isfile(filename):
         with open(filename) as f:
             logger.debug(f'reading config file: {filename}')
-            return yaml.safe_load(f.read())
+            config = yaml.safe_load(f.read())
     else:
         logger.error(f'failed to read config file: {filename}')
         return {}
+
+    # get profile
+    username = config.get('username')
+    password = config.get('password')
+    profile = config.get('profile')
+    ssh_key = config.get('ssh_key')
+    profile = get_profile(profile, username, password, ssh_key)
+
+    if not profile and not username:
+        logger.error('no profile or username specified')
+        return config
+
+    config['profile'] = profile
+    return config
 
 def update_operating_database(device, running, startup, database):
     result = running and startup
@@ -138,3 +159,30 @@ def connect_to_db(database):
     cursor = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     return cursor
 
+def get_profile(profile, username, password, ssh_key=None):
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
+    # check if .env file exists and read it
+    if os.path.isfile(os.path.join(BASEDIR, '.env')):
+        logger.debug('reading .env file')
+        load_dotenv(os.path.join(BASEDIR, '.env'))
+    else:
+        logger.debug('no .env file found; trying to read local crypto parameter')
+        crypt_parameter = tools.get_miniapp_config('script_bakery', BASEDIR, "salt.yaml")
+        if not crypt_parameter:
+            logger.error('no .env file found and no salt.yaml file found')
+            return
+        os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
+        os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
+        os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
+
+    # load profiles
+    profile_config = tools.get_miniapp_config('jobschleuder', BASEDIR, 'profiles.yaml')
+    # save profile for later use
+    return veritas.profile.Profile(
+        profile_config=profile_config, 
+        profile_name=profile,
+        username=username,
+        password=password,
+        ssh_key=ssh_key)
