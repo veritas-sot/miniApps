@@ -1,10 +1,21 @@
 ---
-database:
-  host: __host__
-  username: __username__
-  password: __password__
-  database: journal
-  port: 5432
+jobs:
+  - journal:
+    database:
+      host: 127.0.0.1
+      port: 5432
+      username: username
+      password: password
+      database: journal
+    tables: journals, activities, logs, results, messages, store
+  - devices:
+    database:
+      host: 127.0.0.1
+      port: 5432
+      username: username
+      password: password
+      database: operating
+    tables: device_backups
 
 journals: >
   CREATE TABLE IF NOT EXISTS public.journals
@@ -100,4 +111,14 @@ store: >
       key character varying(1024) NOT NULL,
       value character varying(1024) NOT NULL,
       CONSTRAINT primary_key PRIMARY KEY (key, value, app)
+  )
+
+device_backups: >
+  CREATE TABLE IF NOT EXISTS public.device_backups
+  (
+    device character varying(100),
+    last_attempt timestamp with time zone NOT NULL,
+    last_success timestamp with time zone,
+    message character varying(255),
+    PRIMARY KEY (device)
   )

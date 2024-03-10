@@ -17,14 +17,14 @@ def main():
     with open(args.config) as f:
         config = yaml.safe_load(f.read())
 
-    conn, cursor = connect_to_db(config.get('database'))
-    cursor.execute(config.get('store'), )
-    cursor.execute(config.get('journals'), )
-    cursor.execute(config.get('activities'), )
-    cursor.execute(config.get('logs'), )
-    cursor.execute(config.get('results'), )
-    cursor.execute(config.get('messages'), )
-    conn.commit()
+    for job in config.get('jobs',{}):
+        database = job.get('database')
+        tables = job.get('tables','').replace(' ','')
+        conn, cursor = connect_to_db(database)
+        for table in tables.split(','):
+            print(table)
+            cursor.execute(config.get(table), )
+        conn.commit()
 
 def connect_to_db(database):
     conn = psycopg2.connect(
