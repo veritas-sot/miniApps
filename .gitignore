@@ -191,3 +191,4 @@ miniapps/kobold/hldm
 miniapps/kobold/playbooks/export_device.yaml
 miniapps/jobschleuder/conf/simple_config_backup.yaml
 miniapps/jobschleuder/conf/nornir_config_backup.yaml
+miniapps/jobschleuder/conf/summarize_backups.yaml
