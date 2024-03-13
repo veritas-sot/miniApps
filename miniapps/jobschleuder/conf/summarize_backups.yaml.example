@@ -1,0 +1,12 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+
+database:
+  host: 127.0.0.1
+  database: operating
+  port: 5432
+  user: username
+  password: password

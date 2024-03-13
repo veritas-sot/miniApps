@@ -44,6 +44,9 @@ plugins:
   nornir_config_backup:
     plugin_dir: plugins
     plugin: nornir_config_backup
+  summarize_backups:
+    plugin_dir: plugins
+    plugin: summarize_backups
 
 preprocessing:
   # preprcocessing to preprocess a job before the job is queued
