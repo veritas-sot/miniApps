@@ -1,0 +1,16 @@
+---
+sot:
+  nautobot: __nautobot_url__
+  token: __nautobot_token__
+  ssl_verify: __nautobot_ssl_verify__
+backup_dir: _path_to_your_device_configs_
+# you need eitehr a profile or a username / password
+profile: profilename
+username: username
+password: password
+database:
+  host: 127.0.0.1
+  database: operating
+  port: 5432
+  user: username
+  password: password

@@ -38,6 +38,12 @@ plugins:
   hello_world:
     plugin_dir: plugins
     plugin: hello_world
+  simple_config_backup:
+    plugin_dir: plugins
+    plugin: simple_config_backup
+  nornir_config_backup:
+    plugin_dir: plugins
+    plugin: nornir_config_backup
 
 preprocessing:
   # preprcocessing to preprocess a job before the job is queued

@@ -110,7 +110,9 @@ def main(args_list=None):
     # init plugin
     plugin = veritas.plugin.Plugin()
 
-    # additional args
+    # initialize additional args
+    # additional arguments are used to pass configs to the call_plugin function
+    # we get those arguments by calling the 'on_startup' function of the plugin
     additional_args = {'plugin': plugin, 'configs': {}}
 
     # load plugin configs

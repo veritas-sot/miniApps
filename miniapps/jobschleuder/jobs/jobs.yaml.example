@@ -13,3 +13,8 @@ jobs:
         devices: ['labx.local']
         # pattern is a list of pattern to exclude
         pattern: ['.*xx']
+  # - id: backup devices using nornir
+  #   job: nornir_config_backup
+  #   schedule: every(2).seconds
+  #   arguments:
+  #     where: name=lab.local

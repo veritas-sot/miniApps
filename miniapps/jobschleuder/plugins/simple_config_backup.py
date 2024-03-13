@@ -1,15 +1,14 @@
 import yaml
 from loguru import logger
 import os
-import psycopg2
-import psycopg2.extras
 from dotenv import load_dotenv
 
 # veritas
+import veritas.profile
+import database_handling
 from veritas.plugin import jobschleuder
 from veritas.devicemanagement import napalm as dm
 from veritas.tools import tools
-import veritas.profile
 
 
 @jobschleuder("simple_config_backup")
@@ -96,8 +95,18 @@ def simple_config_backup(*args, **kwargs):
                 logger.info(f'writing startup config to {backup_dir}/{device}.startup.cfg')
                 f.write(startup_config)
                 success_startup = True
-        
-        update_operating_database(device, success_running, success_startup, kwargs.get('database'))
+
+        if running_config and startup_config:
+            logger.success(f'backup successful for {device}')
+        else:
+            logger.error(f'backup failed for {device}')
+
+        cursor = database_handling.connect_to_db(kwargs.get('database'))
+        database_handling.update_operating_database(
+            cursor,
+            device, 
+            success_running, 
+            success_startup)
 
 @jobschleuder("simple_config_backup:on_startup")
 def init():
@@ -125,39 +134,6 @@ def init():
 
     config['profile'] = profile
     return config
-
-def update_operating_database(device, running, startup, database):
-    result = running and startup
-    cursor = connect_to_db(database)
-
-    if result:
-        message = f'successfully backed up running and startup config for {device}'
-        sql = """INSERT INTO device_backups (device, last_attempt, last_success, message) VALUES(%s, now(), now(), %s)
-                 ON CONFLICT (device) DO UPDATE SET 
-                 (last_attempt, last_success, message) = (now(), now(), EXCLUDED.message)"""
-        cursor.execute(sql, (device, message))
-    else:
-        message = f'failed to backup running and/or startup config for {device} - {running} - {startup}'
-        sql = """INSERT INTO device_backups (device, last_attempt, message) VALUES(%s, now(), %s)
-                 ON CONFLICT (device) DO UPDATE SET 
-                 (last_attempt, message) = (now(), EXCLUDED.message)"""
-        cursor.execute(sql, (device, message))
-
-    # commit data
-    cursor.connection.commit()
-    cursor.close()
-
-def connect_to_db(database):
-    conn = psycopg2.connect(
-        host=database['host'],
-        database=database.get('database', 'operating'),
-        user=database['user'],
-        password=database['password'],
-        port=database.get('port', 5432)
-    )
-
-    cursor = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    return cursor
 
 def get_profile(profile, username, password, ssh_key=None):
     # Get the path to the directory this file is in
