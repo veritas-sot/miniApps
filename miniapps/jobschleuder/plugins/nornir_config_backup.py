@@ -78,7 +78,7 @@ def init():
                           debug=False)
 
     # load profiles
-    profile_config = tools.get_miniapp_config('script_bakery', BASEDIR, 'profiles.yaml')
+    profile_config = tools.get_miniapp_config('jobschleuder', BASEDIR, 'profiles.yaml')
     # save profile for later use
     profile = veritas.profile.Profile(
         profile_config=profile_config, 
@@ -99,7 +99,7 @@ def get_profile(profile, username, password, ssh_key=None):
         load_dotenv(os.path.join(BASEDIR, '.env'))
     else:
         logger.debug('no .env file found; trying to read local crypto parameter')
-        crypt_parameter = tools.get_miniapp_config('script_bakery', BASEDIR, "salt.yaml")
+        crypt_parameter = tools.get_miniapp_config('jobschleuder', BASEDIR, "salt.yaml")
         if not crypt_parameter:
             logger.error('no .env file found and no salt.yaml file found')
             return
