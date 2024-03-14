@@ -21,6 +21,7 @@ python-crontab = "^3.0.0"
 nornir-scrapli = "^2024.1.30"
 nornir-jinja2 = "^0.2.0"
 nornir-salt = "^0.21.0"
+schedule = "^1.2.1"
 
 [tool.poetry.group.dev.dependencies]
 myst-nb = "^1.0.0"
