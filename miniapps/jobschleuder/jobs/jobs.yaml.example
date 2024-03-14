@@ -23,4 +23,3 @@ jobs:
     schedule: every(2).seconds
     arguments:
       period: this_week
-  

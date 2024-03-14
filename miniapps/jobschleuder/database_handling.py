@@ -6,15 +6,16 @@ def update_operating_database(cursor, device, running, startup):
 
     if result:
         message = f'successfully backed up running and startup config for {device}'
-        sql = """INSERT INTO device_backups (device, last_attempt, last_success, message) VALUES(%s, now(), now(), %s)
+        sql = """INSERT INTO device_backups (device, last_attempt, last_success, status, message) VALUES(%s, now(), now(), TRUE, %s)
                  ON CONFLICT (device) DO UPDATE SET 
-                 (last_attempt, last_success, message) = (now(), now(), EXCLUDED.message)"""
+                 (last_attempt, last_success, status, message) = (now(), now(), TRUE, EXCLUDED.message)"""
         cursor.execute(sql, (device, message))
     else:
         message = f'failed to backup running and/or startup config for {device} - {running} - {startup}'
-        sql = """INSERT INTO device_backups (device, last_attempt, message) VALUES(%s, now(), %s)
+        sql = """INSERT INTO device_backups (device, last_attempt, status, message) VALUES(%s, now(), FALSE, %s)
                  ON CONFLICT (device) DO UPDATE SET 
-                 (last_attempt, message) = (now(), EXCLUDED.message)"""
+                 (last_attempt, status, message) = (now(), FALSE, EXCLUDED.message)"""
+        print(sql)
         cursor.execute(sql, (device, message))
 
     # commit data

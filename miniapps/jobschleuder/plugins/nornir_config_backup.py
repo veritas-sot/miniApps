@@ -39,10 +39,12 @@ def nornir_config_backup(*args, **kwargs):
     cursor = database_handling.connect_to_db(local_config_file.get('database'))
     for host in serialized_result:
         #print(json.dumps(serialized_result.get(host), indent=4))
-        overall_result = serialized_result.get(host)['backup_config']['failed']
-        get_config_result = serialized_result.get(host)['get_config']['failed']
-        write_startup_config = serialized_result.get(host)['write_startup_config']['failed']
-        write_running_config = serialized_result.get(host)['write_running_config']['failed']
+        host_result = serialized_result.get(host)
+        # we set the default to True because if we do not get the value something went wrong
+        overall_result = host_result.get('backup_config',{}).get('failed', True)
+        get_config_result = host_result.get('get_config',{}).get('failed', True)
+        write_startup_config = host_result.get('write_startup_config',{}).get('failed', True)
+        write_running_config = host_result.get('write_running_config',{}).get('failed', True)
 
         if overall_result or get_config_result or write_startup_config or write_running_config:
             logger.error(f'backup failed for {host}')

@@ -22,12 +22,12 @@ def summarize_backups(*args, **kwargs):
     period = kwargs.get('period','this_week')
     if period in ['today', 'this_week', 'last_week' ,'last_seven_days', 'this_month', 'this_year']:
         period = tools.get_date(period)
-        sql = """SELECT device, last_attempt, last_success, message, EXTRACT(EPOCH FROM (last_attempt - last_success)) as delta
+        sql = """SELECT device, last_attempt, last_success, status, message, EXTRACT(EPOCH FROM (last_attempt - last_success)) as delta
                 FROM device_backups 
                 WHERE last_attempt >= %s
         """
     else:
-        sql = """SELECT device, last_attempt, last_success, message, EXTRACT(EPOCH FROM (last_attempt - last_success)) as delta
+        sql = """SELECT device, last_attempt, last_success, status, message, EXTRACT(EPOCH FROM (last_attempt - last_success)) as delta
                 FROM device_backups 
                 WHERE last_attempt >= NOW() - INTERVAL %s
         """
@@ -47,20 +47,33 @@ def summarize_backups(*args, **kwargs):
         device = row.get('device')
         last_attempt = row.get('last_attempt')
         last_success = row.get('last_success')
+        status = row.get('status')
         message = row.get('message')
         delta = row.get('delta')
         details = {
             'device': device, 
             'last_attempt': last_attempt, 
-            'last_success': last_success, 
+            'last_success': last_success,
+            'status': status,
             'message': message,
             'delta': delta}
         
         if int(abs(delta)) < 60:
             details.update({'status': 'OK'})
-            logger.success(f'device: {device}, last_attempt: {last_attempt}, last_success: {last_success}, message: {message}, delta: {delta}')
+            logger.success(
+                f'device: {device}, ' \
+                f'last_attempt: {last_attempt}, ' \
+                f'last_success: {last_success}, ' \
+                f'status: {status}, ' \
+                f'message: {message}, ' \
+                f'delta: {delta}')
         else:
             details.update({'status': 'ERROR'})
-            logger.error(f'device: {device}, last_attempt: {last_attempt}, last_success: {last_success}, message: {message}, delta: {delta}')
-
+            logger.error(
+                f'device: {device}, ' \
+                f'last_attempt: {last_attempt}, ' \
+                f'last_success: {last_success}, ' \
+                f'status: {status}, ' \
+                f'message: {message}, ' \
+                f'delta: {delta}')
         response.append(details)
