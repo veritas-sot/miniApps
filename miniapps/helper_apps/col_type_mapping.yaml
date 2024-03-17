@@ -1,0 +1,9 @@
+---
+mapping:
+  country: country
+  city: city
+  branch: branch
+  building: building
+  floor: floor
+  section: section
+  room: room
