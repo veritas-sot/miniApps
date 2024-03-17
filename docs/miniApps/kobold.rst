@@ -467,6 +467,10 @@ Use
       usage: kobold.py import --filename FILENAME [--dry-run]
 
 to import the data. You can find some examples in the ./kobold/imports directory.
+
+It is not always possible to automatically recognize which endpoint to use. In this case you have to specify the endpoint by using
+--endpoint. The endpoint is the name of the nautobot module eg. racks.
+
 To see what the importer would do use --dry-run.
 
 A xlsx-sheet to import multiple devices looks like this:
