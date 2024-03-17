@@ -62,6 +62,7 @@ def main(args_list=None):
     #
 
     parser_import.add_argument('--filename', type=str, required=False, help="name of file to transform data")
+    parser_import.add_argument('--endpoint', type=str, required=False, help="name of endpoint to use")
     parser_import.add_argument('--dry-run', action='store_true', help='print updates only')
 
     #

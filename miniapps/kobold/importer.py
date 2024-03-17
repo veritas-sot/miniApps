@@ -235,6 +235,14 @@ def import_device_from_yaml(sot, devices, dry_run=False):
     for device in devices['devices']:
         import_hldm(sot, device, dry_run)
 
+def remove_empty_parents(d):
+    for k, v in list(d.items()):
+        if isinstance(v, dict):
+            remove_empty_parents(v)
+        if not v:
+            del d[k]
+    return d
+
 def import_data(sot, args):
     if args.filename and 'json' in args.filename:
         data = read_json(args.filename)
@@ -262,6 +270,7 @@ def import_data(sot, args):
         else:
             logger.error(f'unknown key {key}')
     elif 'xlsx' in args.filename:
+        logger.debug(f'reading xlsx file {args.filename}')
         data = read_xlsx(args.filename)
 
         #
@@ -282,20 +291,32 @@ def import_data(sot, args):
         #
         elif all(k in list(data[0].keys()) for k in ('Property','Value')):
              import_device_from_xlsx(sot, args.filename, args.dry_run)
-        
+
         #
-        # import nautobot default values like roles, tags and locations
+        # import nautobot default values like locations
         #
-        elif all(k in data[0] for k in ('name','description','parent.name','location_type.name','status.name')):
+        elif all(k in data[0] for k in ('name','parent.name','location_type.name','status.name')):
             # this is an xlsx file containing locations
             for item in data:
                 # we have to remove empty parents
                 # work with a copy of the dict and remove if parent == None
                 for key, value in dict(item).items():
-                    if key == 'parent' and not value['name']:
-                        del item['parent']
+                    if key == 'parent':
+                        # we have to remove empty parents
+                        d = remove_empty_parents(value)
+                        if len(d) == 0:
+                            del item['parent']
             success = sot.importer.add(properties=data, endpoint='locations')
             if success:
-                logger.info(f'{key} successfully imported')
+                logger.info('locations successfully imported')
             else:
                 logger.error('failed to import locations')
+        elif args.endpoint:
+            success = sot.importer.add(properties=data, endpoint=args.endpoint)
+            if success:
+                logger.info(f'{args.endpoint} successfully imported')
+            else:
+                logger.error(f'failed to import {args.endpoint}')
+        else:
+            logger.error('could not detect what data it is. Please use --endpoint to import data')
+    
