@@ -87,6 +87,7 @@ def main(args_list=None):
     parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
     parser.add_argument('--debug-veritas', help='debug veritas', action='store_true')
     parser.add_argument('--jobs', help='filename of jobs to schedule', default='./jobs/jobs.yaml', required=False)
+    parser.add_argument('--run-once', action='store_true', help='run job only once (now)')
 
     # parse arguments
     args = parser.parse_args()
@@ -138,7 +139,11 @@ def main(args_list=None):
         logger.bind(extra="schedule").debug(f'job_id: {job_id} schedule: {job_schedule}')
 
         match_every_at = every_at.match(job_schedule)
-        if match_every_at:
+        if args.run_once:
+            logger.bind(extra="run once").info(f'running job {job_id} now')
+            call_job(channel, rabbitmq_queue, job_preprocessing, job_cmd, job_arguments)
+
+        elif match_every_at:
             interval = match_every_at.group(1)
             if len(interval) == 0:
                 interval = 0
@@ -193,6 +198,9 @@ def main(args_list=None):
                        preprocessing=job_preprocessing,
                        cmd=job_cmd,
                        args=job_arguments)
+
+    if args.run_once:
+        return
 
     while True:
         schedule.run_pending()

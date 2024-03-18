@@ -20,7 +20,6 @@ def update_operating_database(cursor, device, running, startup):
 
     # commit data
     cursor.connection.commit()
-    cursor.close()
 
 def connect_to_db(database):
     
@@ -34,3 +33,6 @@ def connect_to_db(database):
 
     cursor = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
     return cursor
+
+def close_database(cursor):
+    cursor.close()
