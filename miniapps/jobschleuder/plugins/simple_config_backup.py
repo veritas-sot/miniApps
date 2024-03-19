@@ -58,19 +58,20 @@ def simple_config_backup(*args, **kwargs):
             conn = conn_to_device.open()
             if not conn:
                 logger.critical(f'failed to connect to {device}')
-                return
-            configs = conn.get_config()
-            conn.close()
-            startup_config = configs['startup']
-            running_config = configs['running']
+                startup_config = running_config = None
+            else:
+                configs = conn.get_config()
+                conn.close()
+                startup_config = configs['startup']
+                running_config = configs['running']
         except Exception as exc:
             logger.error(f'could not connect to {device_ip}')
-            startup_config = running_config = ""
+            startup_config = running_config = None
 
-        if len(startup_config) < 100:
+        if startup_config and len(startup_config) < 100:
             logger.error(f'failed to get startup config for {device}')
             startup_config = None
-        if len(running_config) < 100:
+        if running_config and len(running_config) < 100:
             logger.error(f'failed to get running config for {device}')
             running_config = None
 
