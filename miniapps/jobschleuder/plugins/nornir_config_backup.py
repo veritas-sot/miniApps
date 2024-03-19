@@ -23,10 +23,24 @@ def nornir_config_backup(*args, **kwargs):
     profile = kwargs.get('profile')
     local_config_file = kwargs.get('local_config_file')
 
+    connection_options={'napalm': {
+                          'extra': {
+                            'optional_args': {
+                                'conn_timeout':60, 'timeout': 60
+                            }
+                          }
+                        },
+                          'netmiko': {
+                            'timeout': 60,
+                            'auth_timeout': 60,
+                            'read_timeout': 60,
+                          }
+                        }
+
     # init nornir
     nr = sot.job.on(devices) \
-        .set(profile=profile, result='result', parse=False) \
-        .init_nornir()
+        .set(profile=profile, result='result', parse=False, logging={'log_file': 'session.log', 'level': 'DEBUG'}) \
+        .init_nornir(connection_options=connection_options)
 
     result = nr.run(
             name="backup_config", 
@@ -56,6 +70,10 @@ def nornir_config_backup(*args, **kwargs):
             host, 
             not write_running_config, 
             not write_startup_config)
+
+    cursor.close()
+    logger.info('job finished')
+    logger.info(' [*] Waiting for messages. To exit press CTRL+C')
 
 @jobschleuder("nornir_config_backup:on_startup")
 def init():
@@ -126,7 +144,9 @@ def backup_config(task, path, host_dirs, set_timestamp=False):
     logger.bind(extra=hostname).info('getting config')
     response = task.run(
         name="get_config",
-        task=napalm_get, getters=['config'], retrieve="all"
+        task=napalm_get, 
+        getters=['config'], 
+        retrieve="all"
     )
     running_config = response[0].result.get('config',{}).get('running')
     startup_config = response[0].result.get('config',{}).get('startup')

@@ -8,6 +8,10 @@ rabbitmq:
   host: __rabbitmq_host__
   port: __rabbitmq_port__
   queue: __rabbitmq_queue__
+  username: __rabbitmq_username__
+  password: __rabbitmq_password__
+  heartbeat: 60
+  blocked_connection_timeout: 120
 
 general:
   logging:
@@ -53,6 +57,9 @@ preprocessing:
   backup:
     plugin_dir: plugins
     plugin: preprocessing_backup
+  get_failed_backups:
+    plugin_dir: plugins
+    plugin: get_failed_backups
 
 git:
   backup:

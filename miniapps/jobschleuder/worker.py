@@ -29,7 +29,7 @@ def import_plugins(jobschleuder_config):
         except Exception as exc:
             logger.bind(extra='plugins').critical(f'failed to import plugin {package}.{subpackage}; got exception {exc}')
 
-def call_plugin(ch, method, properties, body, additional_args):
+def call_plugin(channel, method, properties, body, additional_args):
     
     # we need the plugin that we got from our additional args
     plugin = additional_args.get('plugin')
@@ -49,7 +49,7 @@ def call_plugin(ch, method, properties, body, additional_args):
     else:
         logger.error(f'could not call plugin command {cmd}')
     
-    ch.basic_ack(delivery_tag=method.delivery_tag)
+    channel.basic_ack(delivery_tag=method.delivery_tag)
 
 def main(args_list=None):
 
@@ -125,12 +125,12 @@ def main(args_list=None):
 
     # open rabbitmq
     channel, rabbitmq_queue = rabbitmq.open_rabbitmq(jobschleuder_config.get('rabbitmq'))
-    print(' [*] Waiting for messages. To exit press CTRL+C')
+    logger.info(' [*] Waiting for messages. To exit press CTRL+C')
 
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(
         queue=rabbitmq_queue, 
-        on_message_callback=lambda ch, method, properties, body: call_plugin(ch, method, properties, body, additional_args)
+        on_message_callback=lambda channel, method, properties, body: call_plugin(channel, method, properties, body, additional_args)
     )
     channel.start_consuming()
 

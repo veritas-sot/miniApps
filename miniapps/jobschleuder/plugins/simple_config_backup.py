@@ -45,23 +45,27 @@ def simple_config_backup(*args, **kwargs):
     if device:
         logger.bind(extra="backup").info(f'backup device: {device} ({device_ip})')
 
-        conn_to_device = dm.Devicemanagement(
-                ip=device_ip,
-                platform=platform,
-                manufacturer=manufacturer,
-                username=username,
-                password=password,
-                ssh_keyfile=ssh_keyfile,
-                port=tcp_port)
-        
-        conn = conn_to_device.open()
-        if not conn:
-            logger.critical(f'failed to connect to {device}')
-            return
-        configs = conn.get_config()
-        conn.close()
-        startup_config = configs['startup']
-        running_config = configs['running']
+        try:
+            conn_to_device = dm.Devicemanagement(
+                    ip=device_ip,
+                    platform=platform,
+                    manufacturer=manufacturer,
+                    username=username,
+                    password=password,
+                    ssh_keyfile=ssh_keyfile,
+                    port=tcp_port)
+            
+            conn = conn_to_device.open()
+            if not conn:
+                logger.critical(f'failed to connect to {device}')
+                return
+            configs = conn.get_config()
+            conn.close()
+            startup_config = configs['startup']
+            running_config = configs['running']
+        except Exception as exc:
+            logger.error(f'could not connect to {device_ip}')
+            startup_config = running_config = ""
 
         if len(startup_config) < 100:
             logger.error(f'failed to get startup config for {device}')
@@ -107,6 +111,7 @@ def simple_config_backup(*args, **kwargs):
             device, 
             success_running, 
             success_startup)
+        cursor.close()
 
 @jobschleuder("simple_config_backup:on_startup")
 def init():
