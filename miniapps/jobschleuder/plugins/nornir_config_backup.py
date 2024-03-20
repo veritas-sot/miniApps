@@ -34,6 +34,7 @@ def nornir_config_backup(*args, **kwargs):
                             'timeout': 60,
                             'auth_timeout': 60,
                             'read_timeout': 60,
+                            'read_timeout_override': 60
                           }
                         }
 

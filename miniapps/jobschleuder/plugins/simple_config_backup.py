@@ -54,8 +54,16 @@ def simple_config_backup(*args, **kwargs):
                     password=password,
                     ssh_keyfile=ssh_keyfile,
                     port=tcp_port)
-            
-            conn = conn_to_device.open()
+
+            # set optional args
+            optional_args = {
+                'conn_timeout':60, 
+                'timeout': 60, 
+                'read_timeout_override': 60, 
+                'session_log': 'session.log'
+            }
+
+            conn = conn_to_device.open(optional_args=optional_args)
             if not conn:
                 logger.critical(f'failed to connect to {device}')
                 startup_config = running_config = None
