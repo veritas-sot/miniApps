@@ -60,6 +60,9 @@ preprocessing:
   get_failed_backups:
     plugin_dir: plugins
     plugin: get_failed_backups
+  get_missing_devices:
+    plugin_dir: plugins
+    plugin: get_missing_devices
 
 git:
   backup:

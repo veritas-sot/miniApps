@@ -38,7 +38,7 @@ def call_job(channel, queue, preprocessing, cmd, args):
 
     jobs = None
     if preprocessing:
-        logger.bind(extra="preprocessing").debug(f'calling preprocessing {preprocessing}')
+        logger.bind(extra="preproc").debug(f'calling preprocessing {preprocessing}')
         try:
             plugin = veritas.plugin.Plugin()
             plugin_func = plugin.get_jobschleuder_plugin(preprocessing)
@@ -47,7 +47,7 @@ def call_job(channel, queue, preprocessing, cmd, args):
             else:
                 logger.error(f'could not call plugin command {cmd}')
         except Exception as exc:
-            logger.bind(extra="preprocessing").error(f'failed to call preprocessing {preprocessing}; got exception {exc}')
+            logger.bind(extra="preproc").error(f'failed to call preprocessing {preprocessing}; got exception {exc}')
             raise exc
     elif not jobs:
         jobs = [{'cmd': cmd, 'args': args}]
@@ -130,7 +130,7 @@ def main(args_list=None):
         job_id = job_description.get('id')
         job_schedule = job_description.get('schedule')
         job_cmd = job_description.get('job')
-        job_arguments = job_description.get('arguments')
+        job_arguments = job_description.get('arguments',{})
         job_preprocessing = job_description.get('preprocessing')
 
         if job_arguments.get('sot',False):

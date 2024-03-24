@@ -73,7 +73,7 @@ def simple_config_backup(*args, **kwargs):
                 startup_config = configs['startup']
                 running_config = configs['running']
         except Exception as exc:
-            logger.error(f'could not connect to {device_ip}')
+            logger.error(f'could not connect to {device_ip}; got exception {exc}')
             startup_config = running_config = None
 
         if startup_config and len(startup_config) < 100:

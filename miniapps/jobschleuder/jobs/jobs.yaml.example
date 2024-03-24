@@ -13,13 +13,27 @@ jobs:
   #       devices: ['labx.local']
   #       # pattern is a list of pattern to exclude
   #       pattern: ['.*xx']
+
   # - id: backup devices using nornir
   #   job: nornir_config_backup
   #   schedule: every(2).seconds
   #   arguments:
   #     where: name=lab.local
-  - id: summarize backup jobs
-    job: summarize_backups
-    schedule: every(2).seconds
-    arguments:
-      period: this_week
+
+  # - id: backup failed devices
+  #   job: simple_config_backup
+  #   schedule: every(2).seconds
+  #   preprocessing: get_failed_backups
+
+  # - id: backup missing devices
+  #   job: simple_config_backup
+  #   schedule: every(2).seconds
+  #   preprocessing: get_missing_devices
+  #   arguments:
+  #     limit: 500
+
+  # - id: summarize backup jobs
+  #   job: summarize_backups
+  #   schedule: every(2).seconds
+  #   arguments:
+  #     period: this_week
