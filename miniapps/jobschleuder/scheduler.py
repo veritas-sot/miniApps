@@ -24,7 +24,6 @@ from veritas.sot import sot as veritas_sot
 def import_plugins(jobschleuder_config):
     # import plugins
     plugins = jobschleuder_config.get('preprocessing',{})
-    print(plugins)
     for plugin in plugins:
         package = plugins.get(plugin).get('plugin_dir')
         subpackage = plugins.get(plugin).get('plugin')

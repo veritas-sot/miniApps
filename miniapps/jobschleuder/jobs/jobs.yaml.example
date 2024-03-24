@@ -25,12 +25,13 @@ jobs:
   #   schedule: every(2).seconds
   #   preprocessing: get_failed_backups
 
-  # - id: backup missing devices
-  #   job: simple_config_backup
-  #   schedule: every(2).seconds
-  #   preprocessing: get_missing_devices
-  #   arguments:
-  #     limit: 500
+  - id: backup missing devices
+    job: simple_config_backup
+    schedule: every(2).seconds
+    preprocessing: get_missing_devices
+    arguments:
+      limit: 500
+      where: "platform=ios"
 
   # - id: summarize backup jobs
   #   job: summarize_backups

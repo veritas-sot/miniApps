@@ -9,12 +9,15 @@ import database_handling
 
 @jobschleuder("get_missing_devices")
 def get_missing_devices(*args, **kwargs):
+
     # list of jobs to do
     jobs = []
     # the list of all nautobot devices
     all_devices = []
     # the list of backuped devices
     backuped_devices = {}
+    # get where statement
+    where = kwargs.get('where', '')
 
     # read config
     filename = './conf/get_missing_devices.yaml'
@@ -51,15 +54,16 @@ def get_missing_devices(*args, **kwargs):
 
     while True:
         devices = sot.select('name, platform, primary_ip4') \
-                         .using('nb.devices') \
-                         .set(limit=limit, offset=offset) \
-                         .where()
+                     .using('nb.devices') \
+                     .set(limit=limit, offset=offset) \
+                     .where(where)
+        print(devices)
         if len(devices) == 0:
             break
         logger.bind(extra="preproc").debug(f'got {len(devices)} devices')
         all_devices = all_devices + devices
         offset += len(devices)
-    
+
     for device in all_devices:
         name = device.get('name')
         primary_ip4 = device.get('primary_ip4',{}).get('address')
@@ -81,5 +85,5 @@ def get_missing_devices(*args, **kwargs):
                 }
             }
         )
-
+    return []
     return jobs
