@@ -120,6 +120,7 @@ device_backups: >
     last_attempt timestamp with time zone NOT NULL,
     last_success timestamp with time zone,
     status boolean NOT NULL,
+    retries integer DEFAULT 0,
     message character varying(255),
     PRIMARY KEY (device)
   )
