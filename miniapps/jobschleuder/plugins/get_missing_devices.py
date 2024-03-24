@@ -57,7 +57,7 @@ def get_missing_devices(*args, **kwargs):
                      .using('nb.devices') \
                      .set(limit=limit, offset=offset) \
                      .where(where)
-        print(devices)
+
         if len(devices) == 0:
             break
         logger.bind(extra="preproc").debug(f'got {len(devices)} devices')
@@ -85,5 +85,4 @@ def get_missing_devices(*args, **kwargs):
                 }
             }
         )
-    return []
     return jobs
