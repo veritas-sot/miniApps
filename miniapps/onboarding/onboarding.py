@@ -86,8 +86,8 @@ def onboard_device(sot, onboarding, args, device_facts, configparser, device_def
         logger.info(f'primary address is {primary_address}')
     else:
         # no primary interface found. Get IP of the device
-        primary_address = socket.gethostbyname(device_facts['device_ip'])
-        logger.info("no primary ip found using %s" % device_facts['device_ip'])
+        primary_address = socket.gethostbyname(device_facts['ip'])
+        logger.info("no primary ip found using %s" % device_facts['ip'])
 
     # now onboard the device
     if args.onboarding:
