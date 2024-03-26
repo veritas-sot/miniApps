@@ -116,15 +116,14 @@ class Worker(threading.Thread):
             except Empty:
                 return
             # do whatever work you have to do on work
-            self.check_device(self.credentials, 
-                              device)
+            self.check_device(self.credentials, device)
             self.queue.task_done()
 
 def read_snmp_credentials(sot, name_of_repo, path_to_repo, filename):
     # get SNMP credentials from SOT
     logger.debug(f'loading SNMP credentials from {path_to_repo}/{filename}')
     repo = veritas.repo.Repository(repo=name_of_repo, path=path_to_repo)
-    snmp_credentials_text= repo.get(filename)
+    snmp_credentials_text = repo.get(filename)
     return yaml.safe_load(snmp_credentials_text)
 
 @kobold("check_snmp_credentials")
@@ -141,7 +140,7 @@ def check_snmp_credentials(*args, **kwargs):
     use = arguments.get('use', [])
     excluded = arguments.get('excluded',{})
     name_of_repo = arguments.get('repo_name')
-    path_to_repo = arguments.get('repo_apth')
+    path_to_repo = arguments.get('repo_path')
     filename_repo = arguments.get('repo_filename')
 
     nn_hosts = 0
@@ -180,8 +179,8 @@ def check_snmp_credentials(*args, **kwargs):
         logger.info(f'added {nn_hosts} to our list of devices; skipped {skipped} devices')
         print('device list is empty; we have nothing to do')
         return
-    
-    if len(use) > 0:
+
+    if use and use != 'None' and len(use) > 0:
         used = use.split(',')
         credentials = {'snmp': []}
         for cred in read_snmp_credentials(sot, name_of_repo, path_to_repo, filename_repo)['snmp']:

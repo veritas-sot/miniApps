@@ -124,3 +124,44 @@ device_backups: >
     message character varying(255),
     PRIMARY KEY (device)
   )
+
+jobs: >
+  CREATE TABLE IF NOT EXISTS public.jobs
+  (
+    id serial,
+    job character varying(50) NOT NULL,
+    description character varying(100),
+    preprocessing character varying(50),
+    postprocessing character varying(50),
+    arguments json,
+    PRIMARY KEY (id)
+  )
+
+schedule_plan: >
+  CREATE TABLE public.schedule_plan
+  (
+    id serial,
+    job integer NOT NULL,
+    schedule character varying(100) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT job_id FOREIGN KEY (job)
+        REFERENCES public.jobs (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE
+        NOT VALID
+  )
+
+schedule: >
+  CREATE TABLE public.schedule
+  (
+    id serial,
+    job integer NOT NULL,
+    last_run timestamp without time zone NOT NULL,
+    next_run timestamp without time zone NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT job_id FOREIGN KEY (job)
+        REFERENCES public.schedule_plan (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO CASCADE
+        NOT VALID
+  )
