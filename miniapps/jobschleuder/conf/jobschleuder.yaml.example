@@ -13,6 +13,12 @@ rabbitmq:
   heartbeat: 60
   blocked_connection_timeout: 120
 
+database:
+  host: __database_host__
+  port: __database_port__
+  user: __database_user__
+  password: __database_password__
+
 general:
   logging:
     loglevel: info
@@ -60,9 +66,6 @@ preprocessing:
   get_failed_backups:
     plugin_dir: plugins
     plugin: get_failed_backups
-  get_missing_devices:
-    plugin_dir: plugins
-    plugin: get_missing_devices
 
 git:
   backup:
