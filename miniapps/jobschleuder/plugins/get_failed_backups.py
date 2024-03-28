@@ -16,6 +16,9 @@ def retry_failed_backups(*args, **kwargs):
     # list of jobs to do
     jobs = []
 
+    # Get the path to the directory this file is in
+    BASEDIR = os.path.abspath(os.path.dirname(__file__))
+
     # read config
     filename = './conf/get_failed_backups.yaml'
     with open(filename) as f:
@@ -31,7 +34,7 @@ def retry_failed_backups(*args, **kwargs):
                           debug=False)
 
     # open database connection
-    cursor = database_handling.connect_to_db(local_config_file.get('database'))
+    conn, cursor = database_handling.connect_to_db(local_config_file.get('database'))
 
     # get list of failed backups
     sql = """SELECT device FROM device_backups WHERE status = false"""
@@ -39,7 +42,7 @@ def retry_failed_backups(*args, **kwargs):
         cursor.execute(sql, )
         failed_devices = cursor.fetchall()
     except Exception as exc:
-        logger.error(f'failed to get data from database {exc}')
+        logger.error(f'failed to get data from journals {exc}')
         return []
 
     device_list = []
