@@ -39,8 +39,9 @@ def nornir_config_backup(*args, **kwargs):
                         }
 
     # init nornir
+    # add logging={'log_file': 'session.log', 'level': 'DEBUG'}) to log
     nr = sot.job.on(devices) \
-        .set(profile=profile, result='result', parse=False, logging={'log_file': 'session.log', 'level': 'DEBUG'}) \
+        .set(profile=profile, result='result', parse=False) \
         .init_nornir(connection_options=connection_options)
 
     result = nr.run(
@@ -51,7 +52,7 @@ def nornir_config_backup(*args, **kwargs):
     )
 
     serialized_result = ResultSerializer(result, add_details=True)
-    cursor = database_handling.connect_to_db(local_config_file.get('database'))
+    conn, cursor = database_handling.connect_to_db(local_config_file.get('database'))
     for host in serialized_result:
         #print(json.dumps(serialized_result.get(host), indent=4))
         host_result = serialized_result.get(host)

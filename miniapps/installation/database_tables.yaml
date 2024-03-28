@@ -138,7 +138,7 @@ jobs: >
   )
 
 schedule_plan: >
-  CREATE TABLE public.schedule_plan
+  CREATE TABLE public.registry
   (
     id serial,
     job integer NOT NULL,
@@ -156,12 +156,11 @@ schedule: >
   (
     id serial,
     job integer NOT NULL,
-    last_run timestamp without time zone NOT NULL,
     next_run timestamp without time zone NOT NULL,
     PRIMARY KEY (id),
     CONSTRAINT job_id FOREIGN KEY (job)
-        REFERENCES public.schedule_plan (id) MATCH SIMPLE
+        REFERENCES public.registry (id) MATCH SIMPLE
         ON UPDATE NO ACTION
-        ON DELETE NO CASCADE
+        ON DELETE CASCADE
         NOT VALID
   )

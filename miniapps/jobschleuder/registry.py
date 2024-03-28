@@ -16,12 +16,11 @@ def import_file(database, filename):
         return False
 
     logger.bind(extra="import").debug('connect to database')
-    cursor = database_handling.connect_to_db(database)
+    conn, cursor = database_handling.connect_to_db(database)
     
     logger.bind(extra="import").debug('removing old jobs')
-    sql = """DELETE FROM jobs; DELETE FROM registry; DELETE FROM schedule"""
+    sql = """DELETE FROM schedule; DELETE FROM registry; DELETE FROM jobs;"""
     cursor.execute(sql, )
-    
 
     for job in jobs.get('jobs',{}):
         task = job.get('job')

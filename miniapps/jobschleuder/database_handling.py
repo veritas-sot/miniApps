@@ -31,7 +31,7 @@ def connect_to_db(database):
     )
 
     cursor = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
-    return cursor
+    return conn, cursor
 
 def close_database(cursor):
     cursor.close()

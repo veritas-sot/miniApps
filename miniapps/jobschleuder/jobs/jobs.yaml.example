@@ -2,7 +2,7 @@
 jobs:
   # - id: backup devices
   #   job: simple_config_backup
-  #   schedule: every(2).seconds
+  #   schedule: "0 1 * * *"
   #   preprocessing: preprocessing_backup
   #   arguments:
   #     where: name=lab.local
@@ -16,25 +16,20 @@ jobs:
 
   # - id: backup devices using nornir
   #   job: nornir_config_backup
-  #   schedule: every(2).seconds
+  #   schedule: "0 1 * * *"
   #   arguments:
   #     where: name=lab.local
 
-  # - id: backup failed devices
+  # - id: retry failed backups
   #   job: simple_config_backup
-  #   schedule: every(2).seconds
+  #   schedule: "0 1 * * *"
   #   preprocessing: get_failed_backups
-
-  - id: backup missing devices
-    job: simple_config_backup
-    schedule: every(2).seconds
-    preprocessing: get_missing_devices
-    arguments:
-      limit: 500
-      where: "platform=ios"
+  #   arguments:
+  #     # if sot is set to true the preprocessing get the sot object in kwargs
+  #     sot: True
 
   # - id: summarize backup jobs
   #   job: summarize_backups
-  #   schedule: every(2).seconds
+  #   schedule: "0 1 * * *"
   #   arguments:
   #     period: this_week

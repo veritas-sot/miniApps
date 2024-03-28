@@ -60,7 +60,7 @@ def simple_config_backup(*args, **kwargs):
                 'conn_timeout':60, 
                 'timeout': 60, 
                 'read_timeout_override': 60, 
-                'session_log': 'session.log'
+                #'session_log': 'session.log'
             }
 
             conn = conn_to_device.open(optional_args=optional_args)
@@ -73,7 +73,7 @@ def simple_config_backup(*args, **kwargs):
                 startup_config = configs['startup']
                 running_config = configs['running']
         except Exception as exc:
-            logger.error(f'could not connect to {device_ip}; got exception {exc}')
+            logger.error(f'could not connect to {device_ip}')
             startup_config = running_config = None
 
         if startup_config and len(startup_config) < 100:
@@ -114,7 +114,7 @@ def simple_config_backup(*args, **kwargs):
         else:
             logger.error(f'backup failed for {device}')
 
-        cursor = database_handling.connect_to_db(kwargs.get('database'))
+        conn, cursor = database_handling.connect_to_db(kwargs.get('database'))
         database_handling.update_operating_database(
             cursor,
             device, 

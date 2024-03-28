@@ -51,27 +51,7 @@ def call_plugin(channel, method, properties, body, additional_args):
     
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
-def main(args_list=None):
-
-    # to disable warning if TLS warning is written to console
-    urllib3.disable_warnings()
-
-    parser = argparse.ArgumentParser()
-    # what to do
-    # what to do
-    parser.add_argument('--config', help='config file', default='jobschleuder.yaml')
-    # set the log level and handler
-    parser.add_argument('--loglevel', type=str, required=False, help="used loglevel")
-    parser.add_argument('--loghandler', type=str, required=False, help="used log handler")
-    # uuid is written to the database logger
-    parser.add_argument('--uuid', type=str, required=False, help="database logger uuid")
-    parser.add_argument('--debug-veritas', help='debug veritas', action='store_true')
-    parser.add_argument('--profile', help='profile', default='default')
-    parser.add_argument('--username', help='username', default=None)
-    parser.add_argument('--password', help='password', default=None)
-
-    # parse arguments
-    args = parser.parse_args()
+def worker(jobschleuder_config):
 
     # Get the path to the directory this file is in
     BASEDIR = os.path.abspath(os.path.dirname(__file__))
@@ -89,20 +69,6 @@ def main(args_list=None):
         os.environ['ENCRYPTIONKEY'] = crypt_parameter.get('crypto', {}).get('encryptionkey')
         os.environ['SALT'] = crypt_parameter.get('crypto', {}).get('salt')
         os.environ['ITERATIONS'] = str(crypt_parameter.get('crypto', {}).get('iterations'))
-
-    # read config
-    jobschleuder_config = tools.get_miniapp_config('jobschleuder', BASEDIR, args.config)
-    if not jobschleuder_config:
-        print('unable to read config')
-        sys.exit()
-
-    # create logger environment
-    veritas.logging.create_logger_environment(
-        config=jobschleuder_config, 
-        cfg_loglevel=args.loglevel,
-        cfg_loghandler=args.loghandler,
-        app='jobschleuder',
-        uuid=args.uuid)
 
     # import jobschleuder plugins
     import_plugins(jobschleuder_config)
@@ -134,5 +100,3 @@ def main(args_list=None):
     )
     channel.start_consuming()
 
-if __name__ == "__main__":
-    main()
